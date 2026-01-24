@@ -1,14 +1,18 @@
 {
   "name": "waifu-library",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "A desktop app to manage your program library",
   "type": "module",
   "main": "./out/main/index.js",
+  "author": "Your Name",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "vue-tsc -b && electron-vite build",
     "preview": "electron-vite preview",
-    "start": "electron-vite preview"
+    "start": "electron-vite preview",
+    "build:win": "npm run build && electron-builder --win",
+    "build:dir": "npm run build && electron-builder --win --dir"
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.13.0",
@@ -24,9 +28,35 @@
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/tsconfig": "^0.8.1",
     "electron": "^40.0.0",
+    "electron-builder": "^26.4.0",
     "electron-vite": "^5.0.0",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
     "vue-tsc": "^3.1.4"
+  },
+  "build": {
+    "appId": "com.waifu-library.app",
+    "productName": "Waifu Library",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

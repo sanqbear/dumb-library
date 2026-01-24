@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, ref } from 'vue'
+import { h, ref, onMounted, onUnmounted } from 'vue'
 import { NDataTable, NButton, NIcon, NSpace, NImage, NTag, useMessage, useDialog } from 'naive-ui'
 import { Play as PlayIcon, Create as EditIcon, Trash as DeleteIcon } from '@vicons/ionicons5'
 import type { DataTableColumns } from 'naive-ui'
@@ -13,6 +13,21 @@ const dialog = useDialog()
 
 const showEditDialog = ref(false)
 const editingProgram = ref<Program | null>(null)
+const tableMaxHeight = ref(500)
+
+const updateTableHeight = () => {
+  // Calculate available height (viewport - header - padding)
+  tableMaxHeight.value = window.innerHeight - 120
+}
+
+onMounted(() => {
+  updateTableHeight()
+  window.addEventListener('resize', updateTableHeight)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateTableHeight)
+})
 
 const getDisplayImage = (program: Program): string => {
   if (program.thumbnailPath) return `file://${program.thumbnailPath}`
@@ -109,13 +124,6 @@ const columns: DataTableColumns<Program> = [
     }
   },
   {
-    title: 'Path',
-    key: 'executablePath',
-    ellipsis: {
-      tooltip: true
-    }
-  },
-  {
     title: 'Actions',
     key: 'actions',
     width: 150,
@@ -161,8 +169,7 @@ const columns: DataTableColumns<Program> = [
       :row-key="(row: Program) => row.id"
       :bordered="false"
       striped
-      flex-height
-      style="height: 100%"
+      :max-height="tableMaxHeight"
     />
 
     <EditProgramDialog 
@@ -175,5 +182,6 @@ const columns: DataTableColumns<Program> = [
 <style scoped>
 .library-list {
   height: 100%;
+  overflow: hidden;
 }
 </style>

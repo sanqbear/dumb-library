@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, h } from 'vue'
-import { NCard, NImage, NButton, NIcon, NDropdown, NTag, NSpace, useMessage, useDialog } from 'naive-ui'
+import { NCard, NImage, NButton, NIcon, NDropdown, NTag, useMessage, useDialog } from 'naive-ui'
 import { 
   Play as PlayIcon, 
   EllipsisVertical as MoreIcon,
