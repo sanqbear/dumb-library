@@ -172,11 +172,21 @@ const handleDelete = () => {
     <!-- Info area -->
     <div class="card-info">
       <div class="card-title truncate">{{ program.title }}</div>
-      <NSpace size="small" v-if="program.category || program.tags.length > 0">
+      <div class="card-meta" v-if="program.category || program.tags.length > 0">
         <NTag v-if="program.category" size="small" type="info">
           {{ program.category }}
         </NTag>
-      </NSpace>
+        <NTag 
+          v-for="tag in program.tags.slice(0, 2)" 
+          :key="tag" 
+          size="small"
+        >
+          {{ tag }}
+        </NTag>
+        <NTag v-if="program.tags.length > 2" size="small" :bordered="false">
+          +{{ program.tags.length - 2 }}
+        </NTag>
+      </div>
     </div>
 
     <!-- Edit Dialog -->
@@ -243,6 +253,12 @@ const handleDelete = () => {
 .card-title {
   font-weight: 500;
   font-size: 0.9rem;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 </style>

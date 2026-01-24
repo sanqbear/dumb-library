@@ -37,12 +37,34 @@ const categoryOptions = computed(() =>
   }))
 )
 
+// Tag options for filter
+const tagOptions = computed(() => 
+  libraryStore.allTags.map(tag => ({
+    label: tag,
+    value: tag
+  }))
+)
+
+// Check if any filter is active
+const hasActiveFilters = computed(() => 
+  libraryStore.selectedCategory !== null || libraryStore.selectedTags.length > 0
+)
+
 const handleSearch = (value: string) => {
   libraryStore.setSearchQuery(value)
 }
 
 const handleCategoryChange = (value: string | null) => {
   libraryStore.setSelectedCategory(value === '' ? null : value)
+}
+
+const handleTagsChange = (values: string[]) => {
+  libraryStore.setSelectedTags(values)
+}
+
+const handleClearFilters = () => {
+  libraryStore.clearFilters()
+  showFilters.value = false
 }
 
 const handleAddProgram = () => {
@@ -71,7 +93,7 @@ const handleAddProgram = () => {
 
       <NPopover trigger="click" placement="bottom" v-model:show="showFilters">
         <template #trigger>
-          <NButton quaternary circle>
+          <NButton quaternary circle :type="hasActiveFilters ? 'primary' : 'default'">
             <template #icon>
               <NIcon :component="FilterIcon" />
             </template>
@@ -87,6 +109,22 @@ const handleAddProgram = () => {
               clearable
               @update:value="handleCategoryChange"
             />
+          </div>
+          <div class="filter-section" v-if="tagOptions.length > 0">
+            <label>Tags</label>
+            <NSelect
+              :value="libraryStore.selectedTags"
+              :options="tagOptions"
+              placeholder="Select tags"
+              multiple
+              clearable
+              @update:value="handleTagsChange"
+            />
+          </div>
+          <div class="filter-actions" v-if="hasActiveFilters">
+            <NButton size="small" quaternary @click="handleClearFilters">
+              Clear Filters
+            </NButton>
           </div>
         </div>
       </NPopover>
@@ -208,11 +246,27 @@ const handleAddProgram = () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-bottom: 12px;
+}
+
+.filter-section:last-of-type {
+  margin-bottom: 0;
 }
 
 .filter-section label {
   font-size: 0.875rem;
   font-weight: 500;
   color: #a1a1aa;
+}
+
+.filter-actions {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #3f3f46;
+  text-align: right;
+}
+
+.light-theme .filter-actions {
+  border-top-color: #e4e4e7;
 }
 </style>
