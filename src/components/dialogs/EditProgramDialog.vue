@@ -349,68 +349,41 @@ const handleDelete = () => {
     title="Edit Program"
     :bordered="false"
     size="medium"
-    :style="{ width: '480px' }"
+    :style="{ width: '520px' }"
     :mask-closable="false"
   >
     <NForm label-placement="top" v-if="program">
       <!-- Thumbnail section -->
-      <div class="media-section">
-        <div class="media-label">Thumbnail (600×900)</div>
+      <div
+        class="media-section"
+        :class="{ 'is-drag-over': thumbInput.isDragOver.value }"
+        @dragenter="thumbInput.onDragEnter"
+        @dragover="thumbInput.onDragOver"
+        @dragleave="thumbInput.onDragLeave"
+        @drop="handleThumbDrop"
+      >
+        <div class="media-label">썸네일 (600×900)</div>
         <div class="media-row">
-          <div
-            class="thumbnail-preview"
-            :class="{ 'is-drag-over': thumbInput.isDragOver.value }"
-            @dragenter="thumbInput.onDragEnter"
-            @dragover="thumbInput.onDragOver"
-            @dragleave="thumbInput.onDragLeave"
-            @drop="handleThumbDrop"
-          >
+          <div class="thumbnail-preview" :class="{ 'is-empty': !thumbnailPreview }">
             <NImage
               v-if="thumbnailPreview"
               :src="thumbnailPreview"
               object-fit="cover"
-              width="120"
-              height="180"
+              width="160"
+              height="240"
               preview-disabled
             />
             <div v-else class="thumbnail-placeholder">
-              <NIcon :component="ImageIcon" :size="32" />
-              <span>드래그 또는 선택</span>
+              <NIcon :component="ImageIcon" :size="40" />
+              <span>여기로 드래그</span>
             </div>
           </div>
           <div class="media-actions">
-            <NButton @click="handleSelectThumbnail" size="small">
+            <NButton @click="handleSelectThumbnail" block>
               <template #icon><NIcon :component="ImageIcon" /></template>
-              {{ thumbnailPath ? 'Change' : 'Select' }} Image
+              파일에서 선택
             </NButton>
-            <NButton
-              v-if="steamAppId !== null"
-              @click="handleOpenArtworkDialog"
-              size="small"
-              :disabled="isSubmitting"
-            >
-              <template #icon><NIcon :component="CloudDownloadIcon" /></template>
-              Steam 아트워크 선택
-            </NButton>
-            <NButton
-              v-if="steamAppId !== null"
-              @click="handleSteamRedownload"
-              size="small"
-              :disabled="isSubmitting"
-              quaternary
-            >
-              기본 커버로 복원
-            </NButton>
-            <NButton
-              v-if="thumbnailPath"
-              @click="handleRemoveThumbnail"
-              size="small"
-              quaternary
-            >
-              <template #icon><NIcon :component="CloseIcon" /></template>
-              Remove
-            </NButton>
-            <NInputGroup size="small">
+            <NInputGroup>
               <NInput
                 v-model:value="thumbUrl"
                 placeholder="이미지 URL"
@@ -418,66 +391,76 @@ const handleDelete = () => {
               />
               <NButton
                 type="primary"
-                size="small"
                 :disabled="!thumbUrl.trim() || thumbInput.isFetching.value"
                 :loading="thumbInput.isFetching.value"
                 @click="handleFetchThumbUrl"
               >
                 <template #icon><NIcon :component="LinkIcon" /></template>
+                가져오기
               </NButton>
             </NInputGroup>
+            <NButton
+              v-if="steamAppId !== null"
+              @click="handleOpenArtworkDialog"
+              :disabled="isSubmitting"
+              block
+            >
+              <template #icon><NIcon :component="CloudDownloadIcon" /></template>
+              Steam 아트워크 선택
+            </NButton>
+            <NButton
+              v-if="steamAppId !== null"
+              @click="handleSteamRedownload"
+              :disabled="isSubmitting"
+              quaternary
+              block
+            >
+              기본 커버로 복원
+            </NButton>
+            <NButton
+              v-if="thumbnailPath"
+              @click="handleRemoveThumbnail"
+              quaternary
+              block
+            >
+              <template #icon><NIcon :component="CloseIcon" /></template>
+              제거
+            </NButton>
           </div>
         </div>
       </div>
 
       <!-- Icon section -->
-      <div class="media-section">
-        <div class="media-label">Icon (256×256)</div>
+      <div
+        class="media-section"
+        :class="{ 'is-drag-over': iconInput.isDragOver.value }"
+        @dragenter="iconInput.onDragEnter"
+        @dragover="iconInput.onDragOver"
+        @dragleave="iconInput.onDragLeave"
+        @drop="handleIconDrop"
+      >
+        <div class="media-label">아이콘 (256×256)</div>
         <div class="media-row">
-          <div
-            class="icon-preview"
-            :class="{ 'is-drag-over': iconInput.isDragOver.value }"
-            @dragenter="iconInput.onDragEnter"
-            @dragover="iconInput.onDragOver"
-            @dragleave="iconInput.onDragLeave"
-            @drop="handleIconDrop"
-          >
+          <div class="icon-preview" :class="{ 'is-empty': !iconPreview }">
             <NImage
               v-if="iconPreview"
               :src="iconPreview"
               object-fit="cover"
-              width="80"
-              height="80"
+              width="120"
+              height="120"
               preview-disabled
             />
             <div v-else class="icon-placeholder">
-              <NIcon :component="ImageIcon" :size="24" />
+              <NIcon :component="ImageIcon" :size="32" />
+              <span>여기로 드래그</span>
             </div>
           </div>
           <div class="media-actions">
-            <NButton @click="handleSelectIcon" size="small">
+            <NButton @click="handleSelectIcon" block>
               <template #icon><NIcon :component="ImageIcon" /></template>
-              {{ iconPath ? 'Change' : 'Select' }} Image
+              파일에서 선택
             </NButton>
-            <NButton
-              v-if="canReextractIcon"
-              @click="handleReextractIcon"
-              size="small"
-              :disabled="isSubmitting"
-            >
-              <template #icon><NIcon :component="RefreshIcon" /></template>
-              Re-extract from .exe
-            </NButton>
-            <NButton
-              v-if="iconPath"
-              @click="handleRemoveIcon"
-              size="small"
-              quaternary
-            >
-              <template #icon><NIcon :component="CloseIcon" /></template>
-              Remove
-            </NButton>
-            <NInputGroup size="small">
+            <NInputGroup>
               <NInput
                 v-model:value="iconUrl"
                 placeholder="이미지 URL"
@@ -485,14 +468,32 @@ const handleDelete = () => {
               />
               <NButton
                 type="primary"
-                size="small"
                 :disabled="!iconUrl.trim() || iconInput.isFetching.value"
                 :loading="iconInput.isFetching.value"
                 @click="handleFetchIconUrl"
               >
                 <template #icon><NIcon :component="LinkIcon" /></template>
+                가져오기
               </NButton>
             </NInputGroup>
+            <NButton
+              v-if="canReextractIcon"
+              @click="handleReextractIcon"
+              :disabled="isSubmitting"
+              block
+            >
+              <template #icon><NIcon :component="RefreshIcon" /></template>
+              .exe에서 재추출
+            </NButton>
+            <NButton
+              v-if="iconPath"
+              @click="handleRemoveIcon"
+              quaternary
+              block
+            >
+              <template #icon><NIcon :component="CloseIcon" /></template>
+              제거
+            </NButton>
           </div>
         </div>
       </div>
@@ -580,10 +581,19 @@ const handleDelete = () => {
   padding: 12px 16px;
   background-color: #3f3f46;
   border-radius: 8px;
+  transition: box-shadow 0.15s ease;
 }
 
 :global(.light-theme) .media-section {
   background-color: #f4f4f5;
+}
+
+.media-section.is-drag-over {
+  box-shadow: 0 0 0 2px #e87ea1;
+}
+
+:global(.light-theme) .media-section.is-drag-over {
+  box-shadow: 0 0 0 2px #db2777;
 }
 
 .media-label {
@@ -611,28 +621,38 @@ const handleDelete = () => {
   overflow: hidden;
   flex-shrink: 0;
   position: relative;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .thumbnail-preview {
-  width: 120px;
-  height: 180px;
+  width: 160px;
+  height: 240px;
 }
 
 .icon-preview {
-  width: 80px;
-  height: 80px;
+  width: 120px;
+  height: 120px;
 }
 
-.thumbnail-preview.is-drag-over,
-.icon-preview.is-drag-over {
-  box-shadow: 0 0 0 2px #e87ea1;
-  transform: scale(1.02);
+.thumbnail-preview.is-empty,
+.icon-preview.is-empty {
+  border: 2px dashed #52525b;
+  background-color: #27272a;
 }
 
-:global(.light-theme) .thumbnail-preview.is-drag-over,
-:global(.light-theme) .icon-preview.is-drag-over {
-  box-shadow: 0 0 0 2px #db2777;
+:global(.light-theme) .thumbnail-preview.is-empty,
+:global(.light-theme) .icon-preview.is-empty {
+  border-color: #d4d4d8;
+  background-color: #e4e4e7;
+}
+
+.media-section.is-drag-over .thumbnail-preview.is-empty,
+.media-section.is-drag-over .icon-preview.is-empty {
+  border-color: #e87ea1;
+}
+
+:global(.light-theme) .media-section.is-drag-over .thumbnail-preview.is-empty,
+:global(.light-theme) .media-section.is-drag-over .icon-preview.is-empty {
+  border-color: #db2777;
 }
 
 .thumbnail-placeholder,
@@ -643,21 +663,16 @@ const handleDelete = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  background-color: #27272a;
+  gap: 10px;
   color: #71717a;
-  font-size: 0.75rem;
-}
-
-:global(.light-theme) .thumbnail-placeholder,
-:global(.light-theme) .icon-placeholder {
-  background-color: #e4e4e7;
+  font-size: 0.8rem;
+  pointer-events: none;
 }
 
 .media-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   justify-content: center;
   flex: 1;
   min-width: 0;

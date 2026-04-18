@@ -181,64 +181,63 @@ const handleCancel = () => {
     title="Add Program"
     :bordered="false"
     size="medium"
-    :style="{ width: '480px' }"
+    :style="{ width: '520px' }"
     :mask-closable="false"
   >
     <NForm label-placement="top">
       <!-- Thumbnail -->
-      <div class="thumbnail-section">
-        <div
-          class="thumbnail-preview"
-          :class="{ 'is-drag-over': thumbInput.isDragOver.value }"
-          @dragenter="thumbInput.onDragEnter"
-          @dragover="thumbInput.onDragOver"
-          @dragleave="thumbInput.onDragLeave"
-          @drop="handleThumbDrop"
-        >
+      <div
+        class="thumbnail-section"
+        :class="{ 'is-drag-over': thumbInput.isDragOver.value }"
+        @dragenter="thumbInput.onDragEnter"
+        @dragover="thumbInput.onDragOver"
+        @dragleave="thumbInput.onDragLeave"
+        @drop="handleThumbDrop"
+      >
+        <div class="thumbnail-preview" :class="{ 'is-empty': !thumbnailPreview }">
           <NImage
             v-if="thumbnailPreview"
             :src="thumbnailPreview"
             object-fit="cover"
-            width="120"
-            height="180"
+            width="160"
+            height="240"
             preview-disabled
           />
           <div v-else class="thumbnail-placeholder">
-            <NIcon :component="ImageIcon" :size="32" />
-            <span>드래그 또는 선택</span>
+            <NIcon :component="ImageIcon" :size="40" />
+            <span>여기로 드래그</span>
           </div>
         </div>
         <div class="thumbnail-actions">
-          <NButton @click="handleSelectThumbnail" size="small">
+          <NButton @click="handleSelectThumbnail" block>
             <template #icon><NIcon :component="ImageIcon" /></template>
-            Select Image
+            파일에서 선택
           </NButton>
-          <NButton
-            v-if="thumbnailPath"
-            @click="handleRemoveThumbnail"
-            size="small"
-            quaternary
-          >
-            <template #icon><NIcon :component="CloseIcon" /></template>
-            Remove
-          </NButton>
-          <NInputGroup size="small">
+          <NInputGroup>
             <NInput
               v-model:value="thumbUrl"
               placeholder="이미지 URL"
-              :loading="thumbInput.isFetching.value"
               @keydown.enter.prevent="handleFetchThumbUrl"
             />
             <NButton
               type="primary"
-              size="small"
               :disabled="!thumbUrl.trim() || thumbInput.isFetching.value"
               :loading="thumbInput.isFetching.value"
               @click="handleFetchThumbUrl"
             >
               <template #icon><NIcon :component="LinkIcon" /></template>
+              가져오기
             </NButton>
           </NInputGroup>
+          <NButton
+            v-if="thumbnailPath"
+            @click="handleRemoveThumbnail"
+            quaternary
+            block
+          >
+            <template #icon><NIcon :component="CloseIcon" /></template>
+            제거
+          </NButton>
         </div>
       </div>
 
@@ -308,29 +307,46 @@ const handleCancel = () => {
   padding: 16px;
   background-color: #3f3f46;
   border-radius: 8px;
+  transition: box-shadow 0.15s ease;
 }
 
-.light-theme .thumbnail-section {
+:global(.light-theme) .thumbnail-section {
   background-color: #f4f4f5;
 }
 
+.thumbnail-section.is-drag-over {
+  box-shadow: 0 0 0 2px #e87ea1;
+}
+
+:global(.light-theme) .thumbnail-section.is-drag-over {
+  box-shadow: 0 0 0 2px #db2777;
+}
+
 .thumbnail-preview {
-  width: 120px;
-  height: 180px;
+  width: 160px;
+  height: 240px;
   border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0;
   position: relative;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
-.thumbnail-preview.is-drag-over {
-  box-shadow: 0 0 0 2px #e87ea1;
-  transform: scale(1.02);
+.thumbnail-preview.is-empty {
+  border: 2px dashed #52525b;
+  background-color: #27272a;
 }
 
-:global(.light-theme) .thumbnail-preview.is-drag-over {
-  box-shadow: 0 0 0 2px #db2777;
+:global(.light-theme) .thumbnail-preview.is-empty {
+  border-color: #d4d4d8;
+  background-color: #e4e4e7;
+}
+
+.thumbnail-section.is-drag-over .thumbnail-preview.is-empty {
+  border-color: #e87ea1;
+}
+
+:global(.light-theme) .thumbnail-section.is-drag-over .thumbnail-preview.is-empty {
+  border-color: #db2777;
 }
 
 .thumbnail-placeholder {
@@ -340,20 +356,22 @@ const handleCancel = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  background-color: #27272a;
+  gap: 10px;
   color: #71717a;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+  pointer-events: none;
 }
 
-.light-theme .thumbnail-placeholder {
-  background-color: #e4e4e7;
+:global(.light-theme) .thumbnail-placeholder {
+  color: #71717a;
 }
 
 .thumbnail-actions {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   justify-content: center;
 }
 </style>
