@@ -9,6 +9,7 @@ import {
   NSpace,
   NInput,
   NInputNumber,
+  NIcon,
   NForm,
   NFormItem,
   NEmpty,
@@ -16,6 +17,7 @@ import {
   NAlert,
   useMessage
 } from 'naive-ui'
+import { Search as SearchIcon } from '@vicons/ionicons5'
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useThemeClass } from '../../composables/useThemeClass'
@@ -38,11 +40,21 @@ const isScanning = ref(false)
 const isSubmitting = ref(false)
 const games = ref<SteamGame[]>([])
 const checkedAppIds = ref<DataTableRowKey[]>([])
+const searchQuery = ref('')
 
 const manualAppId = ref<number | null>(null)
 const manualName = ref('')
 
 const rowKey = (row: SteamGame) => row.appId
+
+// Filter games by case-insensitive substring match on the name.
+// Selection state is kept across filter changes — DataTable preserves
+// rowKeys that aren't currently in `data` and we merge them back on submit.
+const filteredGames = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return games.value
+  return games.value.filter(g => g.name.toLowerCase().includes(q))
+})
 
 const columns: DataTableColumns<SteamGame> = [
   { type: 'selection' },
@@ -70,6 +82,7 @@ const scan = async () => {
 watch(() => props.show, (v) => {
   if (v) {
     checkedAppIds.value = []
+    searchQuery.value = ''
     manualAppId.value = null
     manualName.value = ''
     activeTab.value = 'installed'
@@ -164,12 +177,27 @@ const handleCancel = () => {
               </NSpace>
             </div>
             <div v-else-if="!isScanning" class="games-table">
+              <div class="games-toolbar">
+                <NInput
+                  v-model:value="searchQuery"
+                  placeholder="이름으로 검색"
+                  clearable
+                  size="small"
+                >
+                  <template #prefix>
+                    <NIcon :component="SearchIcon" />
+                  </template>
+                </NInput>
+                <div class="games-count">
+                  {{ searchQuery.trim() ? `${filteredGames.length} / ${games.length}` : `${games.length}개` }}
+                </div>
+              </div>
               <NDataTable
                 :columns="columns"
-                :data="games"
+                :data="filteredGames"
                 :row-key="rowKey"
                 v-model:checked-row-keys="checkedAppIds"
-                :max-height="400"
+                :max-height="380"
                 size="small"
                 :bordered="false"
               />
@@ -247,6 +275,28 @@ const handleCancel = () => {
 
 .games-table {
   margin-top: 4px;
+}
+
+.games-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.games-toolbar :deep(.n-input) {
+  flex: 1;
+}
+
+.games-count {
+  font-size: 0.8rem;
+  color: #a1a1aa;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.light-theme .games-count {
+  color: #52525b;
 }
 
 .manual-help {
