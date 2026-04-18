@@ -160,7 +160,7 @@ const handleCardClick = () => {
   padding-left: 4px; /* optical-center the play triangle */
 }
 
-:global(.light-theme) .launch-btn {
+.light-theme .launch-btn {
   background-color: #db2777;
 }
 
@@ -170,7 +170,7 @@ const handleCardClick = () => {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
-:global(.light-theme) .launch-btn:hover {
+.light-theme .launch-btn:hover {
   background-color: #ec4899;
 }
 
@@ -179,7 +179,7 @@ const handleCardClick = () => {
   background-color: #c96081;
 }
 
-:global(.light-theme) .launch-btn:active {
+.light-theme .launch-btn:active {
   background-color: #be185d;
 }
 

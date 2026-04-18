@@ -16,6 +16,7 @@ import {
 import { FolderOpen as FolderIcon, Image as ImageIcon, Close as CloseIcon, LinkOutline as LinkIcon } from '@vicons/ionicons5'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useImageInput } from '../../composables/useImageInput'
+import { useThemeClass } from '../../composables/useThemeClass'
 import ImageCropDialog from './ImageCropDialog.vue'
 
 const props = defineProps<{
@@ -28,6 +29,7 @@ const emit = defineEmits<{
 
 const libraryStore = useLibraryStore()
 const message = useMessage()
+const themeClass = useThemeClass()
 
 // Drag&drop + URL fetch shared helpers
 const thumbInput = useImageInput()
@@ -184,6 +186,7 @@ const handleCancel = () => {
     :style="{ width: '520px' }"
     :mask-closable="false"
   >
+    <div :class="themeClass">
     <NForm label-placement="top">
       <!-- Thumbnail -->
       <div
@@ -272,6 +275,7 @@ const handleCancel = () => {
         <NDynamicTags v-model:value="tags" />
       </NFormItem>
     </NForm>
+    </div>
 
     <template #footer>
       <NSpace justify="end">
@@ -310,7 +314,7 @@ const handleCancel = () => {
   transition: box-shadow 0.15s ease;
 }
 
-:global(.light-theme) .thumbnail-section {
+.light-theme .thumbnail-section {
   background-color: #f4f4f5;
 }
 
@@ -318,7 +322,7 @@ const handleCancel = () => {
   box-shadow: 0 0 0 2px #e87ea1;
 }
 
-:global(.light-theme) .thumbnail-section.is-drag-over {
+.light-theme .thumbnail-section.is-drag-over {
   box-shadow: 0 0 0 2px #db2777;
 }
 
@@ -336,7 +340,7 @@ const handleCancel = () => {
   background-color: #27272a;
 }
 
-:global(.light-theme) .thumbnail-preview.is-empty {
+.light-theme .thumbnail-preview.is-empty {
   border-color: #d4d4d8;
   background-color: #e4e4e7;
 }
@@ -345,7 +349,7 @@ const handleCancel = () => {
   border-color: #e87ea1;
 }
 
-:global(.light-theme) .thumbnail-section.is-drag-over .thumbnail-preview.is-empty {
+.light-theme .thumbnail-section.is-drag-over .thumbnail-preview.is-empty {
   border-color: #db2777;
 }
 
@@ -362,7 +366,7 @@ const handleCancel = () => {
   pointer-events: none;
 }
 
-:global(.light-theme) .thumbnail-placeholder {
+.light-theme .thumbnail-placeholder {
   color: #71717a;
 }
 

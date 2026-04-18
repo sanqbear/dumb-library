@@ -3,6 +3,7 @@ import { ref, watch, shallowRef } from 'vue'
 import { NModal, NButton, NSpace, useMessage } from 'naive-ui'
 import { Cropper } from 'vue-advanced-cropper'
 import 'vue-advanced-cropper/dist/style.css'
+import { useThemeClass } from '../../composables/useThemeClass'
 
 interface CropperResultLike {
   canvas?: HTMLCanvasElement
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
+const themeClass = useThemeClass()
 
 // shallowRef — Cropper instance holds DOM and reactivity isn't needed
 const cropperRef = shallowRef<CropperApi | null>(null)
@@ -92,7 +94,7 @@ const handleCancel = () => {
     :style="{ width: '640px' }"
     :mask-closable="false"
   >
-    <div class="cropper-box">
+    <div class="cropper-box" :class="themeClass">
       <Cropper
         v-if="show && source"
         ref="cropperRef"
@@ -128,8 +130,8 @@ const handleCancel = () => {
   overflow: hidden;
 }
 
-:global(.light-theme) .cropper-box {
-  background-color: #27272a;
+.cropper-box.light-theme {
+  background-color: #e4e4e7;
 }
 
 .cropper {

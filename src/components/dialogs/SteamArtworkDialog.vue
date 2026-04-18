@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { NModal, NButton, NSpace, NSpin, useMessage } from 'naive-ui'
+import { useThemeClass } from '../../composables/useThemeClass'
 
 interface ArtworkOption {
   key: string
@@ -57,6 +58,7 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
+const themeClass = useThemeClass()
 
 // availability: 'loading' | 'ok' | 'error' per option key
 const availability = ref<Record<string, 'loading' | 'ok' | 'error'>>({})
@@ -113,7 +115,7 @@ const handleCancel = () => {
     :style="{ width: '680px' }"
     :mask-closable="false"
   >
-    <div class="artwork-grid" v-if="appId !== null">
+    <div class="artwork-grid" :class="themeClass" v-if="appId !== null">
       <div
         v-for="option in ARTWORK_OPTIONS"
         :key="option.key"
@@ -170,7 +172,7 @@ const handleCancel = () => {
   flex-direction: column;
 }
 
-:global(.light-theme) .artwork-card {
+.artwork-grid.light-theme .artwork-card {
   background-color: #f4f4f5;
 }
 

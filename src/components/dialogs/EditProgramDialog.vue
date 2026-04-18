@@ -27,6 +27,7 @@ import { useLibraryStore } from '../../stores/libraryStore'
 import type { Program } from '../../types'
 import { libImageUrl } from '../../types'
 import { useImageInput } from '../../composables/useImageInput'
+import { useThemeClass } from '../../composables/useThemeClass'
 import ImageCropDialog from './ImageCropDialog.vue'
 import SteamArtworkDialog from './SteamArtworkDialog.vue'
 
@@ -42,6 +43,7 @@ const emit = defineEmits<{
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
+const themeClass = useThemeClass()
 
 // Shared drag&drop + URL fetch helpers (one per media section)
 const thumbInput = useImageInput()
@@ -372,7 +374,8 @@ const handleDelete = () => {
     :style="{ width: '520px' }"
     :mask-closable="false"
   >
-    <NForm label-placement="top" v-if="program">
+    <div v-if="program" :class="themeClass">
+    <NForm label-placement="top">
       <!-- Thumbnail section -->
       <div
         class="media-section"
@@ -558,6 +561,7 @@ const handleDelete = () => {
         <NDynamicTags v-model:value="tags" />
       </NFormItem>
     </NForm>
+    </div>
 
     <template #footer>
       <div class="footer-split">
@@ -613,7 +617,7 @@ const handleDelete = () => {
   transition: box-shadow 0.15s ease;
 }
 
-:global(.light-theme) .media-section {
+.light-theme .media-section {
   background-color: #f4f4f5;
 }
 
@@ -621,7 +625,7 @@ const handleDelete = () => {
   box-shadow: 0 0 0 2px #e87ea1;
 }
 
-:global(.light-theme) .media-section.is-drag-over {
+.light-theme .media-section.is-drag-over {
   box-shadow: 0 0 0 2px #db2777;
 }
 
@@ -634,7 +638,7 @@ const handleDelete = () => {
   text-transform: uppercase;
 }
 
-:global(.light-theme) .media-label {
+.light-theme .media-label {
   color: #52525b;
 }
 
@@ -668,8 +672,8 @@ const handleDelete = () => {
   background-color: #27272a;
 }
 
-:global(.light-theme) .thumbnail-preview.is-empty,
-:global(.light-theme) .icon-preview.is-empty {
+.light-theme .thumbnail-preview.is-empty,
+.light-theme .icon-preview.is-empty {
   border-color: #d4d4d8;
   background-color: #e4e4e7;
 }
@@ -679,8 +683,8 @@ const handleDelete = () => {
   border-color: #e87ea1;
 }
 
-:global(.light-theme) .media-section.is-drag-over .thumbnail-preview.is-empty,
-:global(.light-theme) .media-section.is-drag-over .icon-preview.is-empty {
+.light-theme .media-section.is-drag-over .thumbnail-preview.is-empty,
+.light-theme .media-section.is-drag-over .icon-preview.is-empty {
   border-color: #db2777;
 }
 

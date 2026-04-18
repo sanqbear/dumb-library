@@ -18,6 +18,7 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
+import { useThemeClass } from '../../composables/useThemeClass'
 import type { SteamGame } from '../../types'
 
 const props = defineProps<{
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 
 const libraryStore = useLibraryStore()
 const message = useMessage()
+const themeClass = useThemeClass()
 
 const activeTab = ref<'installed' | 'manual'>('installed')
 const isScanning = ref(false)
@@ -147,6 +149,7 @@ const handleCancel = () => {
     :style="{ width: '600px' }"
     :mask-closable="false"
   >
+    <div :class="themeClass">
     <NTabs v-model:value="activeTab" type="line" animated>
       <NTabPane name="installed" tab="설치된 게임">
         <div class="installed-section">
@@ -203,6 +206,7 @@ const handleCancel = () => {
         </NForm>
       </NTabPane>
     </NTabs>
+    </div>
 
     <template #footer>
       <NSpace justify="end">
@@ -257,7 +261,7 @@ const handleCancel = () => {
   font-size: 0.85em;
 }
 
-:global(.light-theme) .manual-help code {
+.light-theme .manual-help code {
   background-color: rgba(0, 0, 0, 0.06);
 }
 </style>
