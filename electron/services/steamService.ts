@@ -180,7 +180,71 @@ export const downloadSteamThumbnail = async (appId: number, programId: string): 
   return null
 }
 
+// ---- Local icon lookup ------------------------------------------------------
+
+const ICON_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
+
+/**
+ * Look inside Steam's local library cache for an app icon. Supports both layouts:
+ * - Newer: {steam}/appcache/librarycache/{appid}/<hashed>.jpg
+ * - Legacy: {steam}/appcache/librarycache/{appid}_icon.jpg
+ *
+ * ICO files are ignored per product decision (sharp decoding is spotty).
+ * Returns the best-match absolute path, or null if nothing suitable is found.
+ */
+export const findSteamIcon = async (appId: number): Promise<string | null> => {
+  const steamPath = await findSteamPath()
+  if (!steamPath) return null
+
+  const candidates: string[] = []
+
+  const appSubdir = path.join(steamPath, 'appcache', 'librarycache', String(appId))
+  if (fs.existsSync(appSubdir)) {
+    try {
+      for (const file of fs.readdirSync(appSubdir)) {
+        if (ICON_IMAGE_EXTENSIONS.includes(path.extname(file).toLowerCase())) {
+          candidates.push(path.join(appSubdir, file))
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to scan ${appSubdir}:`, error)
+    }
+  }
+
+  const libraryCacheDir = path.join(steamPath, 'appcache', 'librarycache')
+  if (fs.existsSync(libraryCacheDir)) {
+    try {
+      const prefix = `${appId}_`
+      for (const file of fs.readdirSync(libraryCacheDir)) {
+        if (!file.startsWith(prefix)) continue
+        if (ICON_IMAGE_EXTENSIONS.includes(path.extname(file).toLowerCase())) {
+          candidates.push(path.join(libraryCacheDir, file))
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to scan ${libraryCacheDir}:`, error)
+    }
+  }
+
+  if (candidates.length === 0) {
+    logger.info(`No Steam cache icon found for appId ${appId}`)
+    return null
+  }
+
+  // Prefer filenames hinting at an icon; fall back to logo; then anything.
+  const score = (p: string): number => {
+    const name = path.basename(p).toLowerCase()
+    if (name.includes('icon')) return 0
+    if (name.includes('logo')) return 1
+    return 10
+  }
+  candidates.sort((a, b) => score(a) - score(b))
+  logger.info(`Selected Steam icon candidate: ${candidates[0]}`)
+  return candidates[0]
+}
+
 export default {
   scanInstalledGames,
-  downloadSteamThumbnail
+  downloadSteamThumbnail,
+  findSteamIcon
 }

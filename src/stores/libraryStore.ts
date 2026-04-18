@@ -281,6 +281,22 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
+  const applySteamCachedIcon = async (programId: string, appId: number): Promise<string | null> => {
+    try {
+      const relPath = await window.electron.applySteamCachedIcon(programId, appId)
+      const program = programs.value.find(p => p.id === programId)
+      if (program && relPath) {
+        program.iconPath = relPath
+        program.updatedAt = new Date().toISOString()
+      }
+      return relPath
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to apply Steam cached icon'
+      console.error('Failed to apply Steam cached icon:', e)
+      return null
+    }
+  }
+
   const reextractIcon = async (programId: string, executablePath: string): Promise<string | null> => {
     try {
       const iconPath = await window.electron.extractIcon(executablePath, programId)
@@ -354,6 +370,7 @@ export const useLibraryStore = defineStore('library', () => {
     reextractIcon,
     fetchImageFromUrl,
     downloadSteamThumbnail,
+    applySteamCachedIcon,
     scanSteamGames,
     addSteamPrograms,
     setSearchQuery,

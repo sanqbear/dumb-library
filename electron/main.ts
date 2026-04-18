@@ -221,6 +221,19 @@ function registerIpcHandlers(): void {
     return relPath
   })
 
+  ipcMain.handle('steam:applyCachedIcon', async (_event, { programId, appId }: { programId: string; appId: number }) => {
+    const source = await steamService.findSteamIcon(appId)
+    if (!source) return null
+    try {
+      const relPath = await imageService.processIcon(source, programId)
+      dataService.updateProgramIconPath(programId, relPath)
+      return relPath
+    } catch (error) {
+      logger.warn(`Failed to process Steam cached icon for appId=${appId}:`, error)
+      return null
+    }
+  })
+
   ipcMain.handle('steam:addPrograms', async (_event, entries: CreateSteamProgramData[]) => {
     const added: Program[] = []
     for (const entry of entries) {

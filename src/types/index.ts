@@ -136,6 +136,7 @@ export interface ElectronAPI {
   scanSteamGames: () => Promise<SteamGame[]>
   addSteamPrograms: (entries: CreateSteamProgramData[]) => Promise<Program[]>
   downloadSteamThumbnail: (programId: string, appId: number) => Promise<string | null>
+  applySteamCachedIcon: (programId: string, appId: number) => Promise<string | null>
 }
 
 // Extend Window interface

@@ -735,6 +735,51 @@ const downloadSteamThumbnail = async (appId, programId) => {
   logger.warn(`No thumbnail found for Steam appId ${appId}`);
   return null;
 };
+const ICON_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
+const findSteamIcon = async (appId) => {
+  const steamPath = await findSteamPath();
+  if (!steamPath) return null;
+  const candidates = [];
+  const appSubdir = path.join(steamPath, "appcache", "librarycache", String(appId));
+  if (fs.existsSync(appSubdir)) {
+    try {
+      for (const file of fs.readdirSync(appSubdir)) {
+        if (ICON_IMAGE_EXTENSIONS.includes(path.extname(file).toLowerCase())) {
+          candidates.push(path.join(appSubdir, file));
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to scan ${appSubdir}:`, error);
+    }
+  }
+  const libraryCacheDir = path.join(steamPath, "appcache", "librarycache");
+  if (fs.existsSync(libraryCacheDir)) {
+    try {
+      const prefix = `${appId}_`;
+      for (const file of fs.readdirSync(libraryCacheDir)) {
+        if (!file.startsWith(prefix)) continue;
+        if (ICON_IMAGE_EXTENSIONS.includes(path.extname(file).toLowerCase())) {
+          candidates.push(path.join(libraryCacheDir, file));
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to scan ${libraryCacheDir}:`, error);
+    }
+  }
+  if (candidates.length === 0) {
+    logger.info(`No Steam cache icon found for appId ${appId}`);
+    return null;
+  }
+  const score = (p) => {
+    const name = path.basename(p).toLowerCase();
+    if (name.includes("icon")) return 0;
+    if (name.includes("logo")) return 1;
+    return 10;
+  };
+  candidates.sort((a, b) => score(a) - score(b));
+  logger.info(`Selected Steam icon candidate: ${candidates[0]}`);
+  return candidates[0];
+};
 protocol.registerSchemesAsPrivileged([
   {
     scheme: "wl-image",
@@ -892,6 +937,18 @@ function registerIpcHandlers() {
       updateProgramThumbnailPath(programId, relPath);
     }
     return relPath;
+  });
+  ipcMain.handle("steam:applyCachedIcon", async (_event, { programId, appId }) => {
+    const source = await findSteamIcon(appId);
+    if (!source) return null;
+    try {
+      const relPath = await processIcon(source, programId);
+      updateProgramIconPath(programId, relPath);
+      return relPath;
+    } catch (error) {
+      logger.warn(`Failed to process Steam cached icon for appId=${appId}:`, error);
+      return null;
+    }
   });
   ipcMain.handle("steam:addPrograms", async (_event, entries) => {
     const added = [];

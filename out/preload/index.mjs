@@ -35,7 +35,8 @@ const IPC_CHANNELS = {
   // Steam
   STEAM_SCAN_INSTALLED: "steam:scanInstalled",
   STEAM_ADD_PROGRAMS: "steam:addPrograms",
-  STEAM_DOWNLOAD_THUMBNAIL: "steam:downloadThumbnail"
+  STEAM_DOWNLOAD_THUMBNAIL: "steam:downloadThumbnail",
+  STEAM_APPLY_CACHED_ICON: "steam:applyCachedIcon"
 };
 const electronAPI = {
   // Library operations
@@ -88,7 +89,8 @@ const electronAPI = {
   // Steam
   scanSteamGames: () => ipcRenderer.invoke(IPC_CHANNELS.STEAM_SCAN_INSTALLED),
   addSteamPrograms: (entries) => ipcRenderer.invoke(IPC_CHANNELS.STEAM_ADD_PROGRAMS, entries),
-  downloadSteamThumbnail: (programId, appId) => ipcRenderer.invoke(IPC_CHANNELS.STEAM_DOWNLOAD_THUMBNAIL, { programId, appId })
+  downloadSteamThumbnail: (programId, appId) => ipcRenderer.invoke(IPC_CHANNELS.STEAM_DOWNLOAD_THUMBNAIL, { programId, appId }),
+  applySteamCachedIcon: (programId, appId) => ipcRenderer.invoke(IPC_CHANNELS.STEAM_APPLY_CACHED_ICON, { programId, appId })
 };
 if (process.contextIsolated) {
   try {

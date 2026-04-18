@@ -251,6 +251,26 @@ const handleSteamRedownload = async () => {
   }
 }
 
+// Pull an icon from Steam's local librarycache (no CDN, no crop).
+// Runs immediately — Steam-sourced icons don't need user curation.
+const handleApplySteamCachedIcon = async () => {
+  if (!props.program || steamAppId.value === null) return
+  isSubmitting.value = true
+  try {
+    const newPath = await libraryStore.applySteamCachedIcon(props.program.id, steamAppId.value)
+    if (newPath) {
+      iconPath.value = newPath
+      originalIconPath.value = newPath
+      cacheBust.value = Date.now()
+      message.success('Steam 캐시에서 아이콘을 가져왔습니다')
+    } else {
+      message.warning('Steam 캐시에서 아이콘을 찾지 못했습니다')
+    }
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
 // Icon re-extract: runs immediately (not deferred), since the operation
 // produces a new file at the same path — we want instant visual feedback.
 const handleReextractIcon = async () => {
@@ -484,6 +504,15 @@ const handleDelete = () => {
             >
               <template #icon><NIcon :component="RefreshIcon" /></template>
               .exe에서 재추출
+            </NButton>
+            <NButton
+              v-if="steamAppId !== null"
+              @click="handleApplySteamCachedIcon"
+              :disabled="isSubmitting"
+              block
+            >
+              <template #icon><NIcon :component="CloudDownloadIcon" /></template>
+              Steam 캐시에서 가져오기
             </NButton>
             <NButton
               v-if="iconPath"

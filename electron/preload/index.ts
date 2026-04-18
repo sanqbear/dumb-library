@@ -69,7 +69,8 @@ const IPC_CHANNELS = {
   // Steam
   STEAM_SCAN_INSTALLED: 'steam:scanInstalled',
   STEAM_ADD_PROGRAMS: 'steam:addPrograms',
-  STEAM_DOWNLOAD_THUMBNAIL: 'steam:downloadThumbnail'
+  STEAM_DOWNLOAD_THUMBNAIL: 'steam:downloadThumbnail',
+  STEAM_APPLY_CACHED_ICON: 'steam:applyCachedIcon'
 } as const
 
 // API exposed to renderer
@@ -142,7 +143,9 @@ const electronAPI = {
   addSteamPrograms: (entries: CreateSteamProgramData[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.STEAM_ADD_PROGRAMS, entries),
   downloadSteamThumbnail: (programId: string, appId: number) =>
-    ipcRenderer.invoke(IPC_CHANNELS.STEAM_DOWNLOAD_THUMBNAIL, { programId, appId })
+    ipcRenderer.invoke(IPC_CHANNELS.STEAM_DOWNLOAD_THUMBNAIL, { programId, appId }),
+  applySteamCachedIcon: (programId: string, appId: number) =>
+    ipcRenderer.invoke(IPC_CHANNELS.STEAM_APPLY_CACHED_ICON, { programId, appId })
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to renderer
