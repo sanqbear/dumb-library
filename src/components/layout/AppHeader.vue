@@ -23,6 +23,7 @@ import {
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import AddProgramDialog from '../dialogs/AddProgramDialog.vue'
+import { PROVIDERS, PROVIDER_IDS, type ProviderId } from '../../types'
 
 const libraryStore = useLibraryStore()
 const settingsStore = useSettingsStore()
@@ -30,11 +31,11 @@ const settingsStore = useSettingsStore()
 const showAddDialog = ref(false)
 const showFilters = ref(false)
 
-// Category options for filter
-const categoryOptions = computed(() => 
-  libraryStore.categories.map(cat => ({
-    label: cat,
-    value: cat
+// Provider options for filter — now a fixed registry, not user-defined
+const categoryOptions = computed(() =>
+  PROVIDER_IDS.map(id => ({
+    label: PROVIDERS[id].label,
+    value: id
   }))
 )
 
@@ -71,8 +72,8 @@ const handleSearch = (value: string) => {
   libraryStore.setSearchQuery(value)
 }
 
-const handleCategoryChange = (value: string | null) => {
-  libraryStore.setSelectedCategory(value === '' ? null : value)
+const handleCategoryChange = (value: ProviderId | null) => {
+  libraryStore.setSelectedCategory(value)
 }
 
 const handleTagsChange = (values: string[]) => {
@@ -114,11 +115,11 @@ const handleAddProgram = () => {
         </template>
         <div class="filter-popover">
           <div class="filter-section">
-            <label>Category</label>
+            <label>Provider</label>
             <NSelect
               :value="libraryStore.selectedCategory"
-              :options="[{ label: 'All', value: '' }, ...categoryOptions]"
-              placeholder="All categories"
+              :options="categoryOptions"
+              placeholder="모든 제공자"
               clearable
               @update:value="handleCategoryChange"
             />

@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { 
-  NModal, 
-  NForm, 
-  NFormItem, 
-  NInput, 
-  NButton, 
-  NSpace, 
-  NSelect,
+import {
+  NModal,
+  NForm,
+  NFormItem,
+  NInput,
+  NButton,
+  NSpace,
   NDynamicTags,
   NImage,
   NIcon,
@@ -30,26 +29,16 @@ const message = useMessage()
 // Form data
 const title = ref('')
 const executablePath = ref('')
-const category = ref<string | null>(null)
 const tags = ref<string[]>([])
 const thumbnailPath = ref<string | null>(null)
 
 const isSubmitting = ref(false)
-
-// Category options
-const categoryOptions = computed(() => {
-  return libraryStore.categories.map(cat => ({
-    label: cat,
-    value: cat
-  }))
-})
 
 // Reset form when dialog closes
 watch(() => props.show, (newVal) => {
   if (!newVal) {
     title.value = ''
     executablePath.value = ''
-    category.value = null
     tags.value = []
     thumbnailPath.value = null
   }
@@ -96,7 +85,6 @@ const handleSubmit = async () => {
     const newProgram = await libraryStore.addProgram({
       title: title.value.trim(),
       executablePath: executablePath.value,
-      category: category.value || null,
       tags: [...tags.value]
     })
     
@@ -197,19 +185,6 @@ const handleCancel = () => {
             </NButton>
           </template>
         </NInput>
-      </NFormItem>
-
-      <!-- Category -->
-      <NFormItem label="Category">
-        <NSelect
-          v-model:value="category"
-          :options="categoryOptions"
-          placeholder="Select or create category"
-          clearable
-          filterable
-          tag
-          @create="(label: string) => ({ label, value: label })"
-        />
       </NFormItem>
 
       <!-- Tags -->

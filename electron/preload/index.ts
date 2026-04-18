@@ -4,7 +4,6 @@ import { contextBridge, ipcRenderer } from 'electron'
 interface CreateProgramData {
   title: string
   executablePath: string
-  category?: string | null
   tags?: string[]
 }
 
@@ -12,7 +11,6 @@ interface UpdateProgramData {
   id: string
   title?: string
   executablePath?: string
-  category?: string | null
   tags?: string[]
 }
 

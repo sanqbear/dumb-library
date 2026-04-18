@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { 
-  NModal, 
-  NForm, 
-  NFormItem, 
-  NInput, 
-  NButton, 
-  NSpace, 
-  NSelect,
+import {
+  NModal,
+  NForm,
+  NFormItem,
+  NInput,
+  NButton,
+  NSpace,
   NDynamicTags,
   NImage,
   NIcon,
@@ -32,20 +31,11 @@ const message = useMessage()
 // Form data
 const title = ref('')
 const executablePath = ref('')
-const category = ref<string | null>(null)
 const tags = ref<string[]>([])
 const thumbnailPath = ref<string | null>(null)
 const originalThumbnailPath = ref<string | null>(null)
 
 const isSubmitting = ref(false)
-
-// Category options
-const categoryOptions = computed(() => {
-  return libraryStore.categories.map(cat => ({
-    label: cat,
-    value: cat
-  }))
-})
 
 // Initialize form when program changes or dialog opens
 watch(() => [props.show, props.program], ([newShow, newProgram]) => {
@@ -53,7 +43,6 @@ watch(() => [props.show, props.program], ([newShow, newProgram]) => {
     const program = newProgram as Program
     title.value = program.title
     executablePath.value = program.executablePath
-    category.value = program.category
     tags.value = [...program.tags]
     thumbnailPath.value = program.thumbnailPath
     originalThumbnailPath.value = program.thumbnailPath
@@ -114,7 +103,6 @@ const handleSubmit = async () => {
       id: props.program.id,
       title: title.value.trim(),
       executablePath: executablePath.value,
-      category: category.value || null,
       tags: [...tags.value]
     })
     
@@ -221,19 +209,6 @@ const handleCancel = () => {
             </NButton>
           </template>
         </NInput>
-      </NFormItem>
-
-      <!-- Category -->
-      <NFormItem label="Category">
-        <NSelect
-          v-model:value="category"
-          :options="categoryOptions"
-          placeholder="Select or create category"
-          clearable
-          filterable
-          tag
-          @create="(label: string) => ({ label, value: label })"
-        />
       </NFormItem>
 
       <!-- Tags -->

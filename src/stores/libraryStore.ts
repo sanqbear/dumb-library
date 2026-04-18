@@ -1,17 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Program, LibraryData, CreateProgramData, UpdateProgramData } from '../types'
+import type { Program, LibraryData, CreateProgramData, UpdateProgramData, ProviderId } from '../types'
 
 export const useLibraryStore = defineStore('library', () => {
   // State
   const programs = ref<Program[]>([])
-  const categories = ref<string[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
-  
+
   // Filter state
   const searchQuery = ref('')
-  const selectedCategory = ref<string | null>(null)
+  const selectedCategory = ref<ProviderId | null>(null)
   const selectedTags = ref<string[]>([])
 
   // Sort state
@@ -75,7 +74,6 @@ export const useLibraryStore = defineStore('library', () => {
     try {
       const data: LibraryData = await window.electron.loadLibrary()
       programs.value = data.programs
-      categories.value = data.categories
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load library'
       console.error('Failed to load library:', e)
@@ -91,12 +89,7 @@ export const useLibraryStore = defineStore('library', () => {
     try {
       const newProgram = await window.electron.addProgram(data)
       programs.value.push(newProgram)
-      
-      // Update categories list
-      if (data.category && !categories.value.includes(data.category)) {
-        categories.value.push(data.category)
-      }
-      
+
       // Extract icon
       if (newProgram.executablePath) {
         const iconPath = await window.electron.extractIcon(newProgram.executablePath, newProgram.id)
@@ -131,12 +124,7 @@ export const useLibraryStore = defineStore('library', () => {
       if (index !== -1) {
         programs.value[index] = updatedProgram
       }
-      
-      // Update categories list
-      if (data.category && !categories.value.includes(data.category)) {
-        categories.value.push(data.category)
-      }
-      
+
       return updatedProgram
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to update program'
@@ -215,7 +203,7 @@ export const useLibraryStore = defineStore('library', () => {
     searchQuery.value = query
   }
 
-  const setSelectedCategory = (category: string | null): void => {
+  const setSelectedCategory = (category: ProviderId | null): void => {
     selectedCategory.value = category
   }
 
@@ -237,23 +225,9 @@ export const useLibraryStore = defineStore('library', () => {
     sortOrder.value = value
   }
 
-  const addCategory = (category: string): void => {
-    if (category && !categories.value.includes(category)) {
-      categories.value.push(category)
-    }
-  }
-
-  const removeCategory = (category: string): void => {
-    const index = categories.value.indexOf(category)
-    if (index !== -1) {
-      categories.value.splice(index, 1)
-    }
-  }
-
   return {
     // State
     programs,
-    categories,
     isLoading,
     error,
     searchQuery,
@@ -261,13 +235,13 @@ export const useLibraryStore = defineStore('library', () => {
     selectedTags,
     sortBy,
     sortOrder,
-    
+
     // Getters
     filteredPrograms,
     allTags,
     programCount,
     filteredCount,
-    
+
     // Actions
     loadLibrary,
     addProgram,
@@ -281,8 +255,6 @@ export const useLibraryStore = defineStore('library', () => {
     setSelectedTags,
     clearFilters,
     setSortBy,
-    setSortOrder,
-    addCategory,
-    removeCategory
+    setSortOrder
   }
 })

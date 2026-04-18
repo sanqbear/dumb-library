@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import type { LibraryData, Program, CreateProgramData, UpdateProgramData, Settings } from '../../src/types'
+import { isProviderId } from '../../src/types'
 import logger from './logger'
 
 // Paths
@@ -15,8 +16,7 @@ const getThumbnailsPath = () => path.join(getUserDataPath(), 'thumbnails')
 // Default data
 const DEFAULT_LIBRARY_DATA: LibraryData = {
   version: '1.0',
-  programs: [],
-  categories: []
+  programs: []
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -48,10 +48,32 @@ const isPathInside = (child: string, parent: string): boolean => {
   return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel)
 }
 
-const isValidLibrary = (value: unknown): value is LibraryData => {
+const isValidLibrary = (value: unknown): value is { programs: unknown[] } => {
   if (!value || typeof value !== 'object') return false
-  const v = value as Partial<LibraryData>
-  return Array.isArray(v.programs) && Array.isArray(v.categories)
+  const v = value as { programs?: unknown }
+  return Array.isArray(v.programs)
+}
+
+// Coerce legacy free-form `category` values to a valid ProviderId.
+// Programs saved before the provider-based categorization have strings like
+// "Games", null, etc. — those all get mapped to 'local'.
+const migrateProgram = (raw: unknown): Program | null => {
+  if (!raw || typeof raw !== 'object') return null
+  const p = raw as Partial<Program> & { category?: unknown }
+  if (typeof p.id !== 'string' || typeof p.title !== 'string' || typeof p.executablePath !== 'string') {
+    return null
+  }
+  return {
+    id: p.id,
+    title: p.title,
+    executablePath: p.executablePath,
+    iconPath: typeof p.iconPath === 'string' ? p.iconPath : null,
+    thumbnailPath: typeof p.thumbnailPath === 'string' ? p.thumbnailPath : null,
+    category: isProviderId(p.category) ? p.category : 'local',
+    tags: Array.isArray(p.tags) ? p.tags.filter((t): t is string => typeof t === 'string') : [],
+    createdAt: typeof p.createdAt === 'string' ? p.createdAt : new Date().toISOString(),
+    updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : new Date().toISOString()
+  }
 }
 
 const isValidSettings = (value: unknown): value is Settings => {
@@ -73,8 +95,14 @@ export const loadLibrary = (): LibraryData => {
         logger.warn('library.json has invalid shape, falling back to defaults')
         return { ...DEFAULT_LIBRARY_DATA }
       }
-      logger.info(`Loaded library with ${parsed.programs.length} programs`)
-      return parsed
+      const programs = parsed.programs
+        .map(migrateProgram)
+        .filter((p): p is Program => p !== null)
+      const version = typeof (parsed as { version?: unknown }).version === 'string'
+        ? (parsed as { version: string }).version
+        : '1.0'
+      logger.info(`Loaded library with ${programs.length} programs`)
+      return { version, programs }
     }
   } catch (error) {
     logger.error('Failed to load library:', error)
@@ -101,60 +129,49 @@ export const saveLibrary = (data: LibraryData): void => {
 export const addProgram = (data: CreateProgramData): Program => {
   const library = loadLibrary()
   const now = new Date().toISOString()
-  
+
+  // Local-file adds always map to the 'local' provider.
+  // Future integrations (steam, etc.) will call a separate entry point.
   const newProgram: Program = {
     id: uuidv4(),
     title: data.title,
     executablePath: data.executablePath,
     iconPath: null,
     thumbnailPath: null,
-    category: data.category || null,
+    category: 'local',
     tags: data.tags || [],
     createdAt: now,
     updatedAt: now
   }
-  
+
   library.programs.push(newProgram)
-  
-  // Add category to categories list if new
-  if (data.category && !library.categories.includes(data.category)) {
-    library.categories.push(data.category)
-  }
-  
   saveLibrary(library)
   logger.info(`Added program: ${newProgram.title} (${newProgram.id})`)
-  
+
   return newProgram
 }
 
 export const updateProgram = (data: UpdateProgramData): Program => {
   const library = loadLibrary()
   const index = library.programs.findIndex(p => p.id === data.id)
-  
+
   if (index === -1) {
     throw new Error(`Program not found: ${data.id}`)
   }
-  
+
   const program = library.programs[index]
   const updatedProgram: Program = {
     ...program,
     title: data.title ?? program.title,
     executablePath: data.executablePath ?? program.executablePath,
-    category: data.category !== undefined ? data.category : program.category,
     tags: data.tags ?? program.tags,
     updatedAt: new Date().toISOString()
   }
-  
+
   library.programs[index] = updatedProgram
-  
-  // Add category to categories list if new
-  if (data.category && !library.categories.includes(data.category)) {
-    library.categories.push(data.category)
-  }
-  
   saveLibrary(library)
   logger.info(`Updated program: ${updatedProgram.title} (${updatedProgram.id})`)
-  
+
   return updatedProgram
 }
 

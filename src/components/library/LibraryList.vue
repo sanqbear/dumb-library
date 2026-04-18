@@ -5,6 +5,7 @@ import { Play as PlayIcon, Create as EditIcon, Trash as DeleteIcon } from '@vico
 import type { DataTableColumns } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
 import type { Program } from '../../types'
+import { PROVIDERS } from '../../types'
 import EditProgramDialog from '../dialogs/EditProgramDialog.vue'
 
 const libraryStore = useLibraryStore()
@@ -101,13 +102,11 @@ const columns: DataTableColumns<Program> = [
     }
   },
   {
-    title: 'Category',
+    title: 'Provider',
     key: 'category',
-    width: 120,
+    width: 140,
     render(row) {
-      return row.category 
-        ? h(NTag, { size: 'small', type: 'info' }, { default: () => row.category })
-        : '-'
+      return h(NTag, { size: 'small', type: 'info' }, { default: () => PROVIDERS[row.category].label })
     }
   },
   {

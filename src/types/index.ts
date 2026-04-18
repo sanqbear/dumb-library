@@ -1,3 +1,17 @@
+// Provider — how the program was added to the library.
+// Acts as the "category" automatically assigned at creation time.
+export type ProviderId = 'local'
+
+export const PROVIDERS: Record<ProviderId, { label: string }> = {
+  local: { label: '로컬 다운로드' }
+}
+
+export const PROVIDER_IDS = Object.keys(PROVIDERS) as ProviderId[]
+
+export const isProviderId = (value: unknown): value is ProviderId => {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(PROVIDERS, value)
+}
+
 // Program item in the library
 export interface Program {
   id: string
@@ -5,26 +19,25 @@ export interface Program {
   executablePath: string
   iconPath: string | null
   thumbnailPath: string | null
-  category: string | null
+  category: ProviderId
   tags: string[]
   createdAt: string
   updatedAt: string
 }
 
-// Data for creating a new program
+// Data for creating a new program — `category` is assigned by the source
+// (e.g. local-add sets 'local'), not user-editable.
 export interface CreateProgramData {
   title: string
   executablePath: string
-  category?: string | null
   tags?: string[]
 }
 
-// Data for updating a program
+// Data for updating a program — `category` is intentionally omitted.
 export interface UpdateProgramData {
   id: string
   title?: string
   executablePath?: string
-  category?: string | null
   tags?: string[]
 }
 
@@ -32,7 +45,6 @@ export interface UpdateProgramData {
 export interface LibraryData {
   version: string
   programs: Program[]
-  categories: string[]
 }
 
 // User settings

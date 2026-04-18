@@ -9,6 +9,7 @@ import {
   Image as ImageIcon
 } from '@vicons/ionicons5'
 import type { Program } from '../../types'
+import { PROVIDERS } from '../../types'
 import { useLibraryStore } from '../../stores/libraryStore'
 import EditProgramDialog from '../dialogs/EditProgramDialog.vue'
 
@@ -172,13 +173,13 @@ const handleDelete = () => {
     <!-- Info area -->
     <div class="card-info">
       <div class="card-title truncate">{{ program.title }}</div>
-      <div class="card-meta" v-if="program.category || program.tags.length > 0">
-        <NTag v-if="program.category" size="small" type="info">
-          {{ program.category }}
+      <div class="card-meta">
+        <NTag size="small" type="info">
+          {{ PROVIDERS[program.category].label }}
         </NTag>
-        <NTag 
-          v-for="tag in program.tags.slice(0, 2)" 
-          :key="tag" 
+        <NTag
+          v-for="tag in program.tags.slice(0, 2)"
+          :key="tag"
           size="small"
         >
           {{ tag }}

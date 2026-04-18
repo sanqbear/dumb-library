@@ -31,6 +31,12 @@ const logger = {
     log.debug(message, ...args);
   }
 };
+const PROVIDERS = {
+  local: { label: "로컬 다운로드" }
+};
+const isProviderId = (value) => {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(PROVIDERS, value);
+};
 const getUserDataPath = () => app.getPath("userData");
 const getLibraryPath = () => path.join(getUserDataPath(), "library.json");
 const getSettingsPath = () => path.join(getUserDataPath(), "settings.json");
@@ -38,8 +44,7 @@ const getIconsPath = () => path.join(getUserDataPath(), "icons");
 const getThumbnailsPath = () => path.join(getUserDataPath(), "thumbnails");
 const DEFAULT_LIBRARY_DATA = {
   version: "1.0",
-  programs: [],
-  categories: []
+  programs: []
 };
 const DEFAULT_SETTINGS = {
   theme: "dark",
@@ -66,7 +71,25 @@ const isPathInside = (child, parent) => {
 const isValidLibrary = (value) => {
   if (!value || typeof value !== "object") return false;
   const v = value;
-  return Array.isArray(v.programs) && Array.isArray(v.categories);
+  return Array.isArray(v.programs);
+};
+const migrateProgram = (raw) => {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw;
+  if (typeof p.id !== "string" || typeof p.title !== "string" || typeof p.executablePath !== "string") {
+    return null;
+  }
+  return {
+    id: p.id,
+    title: p.title,
+    executablePath: p.executablePath,
+    iconPath: typeof p.iconPath === "string" ? p.iconPath : null,
+    thumbnailPath: typeof p.thumbnailPath === "string" ? p.thumbnailPath : null,
+    category: isProviderId(p.category) ? p.category : "local",
+    tags: Array.isArray(p.tags) ? p.tags.filter((t) => typeof t === "string") : [],
+    createdAt: typeof p.createdAt === "string" ? p.createdAt : (/* @__PURE__ */ new Date()).toISOString(),
+    updatedAt: typeof p.updatedAt === "string" ? p.updatedAt : (/* @__PURE__ */ new Date()).toISOString()
+  };
 };
 const isValidSettings = (value) => {
   if (!value || typeof value !== "object") return false;
@@ -83,8 +106,10 @@ const loadLibrary = () => {
         logger.warn("library.json has invalid shape, falling back to defaults");
         return { ...DEFAULT_LIBRARY_DATA };
       }
-      logger.info(`Loaded library with ${parsed.programs.length} programs`);
-      return parsed;
+      const programs = parsed.programs.map(migrateProgram).filter((p) => p !== null);
+      const version = typeof parsed.version === "string" ? parsed.version : "1.0";
+      logger.info(`Loaded library with ${programs.length} programs`);
+      return { version, programs };
     }
   } catch (error) {
     logger.error("Failed to load library:", error);
@@ -112,15 +137,12 @@ const addProgram = (data) => {
     executablePath: data.executablePath,
     iconPath: null,
     thumbnailPath: null,
-    category: data.category || null,
+    category: "local",
     tags: data.tags || [],
     createdAt: now,
     updatedAt: now
   };
   library.programs.push(newProgram);
-  if (data.category && !library.categories.includes(data.category)) {
-    library.categories.push(data.category);
-  }
   saveLibrary(library);
   logger.info(`Added program: ${newProgram.title} (${newProgram.id})`);
   return newProgram;
@@ -136,14 +158,10 @@ const updateProgram = (data) => {
     ...program,
     title: data.title ?? program.title,
     executablePath: data.executablePath ?? program.executablePath,
-    category: data.category !== void 0 ? data.category : program.category,
     tags: data.tags ?? program.tags,
     updatedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
   library.programs[index] = updatedProgram;
-  if (data.category && !library.categories.includes(data.category)) {
-    library.categories.push(data.category);
-  }
   saveLibrary(library);
   logger.info(`Updated program: ${updatedProgram.title} (${updatedProgram.id})`);
   return updatedProgram;
