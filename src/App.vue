@@ -9,18 +9,32 @@ import LibraryView from './components/library/LibraryView.vue'
 const libraryStore = useLibraryStore()
 const settingsStore = useSettingsStore()
 
-// Theme configuration
-const themeOverrides: GlobalThemeOverrides = {
+// Sakura Rose palette — softer pastel for dark surfaces,
+// richer saturation for light surfaces (pastels wash out on white).
+const darkThemeOverrides: GlobalThemeOverrides = {
   common: {
-    primaryColor: '#6366f1',
-    primaryColorHover: '#818cf8',
-    primaryColorPressed: '#4f46e5',
-    primaryColorSuppl: '#6366f1'
+    primaryColor: '#e87ea1',
+    primaryColorHover: '#f093b0',
+    primaryColorPressed: '#c96081',
+    primaryColorSuppl: '#e87ea1'
+  }
+}
+
+const lightThemeOverrides: GlobalThemeOverrides = {
+  common: {
+    primaryColor: '#db2777',
+    primaryColorHover: '#ec4899',
+    primaryColorPressed: '#be185d',
+    primaryColorSuppl: '#db2777'
   }
 }
 
 const currentTheme = computed(() => {
   return settingsStore.theme === 'dark' ? darkTheme : lightTheme
+})
+
+const themeOverrides = computed<GlobalThemeOverrides>(() => {
+  return settingsStore.theme === 'dark' ? darkThemeOverrides : lightThemeOverrides
 })
 
 // Initialize app
