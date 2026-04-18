@@ -54,9 +54,24 @@ const isValidLibrary = (value: unknown): value is { programs: unknown[] } => {
   return Array.isArray(v.programs)
 }
 
+// Convert a stored image path to the new userData-relative form.
+// - Already relative (no drive letter, not absolute) → normalize separators to /.
+// - Absolute inside userData → strip prefix and normalize.
+// - Absolute outside userData → drop (return null) so renderer doesn't show a broken ref.
+const normalizeImagePath = (value: unknown): string | null => {
+  if (typeof value !== 'string' || !value) return null
+  if (!path.isAbsolute(value)) return value.replace(/\\/g, '/')
+  const userData = path.resolve(getUserDataPath())
+  const resolved = path.resolve(value)
+  const rel = path.relative(userData, resolved)
+  if (rel.startsWith('..') || path.isAbsolute(rel)) return null
+  return rel.replace(/\\/g, '/')
+}
+
 // Coerce legacy free-form `category` values to a valid ProviderId.
 // Programs saved before the provider-based categorization have strings like
 // "Games", null, etc. — those all get mapped to 'local'.
+// Image paths are also normalized from absolute to userData-relative here.
 const migrateProgram = (raw: unknown): Program | null => {
   if (!raw || typeof raw !== 'object') return null
   const p = raw as Partial<Program> & { category?: unknown }
@@ -67,8 +82,8 @@ const migrateProgram = (raw: unknown): Program | null => {
     id: p.id,
     title: p.title,
     executablePath: p.executablePath,
-    iconPath: typeof p.iconPath === 'string' ? p.iconPath : null,
-    thumbnailPath: typeof p.thumbnailPath === 'string' ? p.thumbnailPath : null,
+    iconPath: normalizeImagePath(p.iconPath),
+    thumbnailPath: normalizeImagePath(p.thumbnailPath),
     category: isProviderId(p.category) ? p.category : 'local',
     tags: Array.isArray(p.tags) ? p.tags.filter((t): t is string => typeof t === 'string') : [],
     createdAt: typeof p.createdAt === 'string' ? p.createdAt : new Date().toISOString(),
@@ -210,27 +225,36 @@ export const deleteProgram = (id: string): void => {
   
   const program = library.programs[index]
 
-  // Only delete files that live inside our managed directories — prevents
-  // a tampered library.json from causing arbitrary file deletion.
-  if (program.iconPath && isPathInside(program.iconPath, getIconsPath()) && fs.existsSync(program.iconPath)) {
+  // Resolve a userData-relative stored path to absolute, but only if it stays
+  // inside the managed directory. Prevents a tampered library.json from
+  // pointing at arbitrary filesystem locations.
+  const resolveManaged = (relPath: string | null, managedDir: string): string | null => {
+    if (!relPath) return null
+    const abs = path.resolve(path.join(getUserDataPath(), relPath))
+    return isPathInside(abs, managedDir) ? abs : null
+  }
+
+  const iconAbs = resolveManaged(program.iconPath, getIconsPath())
+  if (iconAbs && fs.existsSync(iconAbs)) {
     try {
-      fs.unlinkSync(program.iconPath)
-      logger.info(`Deleted icon: ${program.iconPath}`)
+      fs.unlinkSync(iconAbs)
+      logger.info(`Deleted icon: ${iconAbs}`)
     } catch (error) {
-      logger.warn(`Failed to delete icon: ${program.iconPath}`, error)
+      logger.warn(`Failed to delete icon: ${iconAbs}`, error)
     }
-  } else if (program.iconPath) {
+  } else if (program.iconPath && !iconAbs) {
     logger.warn(`Skipped icon deletion (outside managed dir): ${program.iconPath}`)
   }
 
-  if (program.thumbnailPath && isPathInside(program.thumbnailPath, getThumbnailsPath()) && fs.existsSync(program.thumbnailPath)) {
+  const thumbAbs = resolveManaged(program.thumbnailPath, getThumbnailsPath())
+  if (thumbAbs && fs.existsSync(thumbAbs)) {
     try {
-      fs.unlinkSync(program.thumbnailPath)
-      logger.info(`Deleted thumbnail: ${program.thumbnailPath}`)
+      fs.unlinkSync(thumbAbs)
+      logger.info(`Deleted thumbnail: ${thumbAbs}`)
     } catch (error) {
-      logger.warn(`Failed to delete thumbnail: ${program.thumbnailPath}`, error)
+      logger.warn(`Failed to delete thumbnail: ${thumbAbs}`, error)
     }
-  } else if (program.thumbnailPath) {
+  } else if (program.thumbnailPath && !thumbAbs) {
     logger.warn(`Skipped thumbnail deletion (outside managed dir): ${program.thumbnailPath}`)
   }
   

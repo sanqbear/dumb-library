@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 // Type definitions (duplicated here to avoid import issues in preload)
 interface CreateProgramData {
@@ -46,6 +46,8 @@ const IPC_CHANNELS = {
   
   // Icon
   EXTRACT_ICON: 'icon:extract',
+  SAVE_ICON: 'icon:save',
+  DELETE_ICON: 'icon:delete',
   
   // Settings
   LOAD_SETTINGS: 'settings:load',
@@ -53,6 +55,9 @@ const IPC_CHANNELS = {
   
   // Utility
   GET_ASSET_PATH: 'util:getAssetPath',
+  IMAGE_READ_AS_DATA_URL: 'image:readAsDataUrl',
+  IMAGE_FETCH_FROM_URL: 'image:fetchFromUrl',
+  IMAGE_WRITE_TEMP_BUFFER: 'image:writeTempBuffer',
 
   // Window controls
   WINDOW_MINIMIZE: 'window:minimize',
@@ -63,7 +68,8 @@ const IPC_CHANNELS = {
 
   // Steam
   STEAM_SCAN_INSTALLED: 'steam:scanInstalled',
-  STEAM_ADD_PROGRAMS: 'steam:addPrograms'
+  STEAM_ADD_PROGRAMS: 'steam:addPrograms',
+  STEAM_DOWNLOAD_THUMBNAIL: 'steam:downloadThumbnail'
 } as const
 
 // API exposed to renderer
@@ -89,8 +95,12 @@ const electronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.DELETE_THUMBNAIL, programId),
   
   // Icon operations
-  extractIcon: (executablePath: string, programId: string) => 
+  extractIcon: (executablePath: string, programId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXTRACT_ICON, { executablePath, programId }),
+  saveIcon: (programId: string, imagePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SAVE_ICON, { programId, imagePath }),
+  deleteIcon: (programId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.DELETE_ICON, programId),
   
   // Settings operations
   loadSettings: () => ipcRenderer.invoke(IPC_CHANNELS.LOAD_SETTINGS),
@@ -98,6 +108,21 @@ const electronAPI = {
   
   // Utility
   getAssetPath: (relativePath: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_ASSET_PATH, relativePath),
+  readImageAsDataUrl: (absPath: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.IMAGE_READ_AS_DATA_URL, absPath),
+  fetchImageFromUrl: (url: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.IMAGE_FETCH_FROM_URL, url),
+  writeTempImageBuffer: (data: Uint8Array): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.IMAGE_WRITE_TEMP_BUFFER, data),
+  // webUtils.getPathForFile must be called in the renderer/preload context where
+  // the File object is alive. Exposed here so drag&drop handlers can resolve paths.
+  getPathForFile: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return ''
+    }
+  },
 
   // Window controls
   windowMinimize: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MINIMIZE),
@@ -115,7 +140,9 @@ const electronAPI = {
   // Steam
   scanSteamGames: () => ipcRenderer.invoke(IPC_CHANNELS.STEAM_SCAN_INSTALLED),
   addSteamPrograms: (entries: CreateSteamProgramData[]) =>
-    ipcRenderer.invoke(IPC_CHANNELS.STEAM_ADD_PROGRAMS, entries)
+    ipcRenderer.invoke(IPC_CHANNELS.STEAM_ADD_PROGRAMS, entries),
+  downloadSteamThumbnail: (programId: string, appId: number) =>
+    ipcRenderer.invoke(IPC_CHANNELS.STEAM_DOWNLOAD_THUMBNAIL, { programId, appId })
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to renderer

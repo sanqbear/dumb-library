@@ -198,6 +198,7 @@ export const useLibraryStore = defineStore('library', () => {
         const program = programs.value[index]
         if (program) {
           program.thumbnailPath = thumbnailPath
+          program.updatedAt = new Date().toISOString()
         }
       }
       return thumbnailPath
@@ -216,11 +217,83 @@ export const useLibraryStore = defineStore('library', () => {
         const program = programs.value[index]
         if (program) {
           program.thumbnailPath = null
+          program.updatedAt = new Date().toISOString()
         }
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to delete thumbnail'
       console.error('Failed to delete thumbnail:', e)
+    }
+  }
+
+  const saveIcon = async (programId: string, imagePath: string): Promise<string | null> => {
+    try {
+      const iconPath = await window.electron.saveIcon(programId, imagePath)
+      const program = programs.value.find(p => p.id === programId)
+      if (program) {
+        program.iconPath = iconPath
+        program.updatedAt = new Date().toISOString()
+      }
+      return iconPath
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to save icon'
+      console.error('Failed to save icon:', e)
+      return null
+    }
+  }
+
+  const deleteIcon = async (programId: string): Promise<void> => {
+    try {
+      await window.electron.deleteIcon(programId)
+      const program = programs.value.find(p => p.id === programId)
+      if (program) {
+        program.iconPath = null
+        program.updatedAt = new Date().toISOString()
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to delete icon'
+      console.error('Failed to delete icon:', e)
+    }
+  }
+
+  const fetchImageFromUrl = async (url: string): Promise<string | null> => {
+    try {
+      return await window.electron.fetchImageFromUrl(url)
+    } catch (e) {
+      console.error('Failed to fetch image from URL:', e)
+      return null
+    }
+  }
+
+  const downloadSteamThumbnail = async (programId: string, appId: number): Promise<string | null> => {
+    try {
+      const relPath = await window.electron.downloadSteamThumbnail(programId, appId)
+      const program = programs.value.find(p => p.id === programId)
+      if (program && relPath) {
+        program.thumbnailPath = relPath
+        program.updatedAt = new Date().toISOString()
+      }
+      return relPath
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to download Steam thumbnail'
+      console.error('Failed to download Steam thumbnail:', e)
+      return null
+    }
+  }
+
+  const reextractIcon = async (programId: string, executablePath: string): Promise<string | null> => {
+    try {
+      const iconPath = await window.electron.extractIcon(executablePath, programId)
+      const program = programs.value.find(p => p.id === programId)
+      if (program && iconPath) {
+        program.iconPath = iconPath
+        program.updatedAt = new Date().toISOString()
+      }
+      return iconPath
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to re-extract icon'
+      console.error('Failed to re-extract icon:', e)
+      return null
     }
   }
 
@@ -276,6 +349,11 @@ export const useLibraryStore = defineStore('library', () => {
     launchProgram,
     saveThumbnail,
     deleteThumbnail,
+    saveIcon,
+    deleteIcon,
+    reextractIcon,
+    fetchImageFromUrl,
+    downloadSteamThumbnail,
     scanSteamGames,
     addSteamPrograms,
     setSearchQuery,

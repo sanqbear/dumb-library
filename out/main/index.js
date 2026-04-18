@@ -1,8 +1,10 @@
-import { app, shell, dialog, BrowserWindow, ipcMain } from "electron";
-import path, { join } from "path";
+import { app, shell, dialog, BrowserWindow, protocol, net, ipcMain } from "electron";
+import path, { join, resolve, relative, isAbsolute } from "path";
 import log from "electron-log";
 import fs from "fs";
 import { v4 } from "uuid";
+import sharp from "sharp";
+import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import __cjs_mod__ from "node:module";
@@ -38,11 +40,11 @@ const PROVIDERS = {
 const isProviderId = (value) => {
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(PROVIDERS, value);
 };
-const getUserDataPath = () => app.getPath("userData");
-const getLibraryPath = () => path.join(getUserDataPath(), "library.json");
-const getSettingsPath = () => path.join(getUserDataPath(), "settings.json");
-const getIconsPath = () => path.join(getUserDataPath(), "icons");
-const getThumbnailsPath = () => path.join(getUserDataPath(), "thumbnails");
+const getUserDataPath$1 = () => app.getPath("userData");
+const getLibraryPath = () => path.join(getUserDataPath$1(), "library.json");
+const getSettingsPath = () => path.join(getUserDataPath$1(), "settings.json");
+const getIconsPath = () => path.join(getUserDataPath$1(), "icons");
+const getThumbnailsPath = () => path.join(getUserDataPath$1(), "thumbnails");
 const DEFAULT_LIBRARY_DATA = {
   version: "1.0",
   programs: []
@@ -74,6 +76,15 @@ const isValidLibrary = (value) => {
   const v = value;
   return Array.isArray(v.programs);
 };
+const normalizeImagePath = (value) => {
+  if (typeof value !== "string" || !value) return null;
+  if (!path.isAbsolute(value)) return value.replace(/\\/g, "/");
+  const userData = path.resolve(getUserDataPath$1());
+  const resolved = path.resolve(value);
+  const rel = path.relative(userData, resolved);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
+  return rel.replace(/\\/g, "/");
+};
 const migrateProgram = (raw) => {
   if (!raw || typeof raw !== "object") return null;
   const p = raw;
@@ -84,8 +95,8 @@ const migrateProgram = (raw) => {
     id: p.id,
     title: p.title,
     executablePath: p.executablePath,
-    iconPath: typeof p.iconPath === "string" ? p.iconPath : null,
-    thumbnailPath: typeof p.thumbnailPath === "string" ? p.thumbnailPath : null,
+    iconPath: normalizeImagePath(p.iconPath),
+    thumbnailPath: normalizeImagePath(p.thumbnailPath),
     category: isProviderId(p.category) ? p.category : "local",
     tags: Array.isArray(p.tags) ? p.tags.filter((t) => typeof t === "string") : [],
     createdAt: typeof p.createdAt === "string" ? p.createdAt : (/* @__PURE__ */ new Date()).toISOString(),
@@ -193,24 +204,31 @@ const deleteProgram = (id) => {
     throw new Error(`Program not found: ${id}`);
   }
   const program = library.programs[index];
-  if (program.iconPath && isPathInside(program.iconPath, getIconsPath()) && fs.existsSync(program.iconPath)) {
+  const resolveManaged = (relPath, managedDir) => {
+    if (!relPath) return null;
+    const abs = path.resolve(path.join(getUserDataPath$1(), relPath));
+    return isPathInside(abs, managedDir) ? abs : null;
+  };
+  const iconAbs = resolveManaged(program.iconPath, getIconsPath());
+  if (iconAbs && fs.existsSync(iconAbs)) {
     try {
-      fs.unlinkSync(program.iconPath);
-      logger.info(`Deleted icon: ${program.iconPath}`);
+      fs.unlinkSync(iconAbs);
+      logger.info(`Deleted icon: ${iconAbs}`);
     } catch (error) {
-      logger.warn(`Failed to delete icon: ${program.iconPath}`, error);
+      logger.warn(`Failed to delete icon: ${iconAbs}`, error);
     }
-  } else if (program.iconPath) {
+  } else if (program.iconPath && !iconAbs) {
     logger.warn(`Skipped icon deletion (outside managed dir): ${program.iconPath}`);
   }
-  if (program.thumbnailPath && isPathInside(program.thumbnailPath, getThumbnailsPath()) && fs.existsSync(program.thumbnailPath)) {
+  const thumbAbs = resolveManaged(program.thumbnailPath, getThumbnailsPath());
+  if (thumbAbs && fs.existsSync(thumbAbs)) {
     try {
-      fs.unlinkSync(program.thumbnailPath);
-      logger.info(`Deleted thumbnail: ${program.thumbnailPath}`);
+      fs.unlinkSync(thumbAbs);
+      logger.info(`Deleted thumbnail: ${thumbAbs}`);
     } catch (error) {
-      logger.warn(`Failed to delete thumbnail: ${program.thumbnailPath}`, error);
+      logger.warn(`Failed to delete thumbnail: ${thumbAbs}`, error);
     }
-  } else if (program.thumbnailPath) {
+  } else if (program.thumbnailPath && !thumbAbs) {
     logger.warn(`Skipped thumbnail deletion (outside managed dir): ${program.thumbnailPath}`);
   }
   library.programs.splice(index, 1);
@@ -320,59 +338,173 @@ const launchProgram = async (executablePath) => {
     throw error;
   }
 };
-const saveThumbnail = (programId, imagePath) => {
-  ensureDirectories();
+const TEMP_FETCH_PREFIX = "wl-fetch-";
+const MAX_FETCH_BYTES = 20 * 1024 * 1024;
+const THUMBNAIL_WIDTH = 600;
+const THUMBNAIL_HEIGHT = 900;
+const ICON_SIZE = 256;
+const WEBP_QUALITY = 85;
+const getUserDataPath = () => app.getPath("userData");
+const getThumbnailsDir = () => path.join(getUserDataPath(), "thumbnails");
+const getIconsDir = () => path.join(getUserDataPath(), "icons");
+const ensureDir = (dir) => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+};
+const cleanupLegacyFiles = (dir, id) => {
+  if (!fs.existsSync(dir)) return;
+  const prefix = `${id}.`;
+  try {
+    for (const file of fs.readdirSync(dir)) {
+      if (file.startsWith(prefix)) {
+        try {
+          fs.unlinkSync(path.join(dir, file));
+        } catch (error) {
+          logger.warn(`Failed to cleanup ${file}:`, error);
+        }
+      }
+    }
+  } catch (error) {
+    logger.warn(`Failed to scan ${dir} for cleanup:`, error);
+  }
+};
+const processThumbnail = async (source, programId) => {
+  const dir = getThumbnailsDir();
+  ensureDir(dir);
+  cleanupLegacyFiles(dir, programId);
+  const destFile = `${programId}.webp`;
+  const destAbs = path.join(dir, destFile);
+  await sharp(source).rotate().resize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, { fit: "cover", position: "centre" }).webp({ quality: WEBP_QUALITY }).toFile(destAbs);
+  logger.info(`Processed thumbnail: ${destAbs}`);
+  return `thumbnails/${destFile}`;
+};
+const processIcon = async (source, programId) => {
+  const dir = getIconsDir();
+  ensureDir(dir);
+  cleanupLegacyFiles(dir, programId);
+  const destFile = `${programId}.webp`;
+  const destAbs = path.join(dir, destFile);
+  await sharp(source).rotate().resize(ICON_SIZE, ICON_SIZE, { fit: "cover", position: "centre" }).webp({ quality: WEBP_QUALITY }).toFile(destAbs);
+  logger.info(`Processed icon: ${destAbs}`);
+  return `icons/${destFile}`;
+};
+const readImageAsDataUrl = async (absPath) => {
+  try {
+    if (!fs.existsSync(absPath)) return null;
+    const buffer = fs.readFileSync(absPath);
+    const ext = path.extname(absPath).toLowerCase();
+    const mime = ext === ".png" ? "image/png" : ext === ".gif" ? "image/gif" : ext === ".bmp" ? "image/bmp" : ext === ".webp" ? "image/webp" : "image/jpeg";
+    return `data:${mime};base64,${buffer.toString("base64")}`;
+  } catch (error) {
+    logger.warn(`Failed to read image as data URL: ${absPath}`, error);
+    return null;
+  }
+};
+const fetchImageFromUrl = async (url) => {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    logger.warn(`Rejected malformed image URL: ${url}`);
+    return null;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    logger.warn(`Rejected non-http(s) image URL: ${url}`);
+    return null;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2e4);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) {
+      logger.warn(`Image fetch failed (${res.status}): ${url}`);
+      return null;
+    }
+    const contentType = (res.headers.get("content-type") ?? "").toLowerCase();
+    if (contentType && !contentType.startsWith("image/")) {
+      logger.warn(`URL content-type is not image (${contentType}): ${url}`);
+      return null;
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    if (arrayBuffer.byteLength > MAX_FETCH_BYTES) {
+      logger.warn(`Fetched image exceeds size limit (${arrayBuffer.byteLength}): ${url}`);
+      return null;
+    }
+    const buffer = Buffer.from(arrayBuffer);
+    const tempDir = app.getPath("temp");
+    const tempFile = path.join(tempDir, `${TEMP_FETCH_PREFIX}${randomUUID()}.bin`);
+    fs.writeFileSync(tempFile, buffer);
+    return tempFile;
+  } catch (error) {
+    logger.warn(`Failed to fetch image from URL: ${url}`, error);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+const writeTempBuffer = async (buffer) => {
+  const tempDir = app.getPath("temp");
+  const tempFile = path.join(tempDir, `${TEMP_FETCH_PREFIX}${randomUUID()}.bin`);
+  fs.writeFileSync(tempFile, buffer);
+  return tempFile;
+};
+const cleanupTempImages = () => {
+  try {
+    const tempDir = app.getPath("temp");
+    if (!fs.existsSync(tempDir)) return;
+    for (const file of fs.readdirSync(tempDir)) {
+      if (file.startsWith(TEMP_FETCH_PREFIX)) {
+        try {
+          fs.unlinkSync(path.join(tempDir, file));
+        } catch {
+        }
+      }
+    }
+  } catch {
+  }
+};
+const deleteImage = (relPath) => {
+  try {
+    const abs = path.join(getUserDataPath(), relPath);
+    if (fs.existsSync(abs)) {
+      fs.unlinkSync(abs);
+      logger.info(`Deleted image: ${abs}`);
+    }
+  } catch (error) {
+    logger.warn(`Failed to delete image: ${relPath}`, error);
+  }
+};
+const saveThumbnail = async (programId, imagePath) => {
   if (!fs.existsSync(imagePath)) {
     throw new Error(`Image file not found: ${imagePath}`);
   }
-  const ext = path.extname(imagePath).toLowerCase();
-  const thumbnailsDir = getThumbnailsPath();
-  const destPath = path.join(thumbnailsDir, `${programId}${ext}`);
-  deleteExistingThumbnail(programId);
-  try {
-    fs.copyFileSync(imagePath, destPath);
-    updateProgramThumbnailPath(programId, destPath);
-    logger.info(`Saved thumbnail for program ${programId}: ${destPath}`);
-    return destPath;
-  } catch (error) {
-    logger.error(`Failed to save thumbnail for program ${programId}:`, error);
-    throw error;
-  }
-};
-const deleteExistingThumbnail = (programId) => {
-  const thumbnailsDir = getThumbnailsPath();
-  if (!fs.existsSync(thumbnailsDir)) {
-    return;
-  }
-  const files = fs.readdirSync(thumbnailsDir);
-  const extensions = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"];
-  for (const ext of extensions) {
-    const fileName = `${programId}${ext}`;
-    if (files.includes(fileName)) {
-      const filePath = path.join(thumbnailsDir, fileName);
-      try {
-        fs.unlinkSync(filePath);
-        logger.info(`Deleted existing thumbnail: ${filePath}`);
-      } catch (error) {
-        logger.warn(`Failed to delete existing thumbnail: ${filePath}`, error);
-      }
-    }
-  }
+  const relPath = await processThumbnail(imagePath, programId);
+  updateProgramThumbnailPath(programId, relPath);
+  return relPath;
 };
 const deleteThumbnail = (programId) => {
-  deleteExistingThumbnail(programId);
+  const dir = getThumbnailsDir();
+  if (fs.existsSync(dir)) {
+    const prefix = `${programId}.`;
+    try {
+      for (const file of fs.readdirSync(dir)) {
+        if (file.startsWith(prefix)) {
+          deleteImage(`thumbnails/${file}`);
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to scan thumbnails dir:`, error);
+    }
+  }
   updateProgramThumbnailPath(programId, null);
   logger.info(`Deleted thumbnail for program: ${programId}`);
 };
 const execFileAsync$1 = promisify(execFile);
 const extractIcon = async (executablePath, programId) => {
-  ensureDirectories();
   if (!fs.existsSync(executablePath)) {
     logger.warn(`Executable not found: ${executablePath}`);
     return null;
   }
-  const iconsDir = getIconsPath();
-  const destPath = path.join(iconsDir, `${programId}.png`);
+  const tempPngPath = path.join(app.getPath("temp"), `extract-icon-${programId}.png`);
   const tempScriptPath = path.join(app.getPath("temp"), `extract-icon-${programId}.ps1`);
   const psScript = `
 Add-Type -AssemblyName System.Drawing
@@ -393,6 +525,14 @@ try {
     Write-Output "error: $_"
 }
 `;
+  const cleanupTemps = () => {
+    for (const p of [tempScriptPath, tempPngPath]) {
+      try {
+        if (fs.existsSync(p)) fs.unlinkSync(p);
+      } catch {
+      }
+    }
+  };
   try {
     fs.writeFileSync(tempScriptPath, psScript, { encoding: "utf8" });
     const { stdout, stderr } = await execFileAsync$1("powershell", [
@@ -406,35 +546,57 @@ try {
       env: {
         ...process.env,
         WL_EXE_PATH: executablePath,
-        WL_OUT_PATH: destPath
+        WL_OUT_PATH: tempPngPath
       }
     });
-    try {
-      fs.unlinkSync(tempScriptPath);
-    } catch {
-    }
     if (stderr) {
       logger.warn(`PowerShell stderr: ${stderr}`);
     }
     const result = stdout.trim();
-    if (result === "success" && fs.existsSync(destPath)) {
-      updateProgramIconPath(programId, destPath);
-      logger.info(`Extracted icon for program ${programId}: ${destPath}`);
-      return destPath;
-    } else {
+    if (result !== "success" || !fs.existsSync(tempPngPath)) {
       logger.warn(`Failed to extract icon for: ${executablePath}, result: ${result}`);
+      cleanupTemps();
       return null;
     }
+    const relPath = await processIcon(tempPngPath, programId);
+    updateProgramIconPath(programId, relPath);
+    logger.info(`Extracted icon for program ${programId}: ${relPath}`);
+    cleanupTemps();
+    return relPath;
   } catch (error) {
     logger.error(`Error extracting icon from ${executablePath}:`, error);
-    try {
-      if (fs.existsSync(tempScriptPath)) {
-        fs.unlinkSync(tempScriptPath);
-      }
-    } catch {
-    }
+    cleanupTemps();
     return null;
   }
+};
+const saveIcon = async (programId, imagePath) => {
+  if (!fs.existsSync(imagePath)) {
+    throw new Error(`Image file not found: ${imagePath}`);
+  }
+  const relPath = await processIcon(imagePath, programId);
+  updateProgramIconPath(programId, relPath);
+  return relPath;
+};
+const deleteIcon = (programId) => {
+  const iconsDir = getIconsDir();
+  if (fs.existsSync(iconsDir)) {
+    const prefix = `${programId}.`;
+    try {
+      for (const file of fs.readdirSync(iconsDir)) {
+        if (file.startsWith(prefix)) {
+          try {
+            fs.unlinkSync(path.join(iconsDir, file));
+          } catch (error) {
+            logger.warn(`Failed to delete icon file ${file}:`, error);
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to scan icons dir:`, error);
+    }
+  }
+  updateProgramIconPath(programId, null);
+  logger.info(`Deleted icon for program: ${programId}`);
 };
 const execFileAsync = promisify(execFile);
 const unescapeVdfString = (value) => {
@@ -558,24 +720,33 @@ const fetchWithTimeout = async (url, timeoutMs) => {
   }
 };
 const downloadSteamThumbnail = async (appId, programId) => {
-  ensureDirectories();
-  const destPath = path.join(getThumbnailsPath(), `${programId}.jpg`);
   for (const url of THUMBNAIL_URL_CANDIDATES(appId)) {
     const buffer = await fetchWithTimeout(url, 15e3);
     if (buffer && buffer.length > 0) {
       try {
-        fs.writeFileSync(destPath, buffer);
-        logger.info(`Downloaded Steam thumbnail for appId ${appId} from ${url}`);
-        return destPath;
+        const relPath = await processThumbnail(buffer, programId);
+        logger.info(`Downloaded Steam thumbnail for appId ${appId} from ${url} -> ${relPath}`);
+        return relPath;
       } catch (error) {
-        logger.warn(`Failed to write thumbnail file: ${destPath}`, error);
-        return null;
+        logger.warn(`Failed to process Steam thumbnail from ${url}:`, error);
       }
     }
   }
   logger.warn(`No thumbnail found for Steam appId ${appId}`);
   return null;
 };
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "wl-image",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true
+    }
+  }
+]);
 const isDev = process.env.NODE_ENV === "development";
 if (process.env.PORTABLE_EXECUTABLE_DIR) {
   app.setPath("userData", join(process.env.PORTABLE_EXECUTABLE_DIR, "data"));
@@ -599,8 +770,7 @@ function createWindow() {
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false
-      // Allow loading local files
+      webSecurity: true
     }
   });
   mainWindow.on("ready-to-show", () => {
@@ -669,6 +839,12 @@ function registerIpcHandlers() {
   ipcMain.handle("icon:extract", async (_event, { executablePath, programId }) => {
     return await extractIcon(executablePath, programId);
   });
+  ipcMain.handle("icon:save", async (_event, { programId, imagePath }) => {
+    return await saveIcon(programId, imagePath);
+  });
+  ipcMain.handle("icon:delete", (_event, programId) => {
+    deleteIcon(programId);
+  });
   ipcMain.handle("settings:load", () => {
     return loadSettings();
   });
@@ -698,8 +874,24 @@ function registerIpcHandlers() {
   ipcMain.handle("window:isMaximized", () => {
     return mainWindow?.isMaximized() ?? false;
   });
+  ipcMain.handle("image:readAsDataUrl", async (_event, absPath) => {
+    return await readImageAsDataUrl(absPath);
+  });
+  ipcMain.handle("image:fetchFromUrl", async (_event, url) => {
+    return await fetchImageFromUrl(url);
+  });
+  ipcMain.handle("image:writeTempBuffer", async (_event, data) => {
+    return await writeTempBuffer(Buffer.from(data));
+  });
   ipcMain.handle("steam:scanInstalled", async () => {
     return await scanInstalledGames();
+  });
+  ipcMain.handle("steam:downloadThumbnail", async (_event, { programId, appId }) => {
+    const relPath = await downloadSteamThumbnail(appId, programId);
+    if (relPath) {
+      updateProgramThumbnailPath(programId, relPath);
+    }
+    return relPath;
   });
   ipcMain.handle("steam:addPrograms", async (_event, entries) => {
     const added = [];
@@ -720,8 +912,35 @@ function registerIpcHandlers() {
   });
   logger.info("IPC handlers registered");
 }
+const registerImageProtocol = () => {
+  protocol.handle("wl-image", async (request) => {
+    try {
+      const url = new URL(request.url);
+      if (url.host !== "lib") {
+        return new Response("Not Found", { status: 404 });
+      }
+      const relPath = decodeURIComponent(url.pathname.replace(/^\//, ""));
+      if (!relPath || relPath.includes("..")) {
+        return new Response("Forbidden", { status: 403 });
+      }
+      const userData = resolve(app.getPath("userData"));
+      const absPath = resolve(join(userData, relPath));
+      const rel = relative(userData, absPath);
+      if (rel.startsWith("..") || isAbsolute(rel)) {
+        return new Response("Forbidden", { status: 403 });
+      }
+      return net.fetch(`file://${absPath}`);
+    } catch (error) {
+      logger.error("wl-image handler error:", error);
+      return new Response("Server Error", { status: 500 });
+    }
+  });
+  logger.info("Registered wl-image:// protocol handler");
+};
 app.whenReady().then(() => {
   logger.info("App ready");
+  cleanupTempImages();
+  registerImageProtocol();
   registerIpcHandlers();
   createWindow();
   app.on("activate", () => {

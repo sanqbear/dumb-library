@@ -5,6 +5,7 @@ import {
   NForm,
   NFormItem,
   NInput,
+  NInputGroup,
   NButton,
   NSpace,
   NDynamicTags,
@@ -13,9 +14,21 @@ import {
   useMessage,
   useDialog
 } from 'naive-ui'
-import { FolderOpen as FolderIcon, Image as ImageIcon, Close as CloseIcon, Trash as DeleteIcon } from '@vicons/ionicons5'
+import {
+  FolderOpen as FolderIcon,
+  Image as ImageIcon,
+  Close as CloseIcon,
+  Trash as DeleteIcon,
+  RefreshOutline as RefreshIcon,
+  LinkOutline as LinkIcon,
+  CloudDownloadOutline as CloudDownloadIcon
+} from '@vicons/ionicons5'
 import { useLibraryStore } from '../../stores/libraryStore'
 import type { Program } from '../../types'
+import { libImageUrl } from '../../types'
+import { useImageInput } from '../../composables/useImageInput'
+import ImageCropDialog from './ImageCropDialog.vue'
+import SteamArtworkDialog from './SteamArtworkDialog.vue'
 
 const props = defineProps<{
   show: boolean
@@ -30,14 +43,75 @@ const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
 
+// Shared drag&drop + URL fetch helpers (one per media section)
+const thumbInput = useImageInput()
+const iconInput = useImageInput()
+
 // Form data
 const title = ref('')
 const executablePath = ref('')
 const tags = ref<string[]>([])
+
+// Thumbnail state — pending changes are deferred until Save
 const thumbnailPath = ref<string | null>(null)
 const originalThumbnailPath = ref<string | null>(null)
+const thumbnailPreview = ref<string>('')
+
+// Icon state — same deferred pattern
+const iconPath = ref<string | null>(null)
+const originalIconPath = ref<string | null>(null)
+const iconPreview = ref<string>('')
+
+// URL input state (per section)
+const thumbUrl = ref('')
+const iconUrl = ref('')
+
+// Crop flow state — single dialog shared by both sections, with a target
+// ref indicating which field receives the cropped result.
+const showCropDialog = ref(false)
+const cropSourceUrl = ref('')
+const cropAspect = ref(2 / 3)
+const cropTarget = ref<'thumbnail' | 'icon'>('thumbnail')
+
+// Steam artwork picker
+const showArtworkDialog = ref(false)
 
 const isSubmitting = ref(false)
+
+// Cache-buster for wl-image URLs — bumped after operations that rewrite a file
+// at the same path (re-extract). Prevents the browser from showing stale image.
+const cacheBust = ref(Date.now())
+
+// Can we re-extract icon from the exe? Only for local programs.
+const canReextractIcon = computed(() =>
+  props.program?.category === 'local' && !!executablePath.value && !executablePath.value.startsWith('steam://')
+)
+
+// Steam programs can have their cover re-downloaded from Steam CDN at any time.
+const steamAppId = computed<number | null>(() => {
+  if (props.program?.category !== 'steam') return null
+  const match = props.program.executablePath.match(/^steam:\/\/run\/(\d+)$/)
+  return match ? parseInt(match[1], 10) : null
+})
+
+// Resolve preview URL: wl-image:// when pointing at the saved path, data: when user just selected a new file.
+const resolvePreview = async (
+  current: string | null,
+  original: string | null,
+  version: string | number
+): Promise<string> => {
+  if (!current) return ''
+  if (current === original) return libImageUrl(current, version)
+  return (await window.electron.readImageAsDataUrl(current)) ?? ''
+}
+
+watch([thumbnailPath, originalThumbnailPath, cacheBust], async ([current, original, v]) => {
+  thumbnailPreview.value = await resolvePreview(current as string | null, original as string | null, v as number)
+})
+
+watch([iconPath, originalIconPath, cacheBust], async ([current, original, v]) => {
+  iconPreview.value = await resolvePreview(current as string | null, original as string | null, v as number)
+})
 
 // Initialize form when program changes or dialog opens
 watch(() => [props.show, props.program], ([newShow, newProgram]) => {
@@ -48,6 +122,9 @@ watch(() => [props.show, props.program], ([newShow, newProgram]) => {
     tags.value = [...program.tags]
     thumbnailPath.value = program.thumbnailPath
     originalThumbnailPath.value = program.thumbnailPath
+    iconPath.value = program.iconPath
+    originalIconPath.value = program.iconPath
+    cacheBust.value = Date.now()
   }
 }, { immediate: true })
 
@@ -56,22 +133,9 @@ const isValid = computed(() => {
   return title.value.trim() !== '' && executablePath.value.trim() !== ''
 })
 
-// Check if thumbnail changed
-const thumbnailChanged = computed(() => {
-  return thumbnailPath.value !== originalThumbnailPath.value
-})
-
-// Display thumbnail path (for preview)
-const displayThumbnail = computed(() => {
-  if (thumbnailPath.value) {
-    // If it's a new file path (not already saved)
-    if (thumbnailPath.value.includes(':')) {
-      return `file://${thumbnailPath.value}`
-    }
-    return `file://${thumbnailPath.value}`
-  }
-  return ''
-})
+// Check if thumbnail/icon changed
+const thumbnailChanged = computed(() => thumbnailPath.value !== originalThumbnailPath.value)
+const iconChanged = computed(() => iconPath.value !== originalIconPath.value)
 
 // Select executable file
 const handleSelectExecutable = async () => {
@@ -81,17 +145,131 @@ const handleSelectExecutable = async () => {
   }
 }
 
-// Select thumbnail image
+// Thumbnail: select/remove (deferred to submit)
 const handleSelectThumbnail = async () => {
   const path = await window.electron.selectImage()
-  if (path) {
-    thumbnailPath.value = path
+  if (path) await openCropFor(path, 'thumbnail')
+}
+
+const handleRemoveThumbnail = () => {
+  thumbnailPath.value = null
+}
+
+// Icon: select/remove (deferred to submit)
+const handleSelectIcon = async () => {
+  const path = await window.electron.selectImage()
+  if (path) await openCropFor(path, 'icon')
+}
+
+const handleRemoveIcon = () => {
+  iconPath.value = null
+}
+
+// Open crop dialog for the given target ('thumbnail' | 'icon') with a source path.
+const openCropFor = async (absSourcePath: string, target: 'thumbnail' | 'icon') => {
+  const dataUrl = await window.electron.readImageAsDataUrl(absSourcePath)
+  if (!dataUrl) {
+    message.error('이미지를 읽지 못했습니다')
+    return
+  }
+  cropSourceUrl.value = dataUrl
+  cropAspect.value = target === 'icon' ? 1 : 2 / 3
+  cropTarget.value = target
+  showCropDialog.value = true
+}
+
+const handleCropConfirm = (tempPath: string) => {
+  if (cropTarget.value === 'thumbnail') {
+    thumbnailPath.value = tempPath
+  } else {
+    iconPath.value = tempPath
   }
 }
 
-// Remove thumbnail
-const handleRemoveThumbnail = () => {
-  thumbnailPath.value = null
+// Drop / URL handlers — all route through crop dialog
+const handleThumbDrop = async (e: DragEvent) => {
+  const absPath = thumbInput.onDrop(e)
+  if (absPath) await openCropFor(absPath, 'thumbnail')
+  else message.warning('이미지 파일만 지원합니다')
+}
+
+const handleFetchThumbUrl = async () => {
+  const tempPath = await thumbInput.fetchFromUrl(thumbUrl.value)
+  if (tempPath) {
+    thumbUrl.value = ''
+    await openCropFor(tempPath, 'thumbnail')
+  } else {
+    message.error('URL에서 이미지를 가져오지 못했습니다')
+  }
+}
+
+const handleIconDrop = async (e: DragEvent) => {
+  const absPath = iconInput.onDrop(e)
+  if (absPath) await openCropFor(absPath, 'icon')
+  else message.warning('이미지 파일만 지원합니다')
+}
+
+const handleFetchIconUrl = async () => {
+  const tempPath = await iconInput.fetchFromUrl(iconUrl.value)
+  if (tempPath) {
+    iconUrl.value = ''
+    await openCropFor(tempPath, 'icon')
+  } else {
+    message.error('URL에서 이미지를 가져오지 못했습니다')
+  }
+}
+
+// Steam artwork picker — user selects one of the CDN candidates, we download
+// it to a temp file, then run through the crop dialog.
+const handleOpenArtworkDialog = () => {
+  if (steamAppId.value === null) return
+  showArtworkDialog.value = true
+}
+
+const handleArtworkSelected = async (tempPath: string) => {
+  await openCropFor(tempPath, 'thumbnail')
+}
+
+// Steam cover re-download: runs immediately (not deferred). Rebuilds the
+// thumbnail file from Steam CDN and adopts it as the new baseline so submit
+// doesn't treat it as a pending change.
+const handleSteamRedownload = async () => {
+  if (!props.program || steamAppId.value === null) return
+  isSubmitting.value = true
+  try {
+    const newPath = await libraryStore.downloadSteamThumbnail(props.program.id, steamAppId.value)
+    if (newPath) {
+      thumbnailPath.value = newPath
+      originalThumbnailPath.value = newPath
+      cacheBust.value = Date.now()
+      message.success('Steam 커버를 다시 받았습니다')
+    } else {
+      message.error('Steam 커버를 받지 못했습니다 (AppID 또는 네트워크 확인)')
+    }
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+// Icon re-extract: runs immediately (not deferred), since the operation
+// produces a new file at the same path — we want instant visual feedback.
+const handleReextractIcon = async () => {
+  if (!props.program || !canReextractIcon.value) return
+  isSubmitting.value = true
+  try {
+    const newPath = await libraryStore.reextractIcon(props.program.id, executablePath.value)
+    if (newPath) {
+      // Adopt the fresh path as the new baseline so previews switch to wl-image.
+      iconPath.value = newPath
+      originalIconPath.value = newPath
+      cacheBust.value = Date.now()
+      message.success('아이콘을 추출했습니다')
+    } else {
+      message.error('아이콘 추출에 실패했습니다')
+    }
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 // Submit form
@@ -109,17 +287,22 @@ const handleSubmit = async () => {
     })
     
     if (updatedProgram) {
-      // Handle thumbnail changes
       if (thumbnailChanged.value) {
         if (thumbnailPath.value === null) {
-          // Delete thumbnail
           await libraryStore.deleteThumbnail(props.program.id)
-        } else if (thumbnailPath.value !== originalThumbnailPath.value) {
-          // Save new thumbnail
+        } else {
           await libraryStore.saveThumbnail(props.program.id, thumbnailPath.value)
         }
       }
-      
+
+      if (iconChanged.value) {
+        if (iconPath.value === null) {
+          await libraryStore.deleteIcon(props.program.id)
+        } else {
+          await libraryStore.saveIcon(props.program.id, iconPath.value)
+        }
+      }
+
       message.success('Program updated successfully')
       emit('update:show', false)
     } else {
@@ -170,40 +353,147 @@ const handleDelete = () => {
     :mask-closable="false"
   >
     <NForm label-placement="top" v-if="program">
-      <!-- Thumbnail preview -->
-      <div class="thumbnail-section">
-        <div class="thumbnail-preview">
-          <NImage
-            v-if="thumbnailPath"
-            :src="displayThumbnail"
-            object-fit="cover"
-            width="120"
-            height="160"
-            preview-disabled
-          />
-          <div v-else class="thumbnail-placeholder">
-            <NIcon :component="ImageIcon" :size="32" />
-            <span>No thumbnail</span>
+      <!-- Thumbnail section -->
+      <div class="media-section">
+        <div class="media-label">Thumbnail (600×900)</div>
+        <div class="media-row">
+          <div
+            class="thumbnail-preview"
+            :class="{ 'is-drag-over': thumbInput.isDragOver.value }"
+            @dragenter="thumbInput.onDragEnter"
+            @dragover="thumbInput.onDragOver"
+            @dragleave="thumbInput.onDragLeave"
+            @drop="handleThumbDrop"
+          >
+            <NImage
+              v-if="thumbnailPreview"
+              :src="thumbnailPreview"
+              object-fit="cover"
+              width="120"
+              height="180"
+              preview-disabled
+            />
+            <div v-else class="thumbnail-placeholder">
+              <NIcon :component="ImageIcon" :size="32" />
+              <span>드래그 또는 선택</span>
+            </div>
+          </div>
+          <div class="media-actions">
+            <NButton @click="handleSelectThumbnail" size="small">
+              <template #icon><NIcon :component="ImageIcon" /></template>
+              {{ thumbnailPath ? 'Change' : 'Select' }} Image
+            </NButton>
+            <NButton
+              v-if="steamAppId !== null"
+              @click="handleOpenArtworkDialog"
+              size="small"
+              :disabled="isSubmitting"
+            >
+              <template #icon><NIcon :component="CloudDownloadIcon" /></template>
+              Steam 아트워크 선택
+            </NButton>
+            <NButton
+              v-if="steamAppId !== null"
+              @click="handleSteamRedownload"
+              size="small"
+              :disabled="isSubmitting"
+              quaternary
+            >
+              기본 커버로 복원
+            </NButton>
+            <NButton
+              v-if="thumbnailPath"
+              @click="handleRemoveThumbnail"
+              size="small"
+              quaternary
+            >
+              <template #icon><NIcon :component="CloseIcon" /></template>
+              Remove
+            </NButton>
+            <NInputGroup size="small">
+              <NInput
+                v-model:value="thumbUrl"
+                placeholder="이미지 URL"
+                @keydown.enter.prevent="handleFetchThumbUrl"
+              />
+              <NButton
+                type="primary"
+                size="small"
+                :disabled="!thumbUrl.trim() || thumbInput.isFetching.value"
+                :loading="thumbInput.isFetching.value"
+                @click="handleFetchThumbUrl"
+              >
+                <template #icon><NIcon :component="LinkIcon" /></template>
+              </NButton>
+            </NInputGroup>
           </div>
         </div>
-        <div class="thumbnail-actions">
-          <NButton @click="handleSelectThumbnail" size="small">
-            <template #icon>
-              <NIcon :component="ImageIcon" />
-            </template>
-            {{ thumbnailPath ? 'Change' : 'Select' }} Image
-          </NButton>
-          <NButton 
-            v-if="thumbnailPath" 
-            @click="handleRemoveThumbnail" 
-            size="small"
-            quaternary
+      </div>
+
+      <!-- Icon section -->
+      <div class="media-section">
+        <div class="media-label">Icon (256×256)</div>
+        <div class="media-row">
+          <div
+            class="icon-preview"
+            :class="{ 'is-drag-over': iconInput.isDragOver.value }"
+            @dragenter="iconInput.onDragEnter"
+            @dragover="iconInput.onDragOver"
+            @dragleave="iconInput.onDragLeave"
+            @drop="handleIconDrop"
           >
-            <template #icon>
-              <NIcon :component="CloseIcon" />
-            </template>
-            Remove
-          </NButton>
+            <NImage
+              v-if="iconPreview"
+              :src="iconPreview"
+              object-fit="cover"
+              width="80"
+              height="80"
+              preview-disabled
+            />
+            <div v-else class="icon-placeholder">
+              <NIcon :component="ImageIcon" :size="24" />
+            </div>
+          </div>
+          <div class="media-actions">
+            <NButton @click="handleSelectIcon" size="small">
+              <template #icon><NIcon :component="ImageIcon" /></template>
+              {{ iconPath ? 'Change' : 'Select' }} Image
+            </NButton>
+            <NButton
+              v-if="canReextractIcon"
+              @click="handleReextractIcon"
+              size="small"
+              :disabled="isSubmitting"
+            >
+              <template #icon><NIcon :component="RefreshIcon" /></template>
+              Re-extract from .exe
+            </NButton>
+            <NButton
+              v-if="iconPath"
+              @click="handleRemoveIcon"
+              size="small"
+              quaternary
+            >
+              <template #icon><NIcon :component="CloseIcon" /></template>
+              Remove
+            </NButton>
+            <NInputGroup size="small">
+              <NInput
+                v-model:value="iconUrl"
+                placeholder="이미지 URL"
+                @keydown.enter.prevent="handleFetchIconUrl"
+              />
+              <NButton
+                type="primary"
+                size="small"
+                :disabled="!iconUrl.trim() || iconInput.isFetching.value"
+                :loading="iconInput.isFetching.value"
+                @click="handleFetchIconUrl"
+              >
+                <template #icon><NIcon :component="LinkIcon" /></template>
+              </NButton>
+            </NInputGroup>
+          </div>
         </div>
       </div>
 
@@ -267,32 +557,86 @@ const handleDelete = () => {
         </NSpace>
       </div>
     </template>
+
+    <ImageCropDialog
+      v-model:show="showCropDialog"
+      :source="cropSourceUrl"
+      :aspect-ratio="cropAspect"
+      :title="cropTarget === 'icon' ? '아이콘 크롭 (1:1)' : '썸네일 크롭 (2:3)'"
+      @confirm="handleCropConfirm"
+    />
+
+    <SteamArtworkDialog
+      v-model:show="showArtworkDialog"
+      :app-id="steamAppId"
+      @selected="handleArtworkSelected"
+    />
   </NModal>
 </template>
 
 <style scoped>
-.thumbnail-section {
-  display: flex;
-  gap: 16px;
+.media-section {
   margin-bottom: 16px;
-  padding: 16px;
+  padding: 12px 16px;
   background-color: #3f3f46;
   border-radius: 8px;
 }
 
-.light-theme .thumbnail-section {
+:global(.light-theme) .media-section {
   background-color: #f4f4f5;
+}
+
+.media-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #a1a1aa;
+  margin-bottom: 10px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+:global(.light-theme) .media-label {
+  color: #52525b;
+}
+
+.media-row {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.thumbnail-preview,
+.icon-preview {
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .thumbnail-preview {
   width: 120px;
-  height: 160px;
-  border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
+  height: 180px;
 }
 
-.thumbnail-placeholder {
+.icon-preview {
+  width: 80px;
+  height: 80px;
+}
+
+.thumbnail-preview.is-drag-over,
+.icon-preview.is-drag-over {
+  box-shadow: 0 0 0 2px #e87ea1;
+  transform: scale(1.02);
+}
+
+:global(.light-theme) .thumbnail-preview.is-drag-over,
+:global(.light-theme) .icon-preview.is-drag-over {
+  box-shadow: 0 0 0 2px #db2777;
+}
+
+.thumbnail-placeholder,
+.icon-placeholder {
   width: 100%;
   height: 100%;
   display: flex;
@@ -305,15 +649,18 @@ const handleDelete = () => {
   font-size: 0.75rem;
 }
 
-.light-theme .thumbnail-placeholder {
+:global(.light-theme) .thumbnail-placeholder,
+:global(.light-theme) .icon-placeholder {
   background-color: #e4e4e7;
 }
 
-.thumbnail-actions {
+.media-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
   justify-content: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .footer-split {

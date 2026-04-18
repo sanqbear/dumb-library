@@ -2,7 +2,7 @@ import { execFile } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { promisify } from 'util'
-import { getThumbnailsPath, ensureDirectories } from './dataService'
+import { processThumbnail } from './imageService'
 import logger from './logger'
 import type { SteamGame } from '../../src/types'
 
@@ -162,19 +162,16 @@ const fetchWithTimeout = async (url: string, timeoutMs: number): Promise<Buffer 
 }
 
 export const downloadSteamThumbnail = async (appId: number, programId: string): Promise<string | null> => {
-  ensureDirectories()
-  const destPath = path.join(getThumbnailsPath(), `${programId}.jpg`)
-
   for (const url of THUMBNAIL_URL_CANDIDATES(appId)) {
     const buffer = await fetchWithTimeout(url, 15000)
     if (buffer && buffer.length > 0) {
       try {
-        fs.writeFileSync(destPath, buffer)
-        logger.info(`Downloaded Steam thumbnail for appId ${appId} from ${url}`)
-        return destPath
+        const relPath = await processThumbnail(buffer, programId)
+        logger.info(`Downloaded Steam thumbnail for appId ${appId} from ${url} -> ${relPath}`)
+        return relPath
       } catch (error) {
-        logger.warn(`Failed to write thumbnail file: ${destPath}`, error)
-        return null
+        logger.warn(`Failed to process Steam thumbnail from ${url}:`, error)
+        // try next candidate
       }
     }
   }

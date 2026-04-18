@@ -1,12 +1,28 @@
-import { app, BrowserWindow, shell, ipcMain, protocol } from 'electron'
-import { join } from 'path'
+import { app, BrowserWindow, shell, ipcMain, protocol, net } from 'electron'
+import { join, resolve, relative, isAbsolute } from 'path'
 import logger from './services/logger'
 import * as dataService from './services/dataService'
 import * as fileService from './services/fileService'
 import * as thumbnailService from './services/thumbnailService'
 import * as iconService from './services/iconService'
 import * as steamService from './services/steamService'
+import * as imageService from './services/imageService'
 import type { CreateProgramData, UpdateProgramData, Settings, LibraryData, CreateSteamProgramData, Program } from '../src/types'
+
+// Register the wl-image scheme as privileged BEFORE app.ready so it can be
+// used in <img> tags, supports streaming, and bypasses CSP for local assets.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'wl-image',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true
+    }
+  }
+])
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -38,7 +54,7 @@ function createWindow(): void {
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false  // Allow loading local files
+      webSecurity: true
     }
   })
 
@@ -132,6 +148,14 @@ function registerIpcHandlers(): void {
     return await iconService.extractIcon(executablePath, programId)
   })
 
+  ipcMain.handle('icon:save', async (_event, { programId, imagePath }: { programId: string; imagePath: string }) => {
+    return await iconService.saveIcon(programId, imagePath)
+  })
+
+  ipcMain.handle('icon:delete', (_event, programId: string) => {
+    iconService.deleteIcon(programId)
+  })
+
   // Settings operations
   ipcMain.handle('settings:load', () => {
     return dataService.loadSettings()
@@ -171,9 +195,30 @@ function registerIpcHandlers(): void {
     return mainWindow?.isMaximized() ?? false
   })
 
+  // Image utilities
+  ipcMain.handle('image:readAsDataUrl', async (_event, absPath: string) => {
+    return await imageService.readImageAsDataUrl(absPath)
+  })
+
+  ipcMain.handle('image:fetchFromUrl', async (_event, url: string) => {
+    return await imageService.fetchImageFromUrl(url)
+  })
+
+  ipcMain.handle('image:writeTempBuffer', async (_event, data: Uint8Array) => {
+    return await imageService.writeTempBuffer(Buffer.from(data))
+  })
+
   // Steam integration
   ipcMain.handle('steam:scanInstalled', async () => {
     return await steamService.scanInstalledGames()
+  })
+
+  ipcMain.handle('steam:downloadThumbnail', async (_event, { programId, appId }: { programId: string; appId: number }) => {
+    const relPath = await steamService.downloadSteamThumbnail(appId, programId)
+    if (relPath) {
+      dataService.updateProgramThumbnailPath(programId, relPath)
+    }
+    return relPath
   })
 
   ipcMain.handle('steam:addPrograms', async (_event, entries: CreateSteamProgramData[]) => {
@@ -197,9 +242,39 @@ function registerIpcHandlers(): void {
   logger.info('IPC handlers registered')
 }
 
+// Serve userData-relative images via wl-image://lib/<relative-path>.
+// Enforces path confinement — the resolved file must stay inside userData.
+const registerImageProtocol = (): void => {
+  protocol.handle('wl-image', async (request) => {
+    try {
+      const url = new URL(request.url)
+      if (url.host !== 'lib') {
+        return new Response('Not Found', { status: 404 })
+      }
+      const relPath = decodeURIComponent(url.pathname.replace(/^\//, ''))
+      if (!relPath || relPath.includes('..')) {
+        return new Response('Forbidden', { status: 403 })
+      }
+      const userData = resolve(app.getPath('userData'))
+      const absPath = resolve(join(userData, relPath))
+      const rel = relative(userData, absPath)
+      if (rel.startsWith('..') || isAbsolute(rel)) {
+        return new Response('Forbidden', { status: 403 })
+      }
+      return net.fetch(`file://${absPath}`)
+    } catch (error) {
+      logger.error('wl-image handler error:', error)
+      return new Response('Server Error', { status: 500 })
+    }
+  })
+  logger.info('Registered wl-image:// protocol handler')
+}
+
 // App lifecycle
 app.whenReady().then(() => {
   logger.info('App ready')
+  imageService.cleanupTempImages()
+  registerImageProtocol()
   registerIpcHandlers()
   createWindow()
 

@@ -5,7 +5,7 @@ import { Play as PlayIcon, Create as EditIcon, Trash as DeleteIcon } from '@vico
 import type { DataTableColumns } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
 import type { Program } from '../../types'
-import { PROVIDERS } from '../../types'
+import { PROVIDERS, libImageUrl } from '../../types'
 import EditProgramDialog from '../dialogs/EditProgramDialog.vue'
 
 const libraryStore = useLibraryStore()
@@ -31,8 +31,8 @@ onUnmounted(() => {
 })
 
 const getDisplayImage = (program: Program): string => {
-  if (program.thumbnailPath) return `file://${program.thumbnailPath}`
-  if (program.iconPath) return `file://${program.iconPath}`
+  if (program.thumbnailPath) return libImageUrl(program.thumbnailPath, program.updatedAt)
+  if (program.iconPath) return libImageUrl(program.iconPath, program.updatedAt)
   return ''
 }
 

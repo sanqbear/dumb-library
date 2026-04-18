@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { NCard, NImage, NIcon, NTag, useMessage } from 'naive-ui'
 import { Play as PlayIcon, Image as ImageIcon } from '@vicons/ionicons5'
 import type { Program } from '../../types'
-import { PROVIDERS } from '../../types'
+import { PROVIDERS, libImageUrl } from '../../types'
 import { useLibraryStore } from '../../stores/libraryStore'
 import EditProgramDialog from '../dialogs/EditProgramDialog.vue'
 
@@ -18,8 +18,9 @@ const showEditDialog = ref(false)
 const isHovered = ref(false)
 
 const displayImage = computed(() => {
-  if (props.program.thumbnailPath) return `file://${props.program.thumbnailPath}`
-  if (props.program.iconPath) return `file://${props.program.iconPath}`
+  const v = props.program.updatedAt
+  if (props.program.thumbnailPath) return libImageUrl(props.program.thumbnailPath, v)
+  if (props.program.iconPath) return libImageUrl(props.program.iconPath, v)
   return ''
 })
 
@@ -115,7 +116,7 @@ const handleCardClick = () => {
 .card-image {
   position: relative;
   width: 100%;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 2 / 3;
   background-color: #3f3f46;
   overflow: hidden;
 }

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 const IPC_CHANNELS = {
   // Library
   LOAD_LIBRARY: "library:load",
@@ -16,11 +16,16 @@ const IPC_CHANNELS = {
   DELETE_THUMBNAIL: "thumbnail:delete",
   // Icon
   EXTRACT_ICON: "icon:extract",
+  SAVE_ICON: "icon:save",
+  DELETE_ICON: "icon:delete",
   // Settings
   LOAD_SETTINGS: "settings:load",
   SAVE_SETTINGS: "settings:save",
   // Utility
   GET_ASSET_PATH: "util:getAssetPath",
+  IMAGE_READ_AS_DATA_URL: "image:readAsDataUrl",
+  IMAGE_FETCH_FROM_URL: "image:fetchFromUrl",
+  IMAGE_WRITE_TEMP_BUFFER: "image:writeTempBuffer",
   // Window controls
   WINDOW_MINIMIZE: "window:minimize",
   WINDOW_MAXIMIZE: "window:maximize",
@@ -29,7 +34,8 @@ const IPC_CHANNELS = {
   WINDOW_MAXIMIZE_CHANGED: "window:maximize-changed",
   // Steam
   STEAM_SCAN_INSTALLED: "steam:scanInstalled",
-  STEAM_ADD_PROGRAMS: "steam:addPrograms"
+  STEAM_ADD_PROGRAMS: "steam:addPrograms",
+  STEAM_DOWNLOAD_THUMBNAIL: "steam:downloadThumbnail"
 };
 const electronAPI = {
   // Library operations
@@ -48,11 +54,25 @@ const electronAPI = {
   deleteThumbnail: (programId) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_THUMBNAIL, programId),
   // Icon operations
   extractIcon: (executablePath, programId) => ipcRenderer.invoke(IPC_CHANNELS.EXTRACT_ICON, { executablePath, programId }),
+  saveIcon: (programId, imagePath) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_ICON, { programId, imagePath }),
+  deleteIcon: (programId) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_ICON, programId),
   // Settings operations
   loadSettings: () => ipcRenderer.invoke(IPC_CHANNELS.LOAD_SETTINGS),
   saveSettings: (settings) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_SETTINGS, settings),
   // Utility
   getAssetPath: (relativePath) => ipcRenderer.invoke(IPC_CHANNELS.GET_ASSET_PATH, relativePath),
+  readImageAsDataUrl: (absPath) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_READ_AS_DATA_URL, absPath),
+  fetchImageFromUrl: (url) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_FETCH_FROM_URL, url),
+  writeTempImageBuffer: (data) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_WRITE_TEMP_BUFFER, data),
+  // webUtils.getPathForFile must be called in the renderer/preload context where
+  // the File object is alive. Exposed here so drag&drop handlers can resolve paths.
+  getPathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return "";
+    }
+  },
   // Window controls
   windowMinimize: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MINIMIZE),
   windowMaximize: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MAXIMIZE),
@@ -67,7 +87,8 @@ const electronAPI = {
   },
   // Steam
   scanSteamGames: () => ipcRenderer.invoke(IPC_CHANNELS.STEAM_SCAN_INSTALLED),
-  addSteamPrograms: (entries) => ipcRenderer.invoke(IPC_CHANNELS.STEAM_ADD_PROGRAMS, entries)
+  addSteamPrograms: (entries) => ipcRenderer.invoke(IPC_CHANNELS.STEAM_ADD_PROGRAMS, entries),
+  downloadSteamThumbnail: (programId, appId) => ipcRenderer.invoke(IPC_CHANNELS.STEAM_DOWNLOAD_THUMBNAIL, { programId, appId })
 };
 if (process.contextIsolated) {
   try {

@@ -1,74 +1,56 @@
+import { processThumbnail, deleteImage, getThumbnailsDir } from './imageService'
+import { updateProgramThumbnailPath } from './dataService'
 import fs from 'fs'
 import path from 'path'
-import { getThumbnailsPath, ensureDirectories, updateProgramThumbnailPath } from './dataService'
 import logger from './logger'
 
 /**
- * Save a thumbnail image for a program
- * Copies the source image to the thumbnails directory
+ * Save a thumbnail for a program — processes through sharp to produce a
+ * normalized 600x900 webp and stores under userData/thumbnails.
+ * Returns the userData-relative path (e.g., "thumbnails/<id>.webp").
  */
-export const saveThumbnail = (programId: string, imagePath: string): string => {
-  ensureDirectories()
-  
+export const saveThumbnail = async (programId: string, imagePath: string): Promise<string> => {
   if (!fs.existsSync(imagePath)) {
     throw new Error(`Image file not found: ${imagePath}`)
   }
-  
-  const ext = path.extname(imagePath).toLowerCase()
-  const thumbnailsDir = getThumbnailsPath()
-  const destPath = path.join(thumbnailsDir, `${programId}${ext}`)
-  
-  // Delete existing thumbnail if exists
-  deleteExistingThumbnail(programId)
-  
-  try {
-    fs.copyFileSync(imagePath, destPath)
-    updateProgramThumbnailPath(programId, destPath)
-    logger.info(`Saved thumbnail for program ${programId}: ${destPath}`)
-    return destPath
-  } catch (error) {
-    logger.error(`Failed to save thumbnail for program ${programId}:`, error)
-    throw error
-  }
+
+  const relPath = await processThumbnail(imagePath, programId)
+  updateProgramThumbnailPath(programId, relPath)
+  return relPath
 }
 
 /**
- * Delete existing thumbnail files for a program (any extension)
+ * Save a thumbnail from an in-memory buffer (e.g., downloaded from a URL).
  */
-const deleteExistingThumbnail = (programId: string): void => {
-  const thumbnailsDir = getThumbnailsPath()
-  
-  if (!fs.existsSync(thumbnailsDir)) {
-    return
-  }
-  
-  const files = fs.readdirSync(thumbnailsDir)
-  const extensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']
-  
-  for (const ext of extensions) {
-    const fileName = `${programId}${ext}`
-    if (files.includes(fileName)) {
-      const filePath = path.join(thumbnailsDir, fileName)
-      try {
-        fs.unlinkSync(filePath)
-        logger.info(`Deleted existing thumbnail: ${filePath}`)
-      } catch (error) {
-        logger.warn(`Failed to delete existing thumbnail: ${filePath}`, error)
-      }
-    }
-  }
+export const saveThumbnailFromBuffer = async (programId: string, buffer: Buffer): Promise<string> => {
+  const relPath = await processThumbnail(buffer, programId)
+  updateProgramThumbnailPath(programId, relPath)
+  return relPath
 }
 
 /**
- * Delete thumbnail for a program
+ * Delete thumbnail files for a program (any extension) and clear the DB pointer.
  */
 export const deleteThumbnail = (programId: string): void => {
-  deleteExistingThumbnail(programId)
+  const dir = getThumbnailsDir()
+  if (fs.existsSync(dir)) {
+    const prefix = `${programId}.`
+    try {
+      for (const file of fs.readdirSync(dir)) {
+        if (file.startsWith(prefix)) {
+          deleteImage(`thumbnails/${file}`)
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to scan thumbnails dir:`, error)
+    }
+  }
   updateProgramThumbnailPath(programId, null)
   logger.info(`Deleted thumbnail for program: ${programId}`)
 }
 
 export default {
   saveThumbnail,
+  saveThumbnailFromBuffer,
   deleteThumbnail
 }

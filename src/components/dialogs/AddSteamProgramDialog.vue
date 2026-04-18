@@ -81,6 +81,21 @@ const manualValid = computed(() =>
   manualAppId.value !== null && manualAppId.value > 0 && manualName.value.trim() !== ''
 )
 
+const reportAddResult = (added: { thumbnailPath: string | null }[], requested: number) => {
+  const missingThumb = added.filter(p => !p.thumbnailPath).length
+  if (added.length === 0) {
+    message.error('추가 실패')
+    return
+  }
+  if (added.length < requested) {
+    message.warning(`${added.length}/${requested}개 게임만 추가되었습니다`)
+  } else if (missingThumb > 0) {
+    message.warning(`${added.length}개 추가됨. ${missingThumb}개는 커버를 못 받았습니다. 편집에서 "Steam 커버 다시 받기"로 재시도할 수 있습니다.`)
+  } else {
+    message.success(`${added.length}개 게임이 추가되었습니다`)
+  }
+}
+
 const handleSubmitInstalled = async () => {
   if (checkedAppIds.value.length === 0) return
   const selected = games.value.filter(g => checkedAppIds.value.includes(g.appId))
@@ -89,13 +104,7 @@ const handleSubmitInstalled = async () => {
   isSubmitting.value = true
   try {
     const added = await libraryStore.addSteamPrograms(entries)
-    if (added.length === entries.length) {
-      message.success(`${added.length}개 게임이 추가되었습니다`)
-    } else if (added.length > 0) {
-      message.warning(`${added.length}/${entries.length}개 게임만 추가되었습니다`)
-    } else {
-      message.error('추가 실패')
-    }
+    reportAddResult(added, entries.length)
     emit('update:show', false)
   } finally {
     isSubmitting.value = false
@@ -112,7 +121,7 @@ const handleSubmitManual = async () => {
       name: manualName.value.trim()
     }])
     if (added.length > 0) {
-      message.success('Steam 게임이 추가되었습니다')
+      reportAddResult(added, 1)
       emit('update:show', false)
     } else {
       message.error('추가 실패')
