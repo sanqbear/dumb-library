@@ -347,10 +347,14 @@ try {
   }
 };
 const isDev = process.env.NODE_ENV === "development";
+if (process.env.PORTABLE_EXECUTABLE_DIR) {
+  app.setPath("userData", join(process.env.PORTABLE_EXECUTABLE_DIR, "data"));
+}
 let mainWindow = null;
 function createWindow() {
   const preloadPath = join(__dirname, "../preload/index.mjs");
   logger.info(`Preload path: ${preloadPath}`);
+  const iconPath = isDev ? join(app.getAppPath(), "src/assets/icon.png") : join(process.resourcesPath, "icon.png");
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -358,6 +362,7 @@ function createWindow() {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    icon: iconPath,
     webPreferences: {
       preload: preloadPath,
       sandbox: false,

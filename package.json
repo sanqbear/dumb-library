@@ -5,15 +5,15 @@
   "description": "A desktop app to manage your program library",
   "type": "module",
   "main": "./out/main/index.js",
-  "author": "Your Name",
+  "author": "sanqbear",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "vue-tsc -b && electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
-    "build:win": "npm run build && electron-builder --win",
-    "build:dir": "npm run build && electron-builder --win --dir",
-    "build:portable": "npm run build && electron-builder --win portable"
+    "build:win": "npm run build && npx electron-builder --win",
+    "build:dir": "npm run build && npx electron-builder --win --dir",
+    "build:portable": "npm run build && npx electron-builder --win portable"
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.13.0",

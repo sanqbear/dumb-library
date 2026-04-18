@@ -9,6 +9,10 @@ import type { CreateProgramData, UpdateProgramData, Settings, LibraryData } from
 
 const isDev = process.env.NODE_ENV === 'development'
 
+if (process.env.PORTABLE_EXECUTABLE_DIR) {
+  app.setPath('userData', join(process.env.PORTABLE_EXECUTABLE_DIR, 'data'))
+}
+
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
