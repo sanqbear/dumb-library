@@ -125,30 +125,30 @@ const columns: DataTableColumns<Program> = [
   {
     title: 'Actions',
     key: 'actions',
-    width: 150,
+    width: 180,
     fixed: 'right',
     render(row) {
-      return h(NSpace, { size: 'small' }, {
+      return h(NSpace, { size: 'small', wrap: false, align: 'center' }, {
         default: () => [
           h(NButton, {
-            size: 'small',
             type: 'primary',
             quaternary: true,
+            circle: true,
             onClick: () => handleLaunch(row)
           }, {
             icon: () => h(NIcon, { component: PlayIcon })
           }),
           h(NButton, {
-            size: 'small',
             quaternary: true,
+            circle: true,
             onClick: () => handleEdit(row)
           }, {
             icon: () => h(NIcon, { component: EditIcon })
           }),
           h(NButton, {
-            size: 'small',
             type: 'error',
             quaternary: true,
+            circle: true,
             onClick: () => handleDelete(row)
           }, {
             icon: () => h(NIcon, { component: DeleteIcon })
