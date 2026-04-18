@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NCard, NImage, NIcon, NTag, useMessage } from 'naive-ui'
 import { Play as PlayIcon, Image as ImageIcon } from '@vicons/ionicons5'
 import type { Program } from '../../types'
@@ -11,6 +12,7 @@ const props = defineProps<{
   program: Program
 }>()
 
+const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 
@@ -29,9 +31,9 @@ const hasImage = computed(() => !!displayImage.value)
 const handleLaunch = async () => {
   try {
     await libraryStore.launchProgram(props.program)
-    message.success(`Launching ${props.program.title}`)
+    message.success(t('card.launchSuccess', { title: props.program.title }))
   } catch (error) {
-    message.error('Failed to launch program')
+    message.error(t('card.launchFailed'))
   }
 }
 
@@ -77,7 +79,7 @@ const handleCardClick = () => {
       <div class="card-title truncate">{{ program.title }}</div>
       <div class="card-meta">
         <NTag size="small" type="info">
-          {{ PROVIDERS[program.category].label }}
+          {{ t(PROVIDERS[program.category].labelKey) }}
         </NTag>
         <NTag
           v-for="tag in program.tags.slice(0, 2)"

@@ -2,9 +2,9 @@
 // Acts as the "category" automatically assigned at creation time.
 export type ProviderId = 'local' | 'steam'
 
-export const PROVIDERS: Record<ProviderId, { label: string }> = {
-  local: { label: '로컬 다운로드' },
-  steam: { label: '스팀' }
+export const PROVIDERS: Record<ProviderId, { labelKey: string }> = {
+  local: { labelKey: 'providers.local' },
+  steam: { labelKey: 'providers.steam' }
 }
 
 export const PROVIDER_IDS = Object.keys(PROVIDERS) as ProviderId[]
@@ -81,6 +81,7 @@ export interface LibraryData {
 export interface Settings {
   theme: 'dark' | 'light'
   viewMode: 'grid' | 'list'
+  language: 'ko' | 'en' | 'ja' | 'zh-CN'
 }
 
 // View mode type

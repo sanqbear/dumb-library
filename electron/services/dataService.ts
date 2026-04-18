@@ -21,7 +21,8 @@ const DEFAULT_LIBRARY_DATA: LibraryData = {
 
 const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
-  viewMode: 'grid'
+  viewMode: 'grid',
+  language: 'ko'
 }
 
 // Ensure directories exist
@@ -94,8 +95,13 @@ const migrateProgram = (raw: unknown): Program | null => {
 const isValidSettings = (value: unknown): value is Settings => {
   if (!value || typeof value !== 'object') return false
   const v = value as Partial<Settings>
-  return (v.theme === 'dark' || v.theme === 'light') &&
-    (v.viewMode === 'grid' || v.viewMode === 'list')
+  const validTheme = v.theme === 'dark' || v.theme === 'light'
+  const validView = v.viewMode === 'grid' || v.viewMode === 'list'
+  // language was added later — tolerate its absence and backfill on first save
+  const validLang = v.language === undefined ||
+    v.language === 'ko' || v.language === 'en' ||
+    v.language === 'ja' || v.language === 'zh-CN'
+  return validTheme && validView && validLang
 }
 
 // Library operations
@@ -302,7 +308,8 @@ export const loadSettings = (): Settings => {
         return { ...DEFAULT_SETTINGS }
       }
       logger.info('Loaded settings')
-      return parsed
+      // Backfill language when loading a pre-i18n settings file.
+      return { ...DEFAULT_SETTINGS, ...parsed }
     }
   } catch (error) {
     logger.error('Failed to load settings:', error)

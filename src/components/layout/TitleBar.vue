@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '../../stores/settingsStore'
+
+const { t } = useI18n()
 
 const settingsStore = useSettingsStore()
 
@@ -29,12 +32,12 @@ const handleClose = () => window.electron.windowClose()
       <span class="app-name">Waifu Library</span>
     </div>
     <div class="window-controls">
-      <button class="control-btn" aria-label="최소화" @click="handleMinimize">
+      <button class="control-btn" :aria-label="t('window.minimize')" @click="handleMinimize">
         <svg width="10" height="10" viewBox="0 0 10 10">
           <rect x="0" y="4.5" width="10" height="1" fill="currentColor" />
         </svg>
       </button>
-      <button class="control-btn" aria-label="최대화" @click="handleMaximize">
+      <button class="control-btn" :aria-label="t('window.maximize')" @click="handleMaximize">
         <svg v-if="!isMaximized" width="10" height="10" viewBox="0 0 10 10">
           <rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" />
         </svg>
@@ -43,7 +46,7 @@ const handleClose = () => window.electron.windowClose()
           <path d="M2.5 2.5 L2.5 0.5 L9.5 0.5 L9.5 7.5 L7.5 7.5" fill="none" stroke="currentColor" />
         </svg>
       </button>
-      <button class="control-btn close-btn" aria-label="닫기" @click="handleClose">
+      <button class="control-btn close-btn" :aria-label="t('window.close')" @click="handleClose">
         <svg width="10" height="10" viewBox="0 0 10 10">
           <path d="M0.5 0.5 L9.5 9.5 M0.5 9.5 L9.5 0.5" stroke="currentColor" stroke-width="1" />
         </svg>

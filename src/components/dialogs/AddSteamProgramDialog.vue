@@ -19,6 +19,7 @@ import {
 } from 'naive-ui'
 import { Search as SearchIcon } from '@vicons/ionicons5'
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useThemeClass } from '../../composables/useThemeClass'
 import type { SteamGame } from '../../types'
@@ -31,6 +32,7 @@ const emit = defineEmits<{
   (e: 'update:show', value: boolean): void
 }>()
 
+const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const themeClass = useThemeClass()
@@ -96,10 +98,10 @@ const filteredGames = computed(() => {
   return games.value.filter(g => g.name.toLowerCase().includes(q))
 })
 
-const columns: DataTableColumns<SteamGame> = [
+const columns = computed<DataTableColumns<SteamGame>>(() => [
   { type: 'selection' },
   {
-    title: 'Name',
+    title: t('steamDialog.nameLabel'),
     key: 'name',
     ellipsis: { tooltip: true },
     render(row) {
@@ -107,7 +109,7 @@ const columns: DataTableColumns<SteamGame> = [
         'span',
         {
           class: 'clickable-name',
-          title: `미리보기: ${row.name}`,
+          title: t('steamDialog.previewTooltip', { name: row.name }),
           onClick: (e: MouseEvent) => {
             e.stopPropagation()
             openPreview(row)
@@ -118,11 +120,11 @@ const columns: DataTableColumns<SteamGame> = [
     }
   },
   {
-    title: 'AppID',
+    title: t('steamDialog.appIdLabel'),
     key: 'appId',
     width: 100
   }
-]
+])
 
 const scan = async () => {
   isScanning.value = true
@@ -154,15 +156,15 @@ const manualValid = computed(() =>
 const reportAddResult = (added: { thumbnailPath: string | null }[], requested: number) => {
   const missingThumb = added.filter(p => !p.thumbnailPath).length
   if (added.length === 0) {
-    message.error('추가 실패')
+    message.error(t('steamDialog.addFailed'))
     return
   }
   if (added.length < requested) {
-    message.warning(`${added.length}/${requested}개 게임만 추가되었습니다`)
+    message.warning(t('steamDialog.partialAdded', { added: added.length, requested }))
   } else if (missingThumb > 0) {
-    message.warning(`${added.length}개 추가됨. ${missingThumb}개는 커버를 못 받았습니다. 편집에서 "Steam 커버 다시 받기"로 재시도할 수 있습니다.`)
+    message.warning(t('steamDialog.someMissingThumb', { added: added.length, missing: missingThumb }))
   } else {
-    message.success(`${added.length}개 게임이 추가되었습니다`)
+    message.success(t('steamDialog.addedNGames', { n: added.length }))
   }
 }
 
@@ -194,7 +196,7 @@ const handleSubmitManual = async () => {
       reportAddResult(added, 1)
       emit('update:show', false)
     } else {
-      message.error('추가 실패')
+      message.error(t('steamDialog.addFailed'))
     }
   } finally {
     isSubmitting.value = false
@@ -211,7 +213,7 @@ const handleCancel = () => {
     :show="show"
     @update:show="emit('update:show', $event)"
     preset="card"
-    title="스팀에서 추가"
+    :title="t('steamDialog.title')"
     :bordered="false"
     size="medium"
     :style="{ width: '600px' }"
@@ -219,23 +221,22 @@ const handleCancel = () => {
   >
     <div :class="themeClass">
     <NTabs v-model:value="activeTab" type="line" animated>
-      <NTabPane name="installed" tab="설치된 게임">
+      <NTabPane name="installed" :tab="t('steamDialog.installedTab')">
         <div class="installed-section">
           <NSpin :show="isScanning">
             <div v-if="!isScanning && games.length === 0" class="empty-state">
               <NAlert type="info" :show-icon="true" :bordered="false">
-                설치된 Steam 게임을 찾지 못했습니다. Steam이 설치되어 있지 않거나 라이브러리를 읽지 못했을 수 있습니다.
-                'AppID로 추가' 탭에서 수동으로 입력할 수 있습니다.
+                {{ t('steamDialog.noGamesFound') }}
               </NAlert>
               <NSpace justify="center" style="margin-top: 12px;">
-                <NButton @click="scan" size="small">다시 스캔</NButton>
+                <NButton @click="scan" size="small">{{ t('common.rescan') }}</NButton>
               </NSpace>
             </div>
             <div v-else-if="!isScanning" class="games-table">
               <div class="games-toolbar">
                 <NInput
                   v-model:value="searchQuery"
-                  placeholder="이름으로 검색"
+                  :placeholder="t('steamDialog.searchPlaceholder')"
                   clearable
                   size="small"
                 >
@@ -244,7 +245,11 @@ const handleCancel = () => {
                   </template>
                 </NInput>
                 <div class="games-count">
-                  {{ searchQuery.trim() ? `${filteredGames.length} / ${games.length}` : `${games.length}개` }}
+                  {{
+                    searchQuery.trim()
+                      ? t('steamDialog.filteredCountFormat', { filtered: filteredGames.length, total: games.length })
+                      : t('steamDialog.countFormat', { count: games.length })
+                  }}
                 </div>
               </div>
               <NDataTable
@@ -262,28 +267,32 @@ const handleCancel = () => {
         </div>
       </NTabPane>
 
-      <NTabPane name="manual" tab="AppID로 추가">
+      <NTabPane name="manual" :tab="t('steamDialog.manualTab')">
         <NForm label-placement="top">
-          <NFormItem label="AppID" required>
+          <NFormItem :label="t('steamDialog.appIdLabel')" required>
             <NInputNumber
               v-model:value="manualAppId"
               :min="1"
               :show-button="false"
-              placeholder="예: 730"
+              :placeholder="t('steamDialog.appIdPlaceholder')"
               style="width: 100%;"
             />
           </NFormItem>
-          <NFormItem label="이름" required>
+          <NFormItem :label="t('steamDialog.nameLabel')" required>
             <NInput
               v-model:value="manualName"
-              placeholder="게임 이름"
+              :placeholder="t('steamDialog.namePlaceholder')"
               clearable
             />
           </NFormItem>
           <div class="manual-help">
             <NAlert type="info" :show-icon="false" :bordered="false">
-              AppID는 Steam 상점 URL에서 확인할 수 있습니다.<br />
-              예: <code>store.steampowered.com/app/<strong>730</strong></code> → AppID는 <code>730</code>
+              {{ t('steamDialog.appIdHelp') }}<br />
+              <i18n-t keypath="steamDialog.appIdExample" tag="span">
+                <template #example>
+                  <code>730</code>
+                </template>
+              </i18n-t>
             </NAlert>
           </div>
         </NForm>
@@ -294,7 +303,7 @@ const handleCancel = () => {
     <template #footer>
       <NSpace justify="end">
         <NButton @click="handleCancel" :disabled="isSubmitting">
-          취소
+          {{ t('common.cancel') }}
         </NButton>
         <NButton
           v-if="activeTab === 'installed'"
@@ -303,7 +312,9 @@ const handleCancel = () => {
           :disabled="checkedCount === 0 || isSubmitting"
           :loading="isSubmitting"
         >
-          {{ checkedCount > 0 ? `${checkedCount}개 추가` : '추가' }}
+          {{ checkedCount > 0
+            ? t('steamDialog.addedNGames', { n: checkedCount })
+            : t('common.add') }}
         </NButton>
         <NButton
           v-else
@@ -312,7 +323,7 @@ const handleCancel = () => {
           :disabled="!manualValid || isSubmitting"
           :loading="isSubmitting"
         >
-          추가
+          {{ t('common.add') }}
         </NButton>
       </NSpace>
     </template>
@@ -342,14 +353,14 @@ const handleCancel = () => {
             />
           </div>
           <div class="preview-meta" v-if="previewGame">
-            <span>AppID</span>
+            <span>{{ t('steamDialog.appIdLabel') }}</span>
             <code>{{ previewGame.appId }}</code>
           </div>
         </div>
       </div>
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="closePreview">닫기</NButton>
+          <NButton @click="closePreview">{{ t('common.close') }}</NButton>
         </NSpace>
       </template>
     </NModal>

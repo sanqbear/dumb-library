@@ -14,6 +14,7 @@ import {
   useMessage
 } from 'naive-ui'
 import { FolderOpen as FolderIcon, Image as ImageIcon, Close as CloseIcon, LinkOutline as LinkIcon } from '@vicons/ionicons5'
+import { useI18n } from 'vue-i18n'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useImageInput } from '../../composables/useImageInput'
 import { useThemeClass } from '../../composables/useThemeClass'
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   (e: 'update:show', value: boolean): void
 }>()
 
+const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const themeClass = useThemeClass()
@@ -76,7 +78,7 @@ watch(() => props.show, (newVal) => {
 const openCropFor = async (absSourcePath: string) => {
   const dataUrl = await window.electron.readImageAsDataUrl(absSourcePath)
   if (!dataUrl) {
-    message.error('이미지를 읽지 못했습니다')
+    message.error(t('addDialog.imageReadFailed'))
     return
   }
   cropSourceUrl.value = dataUrl
@@ -87,13 +89,12 @@ const handleCropConfirm = (tempPath: string) => {
   thumbnailPath.value = tempPath
 }
 
-// Drop handlers for the thumbnail preview area
 const handleThumbDrop = async (e: DragEvent) => {
   const absPath = thumbInput.onDrop(e)
   if (absPath) {
     await openCropFor(absPath)
   } else {
-    message.warning('이미지 파일만 지원합니다')
+    message.warning(t('addDialog.onlyImages'))
   }
 }
 
@@ -103,7 +104,7 @@ const handleFetchThumbUrl = async () => {
     thumbUrl.value = ''
     await openCropFor(tempPath)
   } else {
-    message.error('URL에서 이미지를 가져오지 못했습니다')
+    message.error(t('addDialog.urlFetchFailed'))
   }
 }
 
@@ -152,18 +153,17 @@ const handleSubmit = async () => {
     })
     
     if (newProgram) {
-      // Save thumbnail if selected
       if (thumbnailPath.value) {
         await libraryStore.saveThumbnail(newProgram.id, thumbnailPath.value)
       }
-      
-      message.success('Program added successfully')
+
+      message.success(t('addDialog.addedSuccess'))
       emit('update:show', false)
     } else {
-      message.error('Failed to add program')
+      message.error(t('addDialog.addFailed'))
     }
   } catch (error) {
-    message.error('Failed to add program')
+    message.error(t('addDialog.addFailed'))
     console.error(error)
   } finally {
     isSubmitting.value = false
@@ -180,7 +180,7 @@ const handleCancel = () => {
     :show="show"
     @update:show="emit('update:show', $event)"
     preset="card"
-    title="Add Program"
+    :title="t('addDialog.title')"
     :bordered="false"
     size="medium"
     :style="{ width: '520px' }"
@@ -208,18 +208,18 @@ const handleCancel = () => {
           />
           <div v-else class="thumbnail-placeholder">
             <NIcon :component="ImageIcon" :size="40" />
-            <span>여기로 드래그</span>
+            <span>{{ t('addDialog.dropHere') }}</span>
           </div>
         </div>
         <div class="thumbnail-actions">
           <NButton @click="handleSelectThumbnail" block>
             <template #icon><NIcon :component="ImageIcon" /></template>
-            파일에서 선택
+            {{ t('addDialog.selectImage') }}
           </NButton>
           <NInputGroup>
             <NInput
               v-model:value="thumbUrl"
-              placeholder="이미지 URL"
+              :placeholder="t('addDialog.imageUrl')"
               @keydown.enter.prevent="handleFetchThumbUrl"
             />
             <NButton
@@ -229,7 +229,7 @@ const handleCancel = () => {
               @click="handleFetchThumbUrl"
             >
               <template #icon><NIcon :component="LinkIcon" /></template>
-              가져오기
+              {{ t('addDialog.fetchUrl') }}
             </NButton>
           </NInputGroup>
           <NButton
@@ -239,25 +239,25 @@ const handleCancel = () => {
             block
           >
             <template #icon><NIcon :component="CloseIcon" /></template>
-            제거
+            {{ t('common.remove') }}
           </NButton>
         </div>
       </div>
 
       <!-- Title -->
-      <NFormItem label="Title" required>
-        <NInput 
-          v-model:value="title" 
-          placeholder="Enter program title"
+      <NFormItem :label="t('addDialog.titleLabel')" required>
+        <NInput
+          v-model:value="title"
+          :placeholder="t('addDialog.titlePlaceholder')"
           clearable
         />
       </NFormItem>
 
       <!-- Executable Path -->
-      <NFormItem label="Executable Path" required>
-        <NInput 
-          v-model:value="executablePath" 
-          placeholder="Select executable file"
+      <NFormItem :label="t('addDialog.executablePath')" required>
+        <NInput
+          v-model:value="executablePath"
+          :placeholder="t('addDialog.executablePathPlaceholder')"
           readonly
         >
           <template #suffix>
@@ -271,7 +271,7 @@ const handleCancel = () => {
       </NFormItem>
 
       <!-- Tags -->
-      <NFormItem label="Tags">
+      <NFormItem :label="t('addDialog.tagsLabel')">
         <NDynamicTags v-model:value="tags" />
       </NFormItem>
     </NForm>
@@ -280,7 +280,7 @@ const handleCancel = () => {
     <template #footer>
       <NSpace justify="end">
         <NButton @click="handleCancel" :disabled="isSubmitting">
-          Cancel
+          {{ t('common.cancel') }}
         </NButton>
         <NButton
           type="primary"
@@ -288,7 +288,7 @@ const handleCancel = () => {
           :disabled="!isValid"
           :loading="isSubmitting"
         >
-          Add
+          {{ t('common.add') }}
         </NButton>
       </NSpace>
     </template>
@@ -297,7 +297,7 @@ const handleCancel = () => {
       v-model:show="showCropDialog"
       :source="cropSourceUrl"
       :aspect-ratio="2 / 3"
-      title="썸네일 크롭 (2:3)"
+      :title="t('editDialog.thumbnailCropTitle')"
       @confirm="handleCropConfirm"
     />
   </NModal>

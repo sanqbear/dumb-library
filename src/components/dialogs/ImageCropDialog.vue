@@ -3,6 +3,7 @@ import { ref, watch, shallowRef } from 'vue'
 import { NModal, NButton, NSpace, useMessage } from 'naive-ui'
 import { Cropper } from 'vue-advanced-cropper'
 import 'vue-advanced-cropper/dist/style.css'
+import { useI18n } from 'vue-i18n'
 import { useThemeClass } from '../../composables/useThemeClass'
 
 interface CropperResultLike {
@@ -30,6 +31,7 @@ const emit = defineEmits<{
   (e: 'confirm', tempPath: string): void
 }>()
 
+const { t } = useI18n()
 const message = useMessage()
 const themeClass = useThemeClass()
 
@@ -49,21 +51,21 @@ watch(() => props.show, (v) => {
 const handleConfirm = async () => {
   const cropper = cropperRef.value
   if (!cropper) {
-    message.error('크롭 준비가 안 되었습니다')
+    message.error(t('cropDialog.notReady'))
     return
   }
   isProcessing.value = true
   try {
     const { canvas } = cropper.getResult()
     if (!canvas) {
-      message.error('크롭 결과를 얻지 못했습니다')
+      message.error(t('cropDialog.noResult'))
       return
     }
     const blob: Blob | null = await new Promise((resolve) => {
       canvas.toBlob((b) => resolve(b), 'image/png')
     })
     if (!blob) {
-      message.error('이미지 인코딩 실패')
+      message.error(t('cropDialog.encodeFailed'))
       return
     }
     const arrayBuffer = await blob.arrayBuffer()
@@ -72,7 +74,7 @@ const handleConfirm = async () => {
     emit('update:show', false)
   } catch (error) {
     console.error('Crop failed:', error)
-    message.error('크롭 처리 실패')
+    message.error(t('cropDialog.processFailed'))
   } finally {
     isProcessing.value = false
   }
@@ -88,7 +90,7 @@ const handleCancel = () => {
     :show="show"
     @update:show="emit('update:show', $event)"
     preset="card"
-    :title="title ?? '이미지 크롭'"
+    :title="title ?? t('cropDialog.title')"
     :bordered="false"
     size="medium"
     :style="{ width: '640px' }"
@@ -108,14 +110,14 @@ const handleCancel = () => {
 
     <template #footer>
       <NSpace justify="end">
-        <NButton @click="handleCancel" :disabled="isProcessing">취소</NButton>
+        <NButton @click="handleCancel" :disabled="isProcessing">{{ t('common.cancel') }}</NButton>
         <NButton
           type="primary"
           @click="handleConfirm"
           :loading="isProcessing"
           :disabled="isProcessing"
         >
-          적용
+          {{ t('common.apply') }}
         </NButton>
       </NSpace>
     </template>

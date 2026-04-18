@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   NInput,
   NButton,
@@ -21,14 +22,17 @@ import {
   FunnelOutline as FilterIcon,
   SwapVerticalOutline as SortIcon,
   DesktopOutline as DesktopIcon,
-  LogoSteam as SteamIcon
+  LogoSteam as SteamIcon,
+  LanguageOutline as LanguageIcon
 } from '@vicons/ionicons5'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import AddProgramDialog from '../dialogs/AddProgramDialog.vue'
 import AddSteamProgramDialog from '../dialogs/AddSteamProgramDialog.vue'
 import { PROVIDERS, PROVIDER_IDS, type ProviderId } from '../../types'
+import { SUPPORTED_LOCALES, LOCALE_META, type LocaleCode } from '../../i18n'
 
+const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const settingsStore = useSettingsStore()
 
@@ -36,18 +40,18 @@ const showAddDialog = ref(false)
 const showAddSteamDialog = ref(false)
 const showFilters = ref(false)
 
-const addMenuOptions = [
+const addMenuOptions = computed(() => [
   {
-    label: 'PC에서 추가',
+    label: t('header.addFromPC'),
     key: 'local',
     icon: () => h(NIcon, { component: DesktopIcon })
   },
   {
-    label: '스팀에서 추가',
+    label: t('header.addFromSteam'),
     key: 'steam',
     icon: () => h(NIcon, { component: SteamIcon })
   }
-]
+])
 
 const handleAddMenuSelect = (key: string) => {
   if (key === 'local') {
@@ -57,29 +61,43 @@ const handleAddMenuSelect = (key: string) => {
   }
 }
 
-// Provider options for filter — now a fixed registry, not user-defined
+// Language switcher — native names so each is recognisable in its own script
+const languageMenuOptions = computed(() =>
+  SUPPORTED_LOCALES.map(code => ({
+    label: LOCALE_META[code].nativeName,
+    key: code,
+    // Highlight the currently active locale
+    props: settingsStore.language === code ? { style: 'font-weight: 600;' } : {}
+  }))
+)
+
+const handleLanguageSelect = (key: string) => {
+  if ((SUPPORTED_LOCALES as string[]).includes(key)) {
+    settingsStore.setLanguage(key as LocaleCode)
+  }
+}
+
+// Provider options use i18n keys from the PROVIDERS registry
 const categoryOptions = computed(() =>
   PROVIDER_IDS.map(id => ({
-    label: PROVIDERS[id].label,
+    label: t(PROVIDERS[id].labelKey),
     value: id
   }))
 )
 
-// Tag options for filter
-const tagOptions = computed(() => 
+const tagOptions = computed(() =>
   libraryStore.allTags.map(tag => ({
     label: tag,
     value: tag
   }))
 )
 
-// Sort options
-const sortOptions = [
-  { label: '최신순', value: 'createdAt-desc' },
-  { label: '오래된순', value: 'createdAt-asc' },
-  { label: '이름순 (ㄱ-ㅎ)', value: 'title-asc' },
-  { label: '이름순 (ㅎ-ㄱ)', value: 'title-desc' }
-]
+const sortOptions = computed(() => [
+  { label: t('header.sortRecent'), value: 'createdAt-desc' },
+  { label: t('header.sortOldest'), value: 'createdAt-asc' },
+  { label: t('header.sortNameAsc'), value: 'title-asc' },
+  { label: t('header.sortNameDesc'), value: 'title-desc' }
+])
 
 const currentSort = computed(() => `${libraryStore.sortBy}-${libraryStore.sortOrder}`)
 
@@ -89,7 +107,6 @@ const handleSortChange = (value: string) => {
   libraryStore.setSortOrder(order)
 }
 
-// Check if any filter is active
 const hasActiveFilters = computed(() =>
   libraryStore.selectedCategory !== null || libraryStore.selectedTags.length > 0
 )
@@ -117,7 +134,7 @@ const handleClearFilters = () => {
     <div class="header-center">
       <NInput
         :value="libraryStore.searchQuery"
-        placeholder="Search programs..."
+        :placeholder="t('header.searchPlaceholder')"
         clearable
         @update:value="handleSearch"
         class="search-input"
@@ -137,21 +154,21 @@ const handleClearFilters = () => {
         </template>
         <div class="filter-popover">
           <div class="filter-section">
-            <label>Provider</label>
+            <label>{{ t('header.provider') }}</label>
             <NSelect
               :value="libraryStore.selectedCategory"
               :options="categoryOptions"
-              placeholder="모든 제공자"
+              :placeholder="t('header.allProviders')"
               clearable
               @update:value="handleCategoryChange"
             />
           </div>
           <div class="filter-section" v-if="tagOptions.length > 0">
-            <label>Tags</label>
+            <label>{{ t('header.tags') }}</label>
             <NSelect
               :value="libraryStore.selectedTags"
               :options="tagOptions"
-              placeholder="Select tags"
+              :placeholder="t('header.selectTags')"
               multiple
               clearable
               @update:value="handleTagsChange"
@@ -159,7 +176,7 @@ const handleClearFilters = () => {
           </div>
           <div class="filter-actions" v-if="hasActiveFilters">
             <NButton size="small" quaternary @click="handleClearFilters">
-              Clear Filters
+              {{ t('header.clearFilters') }}
             </NButton>
           </div>
         </div>
@@ -184,7 +201,7 @@ const handleClearFilters = () => {
         <NButtonGroup>
           <NTooltip>
             <template #trigger>
-              <NButton 
+              <NButton
                 :type="settingsStore.viewMode === 'grid' ? 'primary' : 'default'"
                 @click="settingsStore.setViewMode('grid')"
                 quaternary
@@ -194,11 +211,11 @@ const handleClearFilters = () => {
                 </template>
               </NButton>
             </template>
-            Grid View
+            {{ t('header.gridView') }}
           </NTooltip>
           <NTooltip>
             <template #trigger>
-              <NButton 
+              <NButton
                 :type="settingsStore.viewMode === 'list' ? 'primary' : 'default'"
                 @click="settingsStore.setViewMode('list')"
                 quaternary
@@ -208,7 +225,7 @@ const handleClearFilters = () => {
                 </template>
               </NButton>
             </template>
-            List View
+            {{ t('header.listView') }}
           </NTooltip>
         </NButtonGroup>
 
@@ -221,8 +238,26 @@ const handleClearFilters = () => {
               </template>
             </NButton>
           </template>
-          {{ settingsStore.theme === 'dark' ? 'Light Mode' : 'Dark Mode' }}
+          {{ settingsStore.theme === 'dark' ? t('header.lightMode') : t('header.darkMode') }}
         </NTooltip>
+
+        <!-- Language switcher -->
+        <NDropdown
+          trigger="click"
+          :options="languageMenuOptions"
+          @select="handleLanguageSelect"
+        >
+          <NTooltip>
+            <template #trigger>
+              <NButton quaternary circle>
+                <template #icon>
+                  <NIcon :component="LanguageIcon" />
+                </template>
+              </NButton>
+            </template>
+            {{ t('header.language') }}
+          </NTooltip>
+        </NDropdown>
 
         <!-- Add button (dropdown) -->
         <NDropdown trigger="click" :options="addMenuOptions" @select="handleAddMenuSelect">
@@ -230,7 +265,7 @@ const handleClearFilters = () => {
             <template #icon>
               <NIcon :component="AddIcon" />
             </template>
-            Add Program
+            {{ t('header.addProgram') }}
           </NButton>
         </NDropdown>
       </NSpace>

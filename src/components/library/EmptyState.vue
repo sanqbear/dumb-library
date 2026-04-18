@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { NEmpty, NButton, NIcon } from 'naive-ui'
 import { Add as AddIcon, SearchOutline as SearchIcon } from '@vicons/ionicons5'
+import { useI18n } from 'vue-i18n'
 import { useLibraryStore } from '../../stores/libraryStore'
 
 defineProps<{
   isFiltered: boolean
 }>()
 
+const { t } = useI18n()
 const libraryStore = useLibraryStore()
 
 const handleClearFilters = () => {
@@ -16,8 +18,8 @@ const handleClearFilters = () => {
 
 <template>
   <div class="empty-state">
-    <NEmpty 
-      :description="isFiltered ? 'No programs found' : 'Your library is empty'"
+    <NEmpty
+      :description="isFiltered ? t('library.emptyFilteredTitle') : t('library.emptyTitle')"
       size="large"
     >
       <template #icon>
@@ -25,10 +27,10 @@ const handleClearFilters = () => {
       </template>
       <template #extra>
         <p class="empty-hint" v-if="!isFiltered">
-          Click the "Add Program" button to get started
+          {{ t('library.emptyAction') }}
         </p>
         <NButton v-else @click="handleClearFilters">
-          Clear Filters
+          {{ t('header.clearFilters') }}
         </NButton>
       </template>
     </NEmpty>

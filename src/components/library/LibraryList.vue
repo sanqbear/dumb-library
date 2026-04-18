@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { h, ref, onMounted, onUnmounted } from 'vue'
+import { h, ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NDataTable, NButton, NIcon, NSpace, NImage, NTag, useMessage, useDialog } from 'naive-ui'
 import { Play as PlayIcon, Create as EditIcon, Trash as DeleteIcon } from '@vicons/ionicons5'
 import type { DataTableColumns } from 'naive-ui'
@@ -8,6 +9,7 @@ import type { Program } from '../../types'
 import { PROVIDERS, libImageUrl } from '../../types'
 import EditProgramDialog from '../dialogs/EditProgramDialog.vue'
 
+const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const dialog = useDialog()
@@ -39,9 +41,9 @@ const getDisplayImage = (program: Program): string => {
 const handleLaunch = async (program: Program) => {
   try {
     await libraryStore.launchProgram(program)
-    message.success(`Launching ${program.title}`)
+    message.success(t('card.launchSuccess', { title: program.title }))
   } catch (error) {
-    message.error('Failed to launch program')
+    message.error(t('card.launchFailed'))
   }
 }
 
@@ -52,22 +54,23 @@ const handleEdit = (program: Program) => {
 
 const handleDelete = (program: Program) => {
   dialog.warning({
-    title: 'Delete Program',
-    content: `Are you sure you want to delete "${program.title}"?`,
-    positiveText: 'Delete',
-    negativeText: 'Cancel',
+    title: t('editDialog.deleteConfirmTitle'),
+    content: t('editDialog.deleteConfirmMessage', { title: program.title }),
+    positiveText: t('common.delete'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       const success = await libraryStore.deleteProgram(program.id)
       if (success) {
-        message.success('Program deleted')
+        message.success(t('editDialog.deleted'))
       } else {
-        message.error('Failed to delete program')
+        message.error(t('editDialog.deleteFailed'))
       }
     }
   })
 }
 
-const columns: DataTableColumns<Program> = [
+// Columns are computed so naive-ui regenerates them when the locale changes.
+const columns = computed<DataTableColumns<Program>>(() => [
   {
     title: '',
     key: 'image',
@@ -95,35 +98,33 @@ const columns: DataTableColumns<Program> = [
     }
   },
   {
-    title: 'Title',
+    title: t('listView.columnTitle'),
     key: 'title',
-    ellipsis: {
-      tooltip: true
-    }
+    ellipsis: { tooltip: true }
   },
   {
-    title: 'Provider',
+    title: t('listView.columnProvider'),
     key: 'category',
     width: 140,
     render(row) {
-      return h(NTag, { size: 'small', type: 'info' }, { default: () => PROVIDERS[row.category].label })
+      return h(NTag, { size: 'small', type: 'info' }, { default: () => t(PROVIDERS[row.category].labelKey) })
     }
   },
   {
-    title: 'Tags',
+    title: t('listView.columnTags'),
     key: 'tags',
     width: 200,
     render(row) {
       if (row.tags.length === 0) return '-'
       return h(NSpace, { size: 'small' }, {
-        default: () => row.tags.slice(0, 3).map(tag => 
+        default: () => row.tags.slice(0, 3).map(tag =>
           h(NTag, { size: 'small' }, { default: () => tag })
         )
       })
     }
   },
   {
-    title: 'Actions',
+    title: t('listView.columnActions'),
     key: 'actions',
     width: 180,
     fixed: 'right',
@@ -157,7 +158,7 @@ const columns: DataTableColumns<Program> = [
       })
     }
   }
-]
+])
 </script>
 
 <template>

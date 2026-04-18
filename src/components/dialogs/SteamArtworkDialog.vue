@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { NModal, NButton, NSpace, NSpin, useMessage } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { useThemeClass } from '../../composables/useThemeClass'
 
 interface ArtworkOption {
   key: string
-  label: string
+  labelKey: string
   aspectLabel: string
   url: (appId: number) => string
 }
@@ -13,31 +14,31 @@ interface ArtworkOption {
 const ARTWORK_OPTIONS: ArtworkOption[] = [
   {
     key: 'library_600x900_2x',
-    label: 'Library Cover',
+    labelKey: 'artworkDialog.libraryCover',
     aspectLabel: '2:3',
     url: (id) => `https://steamcdn-a.akamaihd.net/steam/apps/${id}/library_600x900_2x.jpg`
   },
   {
     key: 'library_hero',
-    label: 'Library Hero',
+    labelKey: 'artworkDialog.libraryHero',
     aspectLabel: '~3:1',
     url: (id) => `https://steamcdn-a.akamaihd.net/steam/apps/${id}/library_hero.jpg`
   },
   {
     key: 'header',
-    label: 'Header',
+    labelKey: 'artworkDialog.header',
     aspectLabel: '~2:1',
     url: (id) => `https://steamcdn-a.akamaihd.net/steam/apps/${id}/header.jpg`
   },
   {
     key: 'capsule_616x353',
-    label: 'Capsule',
+    labelKey: 'artworkDialog.capsule',
     aspectLabel: '~16:9',
     url: (id) => `https://steamcdn-a.akamaihd.net/steam/apps/${id}/capsule_616x353.jpg`
   },
   {
     key: 'logo',
-    label: 'Logo',
+    labelKey: 'artworkDialog.logo',
     aspectLabel: 'free',
     url: (id) => `https://steamcdn-a.akamaihd.net/steam/apps/${id}/logo.png`
   }
@@ -57,6 +58,7 @@ const emit = defineEmits<{
   (e: 'selected', tempPath: string): void
 }>()
 
+const { t } = useI18n()
 const message = useMessage()
 const themeClass = useThemeClass()
 
@@ -92,7 +94,7 @@ const handleSelect = async (option: ArtworkOption) => {
       emit('selected', tempPath)
       emit('update:show', false)
     } else {
-      message.error('이미지 다운로드에 실패했습니다')
+      message.error(t('artworkDialog.downloadFailed'))
     }
   } finally {
     fetchingKey.value = null
@@ -109,7 +111,7 @@ const handleCancel = () => {
     :show="show"
     @update:show="emit('update:show', $event)"
     preset="card"
-    title="Steam 아트워크 선택"
+    :title="t('artworkDialog.title')"
     :bordered="false"
     size="medium"
     :style="{ width: '680px' }"
@@ -130,25 +132,25 @@ const handleCancel = () => {
         <div class="artwork-image">
           <img
             :src="option.url(appId)"
-            :alt="option.label"
+            :alt="t(option.labelKey)"
             @load="handleImageLoad(option.key)"
             @error="handleImageError(option.key)"
           />
           <NSpin v-if="fetchingKey === option.key" class="overlay-spinner" size="small" />
         </div>
         <div class="artwork-meta">
-          <span class="artwork-label">{{ option.label }}</span>
+          <span class="artwork-label">{{ t(option.labelKey) }}</span>
           <span class="artwork-aspect">{{ option.aspectLabel }}</span>
         </div>
         <div v-if="availability[option.key] === 'error'" class="unavailable-hint">
-          해당 아트워크 없음
+          {{ t('artworkDialog.unavailable') }}
         </div>
       </div>
     </div>
 
     <template #footer>
       <NSpace justify="end">
-        <NButton @click="handleCancel">닫기</NButton>
+        <NButton @click="handleCancel">{{ t('common.close') }}</NButton>
       </NSpace>
     </template>
   </NModal>

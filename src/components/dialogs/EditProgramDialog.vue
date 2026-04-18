@@ -23,6 +23,7 @@ import {
   LinkOutline as LinkIcon,
   CloudDownloadOutline as CloudDownloadIcon
 } from '@vicons/ionicons5'
+import { useI18n } from 'vue-i18n'
 import { useLibraryStore } from '../../stores/libraryStore'
 import type { Program } from '../../types'
 import { libImageUrl } from '../../types'
@@ -40,6 +41,7 @@ const emit = defineEmits<{
   (e: 'update:show', value: boolean): void
 }>()
 
+const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
@@ -171,7 +173,7 @@ const handleRemoveIcon = () => {
 const openCropFor = async (absSourcePath: string, target: 'thumbnail' | 'icon') => {
   const dataUrl = await window.electron.readImageAsDataUrl(absSourcePath)
   if (!dataUrl) {
-    message.error('이미지를 읽지 못했습니다')
+    message.error(t('addDialog.imageReadFailed'))
     return
   }
   cropSourceUrl.value = dataUrl
@@ -192,7 +194,7 @@ const handleCropConfirm = (tempPath: string) => {
 const handleThumbDrop = async (e: DragEvent) => {
   const absPath = thumbInput.onDrop(e)
   if (absPath) await openCropFor(absPath, 'thumbnail')
-  else message.warning('이미지 파일만 지원합니다')
+  else message.warning(t('addDialog.onlyImages'))
 }
 
 const handleFetchThumbUrl = async () => {
@@ -201,14 +203,14 @@ const handleFetchThumbUrl = async () => {
     thumbUrl.value = ''
     await openCropFor(tempPath, 'thumbnail')
   } else {
-    message.error('URL에서 이미지를 가져오지 못했습니다')
+    message.error(t('addDialog.urlFetchFailed'))
   }
 }
 
 const handleIconDrop = async (e: DragEvent) => {
   const absPath = iconInput.onDrop(e)
   if (absPath) await openCropFor(absPath, 'icon')
-  else message.warning('이미지 파일만 지원합니다')
+  else message.warning(t('addDialog.onlyImages'))
 }
 
 const handleFetchIconUrl = async () => {
@@ -217,7 +219,7 @@ const handleFetchIconUrl = async () => {
     iconUrl.value = ''
     await openCropFor(tempPath, 'icon')
   } else {
-    message.error('URL에서 이미지를 가져오지 못했습니다')
+    message.error(t('addDialog.urlFetchFailed'))
   }
 }
 
@@ -244,9 +246,9 @@ const handleSteamRedownload = async () => {
       thumbnailPath.value = newPath
       originalThumbnailPath.value = newPath
       cacheBust.value = Date.now()
-      message.success('Steam 커버를 다시 받았습니다')
+      message.success(t('editDialog.steamCoverRedownloaded'))
     } else {
-      message.error('Steam 커버를 받지 못했습니다 (AppID 또는 네트워크 확인)')
+      message.error(t('editDialog.steamCoverFailed'))
     }
   } finally {
     isSubmitting.value = false
@@ -264,9 +266,9 @@ const handleApplySteamCachedIcon = async () => {
       iconPath.value = newPath
       originalIconPath.value = newPath
       cacheBust.value = Date.now()
-      message.success('Steam 캐시에서 아이콘을 가져왔습니다')
+      message.success(t('editDialog.steamCacheIconFound'))
     } else {
-      message.warning('Steam 캐시에서 아이콘을 찾지 못했습니다')
+      message.warning(t('editDialog.steamCacheIconNotFound'))
     }
   } finally {
     isSubmitting.value = false
@@ -281,13 +283,12 @@ const handleReextractIcon = async () => {
   try {
     const newPath = await libraryStore.reextractIcon(props.program.id, executablePath.value)
     if (newPath) {
-      // Adopt the fresh path as the new baseline so previews switch to wl-image.
       iconPath.value = newPath
       originalIconPath.value = newPath
       cacheBust.value = Date.now()
-      message.success('아이콘을 추출했습니다')
+      message.success(t('editDialog.iconExtracted'))
     } else {
-      message.error('아이콘 추출에 실패했습니다')
+      message.error(t('editDialog.iconExtractFailed'))
     }
   } finally {
     isSubmitting.value = false
@@ -325,13 +326,13 @@ const handleSubmit = async () => {
         }
       }
 
-      message.success('Program updated successfully')
+      message.success(t('editDialog.updatedSuccess'))
       emit('update:show', false)
     } else {
-      message.error('Failed to update program')
+      message.error(t('editDialog.updateFailed'))
     }
   } catch (error) {
-    message.error('Failed to update program')
+    message.error(t('editDialog.updateFailed'))
     console.error(error)
   } finally {
     isSubmitting.value = false
@@ -346,17 +347,17 @@ const handleDelete = () => {
   if (!props.program) return
   const program = props.program
   confirmDialog.warning({
-    title: '프로그램 삭제',
-    content: `"${program.title}"을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.`,
-    positiveText: '삭제',
-    negativeText: '취소',
+    title: t('editDialog.deleteConfirmTitle'),
+    content: t('editDialog.deleteConfirmMessage', { title: program.title }),
+    positiveText: t('common.delete'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       const success = await libraryStore.deleteProgram(program.id)
       if (success) {
-        message.success('삭제되었습니다')
+        message.success(t('editDialog.deleted'))
         emit('update:show', false)
       } else {
-        message.error('삭제에 실패했습니다')
+        message.error(t('editDialog.deleteFailed'))
       }
     }
   })
@@ -368,7 +369,7 @@ const handleDelete = () => {
     :show="show"
     @update:show="emit('update:show', $event)"
     preset="card"
-    title="Edit Program"
+    :title="t('editDialog.title')"
     :bordered="false"
     size="medium"
     :style="{ width: '520px' }"
@@ -385,7 +386,7 @@ const handleDelete = () => {
         @dragleave="thumbInput.onDragLeave"
         @drop="handleThumbDrop"
       >
-        <div class="media-label">썸네일 (600×900)</div>
+        <div class="media-label">{{ t('editDialog.thumbnailLabel') }}</div>
         <div class="media-row">
           <div class="thumbnail-preview" :class="{ 'is-empty': !thumbnailPreview }">
             <NImage
@@ -398,18 +399,18 @@ const handleDelete = () => {
             />
             <div v-else class="thumbnail-placeholder">
               <NIcon :component="ImageIcon" :size="40" />
-              <span>여기로 드래그</span>
+              <span>{{ t('addDialog.dropHere') }}</span>
             </div>
           </div>
           <div class="media-actions">
             <NButton @click="handleSelectThumbnail" block>
               <template #icon><NIcon :component="ImageIcon" /></template>
-              파일에서 선택
+              {{ t('addDialog.selectImage') }}
             </NButton>
             <NInputGroup>
               <NInput
                 v-model:value="thumbUrl"
-                placeholder="이미지 URL"
+                :placeholder="t('addDialog.imageUrl')"
                 @keydown.enter.prevent="handleFetchThumbUrl"
               />
               <NButton
@@ -419,7 +420,7 @@ const handleDelete = () => {
                 @click="handleFetchThumbUrl"
               >
                 <template #icon><NIcon :component="LinkIcon" /></template>
-                가져오기
+                {{ t('addDialog.fetchUrl') }}
               </NButton>
             </NInputGroup>
             <NButton
@@ -429,7 +430,7 @@ const handleDelete = () => {
               block
             >
               <template #icon><NIcon :component="CloudDownloadIcon" /></template>
-              Steam 아트워크 선택
+              {{ t('editDialog.steamArtworkSelect') }}
             </NButton>
             <NButton
               v-if="steamAppId !== null"
@@ -438,7 +439,7 @@ const handleDelete = () => {
               quaternary
               block
             >
-              기본 커버로 복원
+              {{ t('editDialog.steamCoverRestore') }}
             </NButton>
             <NButton
               v-if="thumbnailPath"
@@ -447,7 +448,7 @@ const handleDelete = () => {
               block
             >
               <template #icon><NIcon :component="CloseIcon" /></template>
-              제거
+              {{ t('common.remove') }}
             </NButton>
           </div>
         </div>
@@ -462,7 +463,7 @@ const handleDelete = () => {
         @dragleave="iconInput.onDragLeave"
         @drop="handleIconDrop"
       >
-        <div class="media-label">아이콘 (256×256)</div>
+        <div class="media-label">{{ t('editDialog.iconLabel') }}</div>
         <div class="media-row">
           <div class="icon-preview" :class="{ 'is-empty': !iconPreview }">
             <NImage
@@ -475,18 +476,18 @@ const handleDelete = () => {
             />
             <div v-else class="icon-placeholder">
               <NIcon :component="ImageIcon" :size="32" />
-              <span>여기로 드래그</span>
+              <span>{{ t('addDialog.dropHere') }}</span>
             </div>
           </div>
           <div class="media-actions">
             <NButton @click="handleSelectIcon" block>
               <template #icon><NIcon :component="ImageIcon" /></template>
-              파일에서 선택
+              {{ t('addDialog.selectImage') }}
             </NButton>
             <NInputGroup>
               <NInput
                 v-model:value="iconUrl"
-                placeholder="이미지 URL"
+                :placeholder="t('addDialog.imageUrl')"
                 @keydown.enter.prevent="handleFetchIconUrl"
               />
               <NButton
@@ -496,7 +497,7 @@ const handleDelete = () => {
                 @click="handleFetchIconUrl"
               >
                 <template #icon><NIcon :component="LinkIcon" /></template>
-                가져오기
+                {{ t('addDialog.fetchUrl') }}
               </NButton>
             </NInputGroup>
             <NButton
@@ -506,7 +507,7 @@ const handleDelete = () => {
               block
             >
               <template #icon><NIcon :component="RefreshIcon" /></template>
-              .exe에서 재추출
+              {{ t('editDialog.reextractFromExe') }}
             </NButton>
             <NButton
               v-if="steamAppId !== null"
@@ -515,7 +516,7 @@ const handleDelete = () => {
               block
             >
               <template #icon><NIcon :component="CloudDownloadIcon" /></template>
-              Steam 캐시에서 가져오기
+              {{ t('editDialog.steamCacheIcon') }}
             </NButton>
             <NButton
               v-if="iconPath"
@@ -524,26 +525,26 @@ const handleDelete = () => {
               block
             >
               <template #icon><NIcon :component="CloseIcon" /></template>
-              제거
+              {{ t('common.remove') }}
             </NButton>
           </div>
         </div>
       </div>
 
       <!-- Title -->
-      <NFormItem label="Title" required>
-        <NInput 
-          v-model:value="title" 
-          placeholder="Enter program title"
+      <NFormItem :label="t('addDialog.titleLabel')" required>
+        <NInput
+          v-model:value="title"
+          :placeholder="t('addDialog.titlePlaceholder')"
           clearable
         />
       </NFormItem>
 
       <!-- Executable Path -->
-      <NFormItem label="Executable Path" required>
-        <NInput 
-          v-model:value="executablePath" 
-          placeholder="Select executable file"
+      <NFormItem :label="t('addDialog.executablePath')" required>
+        <NInput
+          v-model:value="executablePath"
+          :placeholder="t('addDialog.executablePathPlaceholder')"
           readonly
         >
           <template #suffix>
@@ -557,7 +558,7 @@ const handleDelete = () => {
       </NFormItem>
 
       <!-- Tags -->
-      <NFormItem label="Tags">
+      <NFormItem :label="t('addDialog.tagsLabel')">
         <NDynamicTags v-model:value="tags" />
       </NFormItem>
     </NForm>
@@ -574,11 +575,11 @@ const handleDelete = () => {
           <template #icon>
             <NIcon :component="DeleteIcon" />
           </template>
-          Delete
+          {{ t('common.delete') }}
         </NButton>
         <NSpace>
           <NButton @click="handleCancel" :disabled="isSubmitting">
-            Cancel
+            {{ t('common.cancel') }}
           </NButton>
           <NButton
             type="primary"
@@ -586,7 +587,7 @@ const handleDelete = () => {
             :disabled="!isValid"
             :loading="isSubmitting"
           >
-            Save
+            {{ t('common.save') }}
           </NButton>
         </NSpace>
       </div>
@@ -596,7 +597,7 @@ const handleDelete = () => {
       v-model:show="showCropDialog"
       :source="cropSourceUrl"
       :aspect-ratio="cropAspect"
-      :title="cropTarget === 'icon' ? '아이콘 크롭 (1:1)' : '썸네일 크롭 (2:3)'"
+      :title="cropTarget === 'icon' ? t('editDialog.iconCropTitle') : t('editDialog.thumbnailCropTitle')"
       @confirm="handleCropConfirm"
     />
 
