@@ -19,6 +19,11 @@ interface Settings {
   viewMode: 'grid' | 'list'
 }
 
+interface CreateSteamProgramData {
+  appId: number
+  name: string
+}
+
 // IPC Channels
 const IPC_CHANNELS = {
   // Library
@@ -54,7 +59,11 @@ const IPC_CHANNELS = {
   WINDOW_MAXIMIZE: 'window:maximize',
   WINDOW_CLOSE: 'window:close',
   WINDOW_IS_MAXIMIZED: 'window:isMaximized',
-  WINDOW_MAXIMIZE_CHANGED: 'window:maximize-changed'
+  WINDOW_MAXIMIZE_CHANGED: 'window:maximize-changed',
+
+  // Steam
+  STEAM_SCAN_INSTALLED: 'steam:scanInstalled',
+  STEAM_ADD_PROGRAMS: 'steam:addPrograms'
 } as const
 
 // API exposed to renderer
@@ -101,7 +110,12 @@ const electronAPI = {
     return () => {
       ipcRenderer.off(IPC_CHANNELS.WINDOW_MAXIMIZE_CHANGED, handler)
     }
-  }
+  },
+
+  // Steam
+  scanSteamGames: () => ipcRenderer.invoke(IPC_CHANNELS.STEAM_SCAN_INSTALLED),
+  addSteamPrograms: (entries: CreateSteamProgramData[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.STEAM_ADD_PROGRAMS, entries)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to renderer

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Program, LibraryData, CreateProgramData, UpdateProgramData, ProviderId } from '../types'
+import type { Program, LibraryData, CreateProgramData, UpdateProgramData, ProviderId, SteamGame, CreateSteamProgramData } from '../types'
 
 export const useLibraryStore = defineStore('library', () => {
   // State
@@ -155,6 +155,32 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
+  const scanSteamGames = async (): Promise<SteamGame[]> => {
+    try {
+      return await window.electron.scanSteamGames()
+    } catch (e) {
+      console.error('Failed to scan Steam games:', e)
+      return []
+    }
+  }
+
+  const addSteamPrograms = async (entries: CreateSteamProgramData[]): Promise<Program[]> => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const newPrograms = await window.electron.addSteamPrograms(entries)
+      programs.value.push(...newPrograms)
+      return newPrograms
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to add Steam programs'
+      console.error('Failed to add Steam programs:', e)
+      return []
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   const launchProgram = async (program: Program): Promise<void> => {
     try {
       await window.electron.launchProgram(program.executablePath)
@@ -250,6 +276,8 @@ export const useLibraryStore = defineStore('library', () => {
     launchProgram,
     saveThumbnail,
     deleteThumbnail,
+    scanSteamGames,
+    addSteamPrograms,
     setSearchQuery,
     setSelectedCategory,
     setSelectedTags,

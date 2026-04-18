@@ -1,9 +1,10 @@
 // Provider — how the program was added to the library.
 // Acts as the "category" automatically assigned at creation time.
-export type ProviderId = 'local'
+export type ProviderId = 'local' | 'steam'
 
 export const PROVIDERS: Record<ProviderId, { label: string }> = {
-  local: { label: '로컬 다운로드' }
+  local: { label: '로컬 다운로드' },
+  steam: { label: '스팀' }
 }
 
 export const PROVIDER_IDS = Object.keys(PROVIDERS) as ProviderId[]
@@ -39,6 +40,18 @@ export interface UpdateProgramData {
   title?: string
   executablePath?: string
   tags?: string[]
+}
+
+// Steam integration
+export interface SteamGame {
+  appId: number
+  name: string
+  installDir: string
+}
+
+export interface CreateSteamProgramData {
+  appId: number
+  name: string
 }
 
 // Library data structure stored in JSON
@@ -95,6 +108,10 @@ export interface ElectronAPI {
   windowClose: () => Promise<void>
   windowIsMaximized: () => Promise<boolean>
   onWindowMaximizeChanged: (callback: (isMaximized: boolean) => void) => () => void
+
+  // Steam integration
+  scanSteamGames: () => Promise<SteamGame[]>
+  addSteamPrograms: (entries: CreateSteamProgramData[]) => Promise<Program[]>
 }
 
 // Extend Window interface

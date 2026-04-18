@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { 
-  NInput, 
-  NButton, 
+import { ref, computed, h } from 'vue'
+import {
+  NInput,
+  NButton,
   NButtonGroup,
   NSelect,
   NSpace,
   NIcon,
   NTooltip,
-  NPopover
+  NPopover,
+  NDropdown
 } from 'naive-ui'
 import {
   Search as SearchIcon,
@@ -18,18 +19,43 @@ import {
   Moon as MoonIcon,
   Sunny as SunnyIcon,
   FunnelOutline as FilterIcon,
-  SwapVerticalOutline as SortIcon
+  SwapVerticalOutline as SortIcon,
+  DesktopOutline as DesktopIcon,
+  LogoSteam as SteamIcon
 } from '@vicons/ionicons5'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import AddProgramDialog from '../dialogs/AddProgramDialog.vue'
+import AddSteamProgramDialog from '../dialogs/AddSteamProgramDialog.vue'
 import { PROVIDERS, PROVIDER_IDS, type ProviderId } from '../../types'
 
 const libraryStore = useLibraryStore()
 const settingsStore = useSettingsStore()
 
 const showAddDialog = ref(false)
+const showAddSteamDialog = ref(false)
 const showFilters = ref(false)
+
+const addMenuOptions = [
+  {
+    label: 'PC에서 추가',
+    key: 'local',
+    icon: () => h(NIcon, { component: DesktopIcon })
+  },
+  {
+    label: '스팀에서 추가',
+    key: 'steam',
+    icon: () => h(NIcon, { component: SteamIcon })
+  }
+]
+
+const handleAddMenuSelect = (key: string) => {
+  if (key === 'local') {
+    showAddDialog.value = true
+  } else if (key === 'steam') {
+    showAddSteamDialog.value = true
+  }
+}
 
 // Provider options for filter — now a fixed registry, not user-defined
 const categoryOptions = computed(() =>
@@ -83,10 +109,6 @@ const handleTagsChange = (values: string[]) => {
 const handleClearFilters = () => {
   libraryStore.clearFilters()
   showFilters.value = false
-}
-
-const handleAddProgram = () => {
-  showAddDialog.value = true
 }
 </script>
 
@@ -202,18 +224,21 @@ const handleAddProgram = () => {
           {{ settingsStore.theme === 'dark' ? 'Light Mode' : 'Dark Mode' }}
         </NTooltip>
 
-        <!-- Add button -->
-        <NButton type="primary" @click="handleAddProgram">
-          <template #icon>
-            <NIcon :component="AddIcon" />
-          </template>
-          Add Program
-        </NButton>
+        <!-- Add button (dropdown) -->
+        <NDropdown trigger="click" :options="addMenuOptions" @select="handleAddMenuSelect">
+          <NButton type="primary">
+            <template #icon>
+              <NIcon :component="AddIcon" />
+            </template>
+            Add Program
+          </NButton>
+        </NDropdown>
       </NSpace>
     </div>
 
-    <!-- Add Program Dialog -->
+    <!-- Add Program Dialogs -->
     <AddProgramDialog v-model:show="showAddDialog" />
+    <AddSteamProgramDialog v-model:show="showAddSteamDialog" />
   </header>
 </template>
 

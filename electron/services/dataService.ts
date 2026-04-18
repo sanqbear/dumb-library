@@ -2,7 +2,7 @@ import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import type { LibraryData, Program, CreateProgramData, UpdateProgramData, Settings } from '../../src/types'
+import type { LibraryData, Program, CreateProgramData, UpdateProgramData, Settings, CreateSteamProgramData } from '../../src/types'
 import { isProviderId } from '../../src/types'
 import logger from './logger'
 
@@ -147,6 +147,31 @@ export const addProgram = (data: CreateProgramData): Program => {
   library.programs.push(newProgram)
   saveLibrary(library)
   logger.info(`Added program: ${newProgram.title} (${newProgram.id})`)
+
+  return newProgram
+}
+
+// Steam entry: launch target is a steam:// URL, not an .exe path.
+// No icon extraction — thumbnail is downloaded separately from Steam CDN.
+export const addSteamProgram = (data: CreateSteamProgramData): Program => {
+  const library = loadLibrary()
+  const now = new Date().toISOString()
+
+  const newProgram: Program = {
+    id: uuidv4(),
+    title: data.name,
+    executablePath: `steam://run/${data.appId}`,
+    iconPath: null,
+    thumbnailPath: null,
+    category: 'steam',
+    tags: [],
+    createdAt: now,
+    updatedAt: now
+  }
+
+  library.programs.push(newProgram)
+  saveLibrary(library)
+  logger.info(`Added steam program: ${newProgram.title} (appId=${data.appId}, id=${newProgram.id})`)
 
   return newProgram
 }

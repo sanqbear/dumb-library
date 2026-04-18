@@ -5,7 +5,8 @@ import * as dataService from './services/dataService'
 import * as fileService from './services/fileService'
 import * as thumbnailService from './services/thumbnailService'
 import * as iconService from './services/iconService'
-import type { CreateProgramData, UpdateProgramData, Settings, LibraryData } from '../src/types'
+import * as steamService from './services/steamService'
+import type { CreateProgramData, UpdateProgramData, Settings, LibraryData, CreateSteamProgramData, Program } from '../src/types'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -168,6 +169,29 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('window:isMaximized', () => {
     return mainWindow?.isMaximized() ?? false
+  })
+
+  // Steam integration
+  ipcMain.handle('steam:scanInstalled', async () => {
+    return await steamService.scanInstalledGames()
+  })
+
+  ipcMain.handle('steam:addPrograms', async (_event, entries: CreateSteamProgramData[]) => {
+    const added: Program[] = []
+    for (const entry of entries) {
+      try {
+        const program = dataService.addSteamProgram(entry)
+        const thumbPath = await steamService.downloadSteamThumbnail(entry.appId, program.id)
+        if (thumbPath) {
+          dataService.updateProgramThumbnailPath(program.id, thumbPath)
+          program.thumbnailPath = thumbPath
+        }
+        added.push(program)
+      } catch (error) {
+        logger.error(`Failed to add Steam program appId=${entry.appId}:`, error)
+      }
+    }
+    return added
   })
 
   logger.info('IPC handlers registered')

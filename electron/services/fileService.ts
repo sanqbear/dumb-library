@@ -60,12 +60,18 @@ export const selectImage = async (window: BrowserWindow | null): Promise<string 
 }
 
 /**
- * Launch a program
+ * Launch a program. Accepts either a local .exe path or a protocol URL
+ * like steam://run/<appId>.
  */
 export const launchProgram = async (executablePath: string): Promise<void> => {
   try {
     logger.info(`Launching program: ${executablePath}`)
-    await shell.openPath(executablePath)
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(executablePath)) {
+      // Protocol URL (steam://, etc.) — hand off to the OS handler.
+      await shell.openExternal(executablePath)
+    } else {
+      await shell.openPath(executablePath)
+    }
   } catch (error) {
     logger.error(`Failed to launch program: ${executablePath}`, error)
     throw error
