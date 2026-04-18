@@ -10,9 +10,10 @@ import {
   NDynamicTags,
   NImage,
   NIcon,
-  useMessage
+  useMessage,
+  useDialog
 } from 'naive-ui'
-import { FolderOpen as FolderIcon, Image as ImageIcon, Close as CloseIcon } from '@vicons/ionicons5'
+import { FolderOpen as FolderIcon, Image as ImageIcon, Close as CloseIcon, Trash as DeleteIcon } from '@vicons/ionicons5'
 import { useLibraryStore } from '../../stores/libraryStore'
 import type { Program } from '../../types'
 
@@ -27,6 +28,7 @@ const emit = defineEmits<{
 
 const libraryStore = useLibraryStore()
 const message = useMessage()
+const confirmDialog = useDialog()
 
 // Form data
 const title = ref('')
@@ -134,6 +136,26 @@ const handleSubmit = async () => {
 const handleCancel = () => {
   emit('update:show', false)
 }
+
+const handleDelete = () => {
+  if (!props.program) return
+  const program = props.program
+  confirmDialog.warning({
+    title: '프로그램 삭제',
+    content: `"${program.title}"을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.`,
+    positiveText: '삭제',
+    negativeText: '취소',
+    onPositiveClick: async () => {
+      const success = await libraryStore.deleteProgram(program.id)
+      if (success) {
+        message.success('삭제되었습니다')
+        emit('update:show', false)
+      } else {
+        message.error('삭제에 실패했습니다')
+      }
+    }
+  })
+}
 </script>
 
 <template>
@@ -218,19 +240,32 @@ const handleCancel = () => {
     </NForm>
 
     <template #footer>
-      <NSpace justify="end">
-        <NButton @click="handleCancel" :disabled="isSubmitting">
-          Cancel
-        </NButton>
-        <NButton 
-          type="primary" 
-          @click="handleSubmit"
-          :disabled="!isValid"
-          :loading="isSubmitting"
+      <div class="footer-split">
+        <NButton
+          type="error"
+          ghost
+          @click="handleDelete"
+          :disabled="isSubmitting"
         >
-          Save
+          <template #icon>
+            <NIcon :component="DeleteIcon" />
+          </template>
+          Delete
         </NButton>
-      </NSpace>
+        <NSpace>
+          <NButton @click="handleCancel" :disabled="isSubmitting">
+            Cancel
+          </NButton>
+          <NButton
+            type="primary"
+            @click="handleSubmit"
+            :disabled="!isValid"
+            :loading="isSubmitting"
+          >
+            Save
+          </NButton>
+        </NSpace>
+      </div>
     </template>
   </NModal>
 </template>
@@ -279,5 +314,12 @@ const handleCancel = () => {
   flex-direction: column;
   gap: 8px;
   justify-content: center;
+}
+
+.footer-split {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 </style>

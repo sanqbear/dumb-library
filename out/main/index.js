@@ -32,7 +32,8 @@ const logger = {
   }
 };
 const PROVIDERS = {
-  local: { label: "로컬 다운로드" }
+  local: { label: "로컬 다운로드" },
+  steam: { label: "스팀" }
 };
 const isProviderId = (value) => {
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(PROVIDERS, value);
@@ -145,6 +146,25 @@ const addProgram = (data) => {
   library.programs.push(newProgram);
   saveLibrary(library);
   logger.info(`Added program: ${newProgram.title} (${newProgram.id})`);
+  return newProgram;
+};
+const addSteamProgram = (data) => {
+  const library = loadLibrary();
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const newProgram = {
+    id: v4(),
+    title: data.name,
+    executablePath: `steam://run/${data.appId}`,
+    iconPath: null,
+    thumbnailPath: null,
+    category: "steam",
+    tags: [],
+    createdAt: now,
+    updatedAt: now
+  };
+  library.programs.push(newProgram);
+  saveLibrary(library);
+  logger.info(`Added steam program: ${newProgram.title} (appId=${data.appId}, id=${newProgram.id})`);
   return newProgram;
 };
 const updateProgram = (data) => {
@@ -290,7 +310,11 @@ const selectImage = async (window) => {
 const launchProgram = async (executablePath) => {
   try {
     logger.info(`Launching program: ${executablePath}`);
-    await shell.openPath(executablePath);
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(executablePath)) {
+      await shell.openExternal(executablePath);
+    } else {
+      await shell.openPath(executablePath);
+    }
   } catch (error) {
     logger.error(`Failed to launch program: ${executablePath}`, error);
     throw error;
@@ -340,7 +364,7 @@ const deleteThumbnail = (programId) => {
   updateProgramThumbnailPath(programId, null);
   logger.info(`Deleted thumbnail for program: ${programId}`);
 };
-const execFileAsync = promisify(execFile);
+const execFileAsync$1 = promisify(execFile);
 const extractIcon = async (executablePath, programId) => {
   ensureDirectories();
   if (!fs.existsSync(executablePath)) {
@@ -371,7 +395,7 @@ try {
 `;
   try {
     fs.writeFileSync(tempScriptPath, psScript, { encoding: "utf8" });
-    const { stdout, stderr } = await execFileAsync("powershell", [
+    const { stdout, stderr } = await execFileAsync$1("powershell", [
       "-NoProfile",
       "-ExecutionPolicy",
       "Bypass",
@@ -411,6 +435,146 @@ try {
     }
     return null;
   }
+};
+const execFileAsync = promisify(execFile);
+const unescapeVdfString = (value) => {
+  return value.replace(/\\\\/g, "\\").replace(/\\"/g, '"');
+};
+const extractAllPaths = (content) => {
+  const re = /"path"\s+"([^"]*)"/gi;
+  const results = [];
+  let match;
+  while ((match = re.exec(content)) !== null) {
+    results.push(unescapeVdfString(match[1]));
+  }
+  return results;
+};
+const parseAppManifest = (content) => {
+  const appIdMatch = content.match(/"appid"\s+"(\d+)"/i);
+  const nameMatch = content.match(/"name"\s+"([^"]*)"/i);
+  if (!appIdMatch || !nameMatch) return null;
+  const appId = parseInt(appIdMatch[1], 10);
+  if (!Number.isFinite(appId) || appId <= 0) return null;
+  return { appId, name: unescapeVdfString(nameMatch[1]) };
+};
+const STEAM_FALLBACK_PATHS = [
+  "C:\\Program Files (x86)\\Steam",
+  "C:\\Program Files\\Steam"
+];
+const findSteamPath = async () => {
+  try {
+    const { stdout } = await execFileAsync("powershell", [
+      "-NoProfile",
+      "-Command",
+      '(Get-ItemProperty -Path "HKCU:\\Software\\Valve\\Steam" -Name "SteamPath" -ErrorAction Stop).SteamPath'
+    ], { timeout: 5e3 });
+    const raw = stdout.trim();
+    if (raw) {
+      const normalized = path.normalize(raw);
+      if (fs.existsSync(normalized)) return normalized;
+    }
+  } catch (error) {
+    logger.debug("Steam registry lookup failed, trying fallbacks:", error);
+  }
+  for (const candidate of STEAM_FALLBACK_PATHS) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+};
+const scanInstalledGames = async () => {
+  const steamPath = await findSteamPath();
+  if (!steamPath) {
+    logger.info("Steam installation not found");
+    return [];
+  }
+  const libraryFoldersVdf = path.join(steamPath, "steamapps", "libraryfolders.vdf");
+  const libraryPaths = [];
+  if (fs.existsSync(libraryFoldersVdf)) {
+    try {
+      const content = fs.readFileSync(libraryFoldersVdf, "utf-8");
+      libraryPaths.push(...extractAllPaths(content));
+    } catch (error) {
+      logger.warn("Failed to read libraryfolders.vdf:", error);
+    }
+  }
+  if (!libraryPaths.some((p) => path.resolve(p) === path.resolve(steamPath))) {
+    libraryPaths.unshift(steamPath);
+  }
+  const games = [];
+  const seenAppIds = /* @__PURE__ */ new Set();
+  for (const libPath of libraryPaths) {
+    const steamappsDir = path.join(libPath, "steamapps");
+    if (!fs.existsSync(steamappsDir)) continue;
+    let files;
+    try {
+      files = fs.readdirSync(steamappsDir);
+    } catch (error) {
+      logger.warn(`Failed to read ${steamappsDir}:`, error);
+      continue;
+    }
+    for (const file of files) {
+      if (!file.startsWith("appmanifest_") || !file.endsWith(".acf")) continue;
+      const manifestPath = path.join(steamappsDir, file);
+      try {
+        const acfContent = fs.readFileSync(manifestPath, "utf-8");
+        const parsed = parseAppManifest(acfContent);
+        if (!parsed) continue;
+        if (parsed.appId < 10) continue;
+        if (seenAppIds.has(parsed.appId)) continue;
+        seenAppIds.add(parsed.appId);
+        games.push({
+          appId: parsed.appId,
+          name: parsed.name,
+          installDir: libPath
+        });
+      } catch (error) {
+        logger.warn(`Failed to parse ${file}:`, error);
+      }
+    }
+  }
+  games.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  logger.info(`Scanned ${games.length} Steam games from ${libraryPaths.length} libraries`);
+  return games;
+};
+const THUMBNAIL_URL_CANDIDATES = (appId) => [
+  `https://steamcdn-a.akamaihd.net/steam/apps/${appId}/library_600x900_2x.jpg`,
+  `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900_2x.jpg`,
+  `https://steamcdn-a.akamaihd.net/steam/apps/${appId}/library_600x900.jpg`,
+  `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg`,
+  `https://steamcdn-a.akamaihd.net/steam/apps/${appId}/header.jpg`
+];
+const fetchWithTimeout = async (url, timeoutMs) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+const downloadSteamThumbnail = async (appId, programId) => {
+  ensureDirectories();
+  const destPath = path.join(getThumbnailsPath(), `${programId}.jpg`);
+  for (const url of THUMBNAIL_URL_CANDIDATES(appId)) {
+    const buffer = await fetchWithTimeout(url, 15e3);
+    if (buffer && buffer.length > 0) {
+      try {
+        fs.writeFileSync(destPath, buffer);
+        logger.info(`Downloaded Steam thumbnail for appId ${appId} from ${url}`);
+        return destPath;
+      } catch (error) {
+        logger.warn(`Failed to write thumbnail file: ${destPath}`, error);
+        return null;
+      }
+    }
+  }
+  logger.warn(`No thumbnail found for Steam appId ${appId}`);
+  return null;
 };
 const isDev = process.env.NODE_ENV === "development";
 if (process.env.PORTABLE_EXECUTABLE_DIR) {
@@ -533,6 +697,26 @@ function registerIpcHandlers() {
   });
   ipcMain.handle("window:isMaximized", () => {
     return mainWindow?.isMaximized() ?? false;
+  });
+  ipcMain.handle("steam:scanInstalled", async () => {
+    return await scanInstalledGames();
+  });
+  ipcMain.handle("steam:addPrograms", async (_event, entries) => {
+    const added = [];
+    for (const entry of entries) {
+      try {
+        const program = addSteamProgram(entry);
+        const thumbPath = await downloadSteamThumbnail(entry.appId, program.id);
+        if (thumbPath) {
+          updateProgramThumbnailPath(program.id, thumbPath);
+          program.thumbnailPath = thumbPath;
+        }
+        added.push(program);
+      } catch (error) {
+        logger.error(`Failed to add Steam program appId=${entry.appId}:`, error);
+      }
+    }
+    return added;
   });
   logger.info("IPC handlers registered");
 }

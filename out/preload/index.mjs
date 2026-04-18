@@ -26,7 +26,10 @@ const IPC_CHANNELS = {
   WINDOW_MAXIMIZE: "window:maximize",
   WINDOW_CLOSE: "window:close",
   WINDOW_IS_MAXIMIZED: "window:isMaximized",
-  WINDOW_MAXIMIZE_CHANGED: "window:maximize-changed"
+  WINDOW_MAXIMIZE_CHANGED: "window:maximize-changed",
+  // Steam
+  STEAM_SCAN_INSTALLED: "steam:scanInstalled",
+  STEAM_ADD_PROGRAMS: "steam:addPrograms"
 };
 const electronAPI = {
   // Library operations
@@ -61,7 +64,10 @@ const electronAPI = {
     return () => {
       ipcRenderer.off(IPC_CHANNELS.WINDOW_MAXIMIZE_CHANGED, handler);
     };
-  }
+  },
+  // Steam
+  scanSteamGames: () => ipcRenderer.invoke(IPC_CHANNELS.STEAM_SCAN_INSTALLED),
+  addSteamPrograms: (entries) => ipcRenderer.invoke(IPC_CHANNELS.STEAM_ADD_PROGRAMS, entries)
 };
 if (process.contextIsolated) {
   try {

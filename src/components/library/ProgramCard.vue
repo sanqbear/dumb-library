@@ -1,13 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, h } from 'vue'
-import { NCard, NImage, NButton, NIcon, NDropdown, NTag, useMessage, useDialog } from 'naive-ui'
-import { 
-  Play as PlayIcon, 
-  EllipsisVertical as MoreIcon,
-  Create as EditIcon,
-  Trash as DeleteIcon,
-  Image as ImageIcon
-} from '@vicons/ionicons5'
+import { computed, ref } from 'vue'
+import { NCard, NImage, NIcon, NTag, useMessage } from 'naive-ui'
+import { Play as PlayIcon, Image as ImageIcon } from '@vicons/ionicons5'
 import type { Program } from '../../types'
 import { PROVIDERS } from '../../types'
 import { useLibraryStore } from '../../stores/libraryStore'
@@ -19,7 +13,6 @@ const props = defineProps<{
 
 const libraryStore = useLibraryStore()
 const message = useMessage()
-const dialog = useDialog()
 
 const showEditDialog = ref(false)
 const isHovered = ref(false)
@@ -32,28 +25,6 @@ const displayImage = computed(() => {
 
 const hasImage = computed(() => !!displayImage.value)
 
-const menuOptions = [
-  {
-    label: 'Edit',
-    key: 'edit',
-    icon: () => h(NIcon, { component: EditIcon })
-  },
-  {
-    label: 'Change Thumbnail',
-    key: 'thumbnail',
-    icon: () => h(NIcon, { component: ImageIcon })
-  },
-  {
-    type: 'divider',
-    key: 'd1'
-  },
-  {
-    label: 'Delete',
-    key: 'delete',
-    icon: () => h(NIcon, { component: DeleteIcon })
-  }
-]
-
 const handleLaunch = async () => {
   try {
     await libraryStore.launchProgram(props.program)
@@ -63,60 +34,17 @@ const handleLaunch = async () => {
   }
 }
 
-const handleDoubleClick = () => {
-  handleLaunch()
-}
-
-const handleMenuSelect = async (key: string) => {
-  switch (key) {
-    case 'edit':
-      showEditDialog.value = true
-      break
-    case 'thumbnail':
-      await handleChangeThumbnail()
-      break
-    case 'delete':
-      handleDelete()
-      break
-  }
-}
-
-const handleChangeThumbnail = async () => {
-  const imagePath = await window.electron.selectImage()
-  if (imagePath) {
-    const result = await libraryStore.saveThumbnail(props.program.id, imagePath)
-    if (result) {
-      message.success('Thumbnail updated')
-    } else {
-      message.error('Failed to update thumbnail')
-    }
-  }
-}
-
-const handleDelete = () => {
-  dialog.warning({
-    title: 'Delete Program',
-    content: `Are you sure you want to delete "${props.program.title}"?`,
-    positiveText: 'Delete',
-    negativeText: 'Cancel',
-    onPositiveClick: async () => {
-      const success = await libraryStore.deleteProgram(props.program.id)
-      if (success) {
-        message.success('Program deleted')
-      } else {
-        message.error('Failed to delete program')
-      }
-    }
-  })
+const handleCardClick = () => {
+  showEditDialog.value = true
 }
 </script>
 
 <template>
-  <NCard 
+  <NCard
     class="program-card card-hover no-select"
     :bordered="false"
     content-style="padding: 0"
-    @dblclick="handleDoubleClick"
+    @click="handleCardClick"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
   >
@@ -136,37 +64,10 @@ const handleDelete = () => {
       </div>
 
       <!-- Overlay on hover -->
-      <div v-show="isHovered" class="card-overlay">
-        <NButton 
-          type="primary" 
-          circle 
-          size="large"
-          @click.stop="handleLaunch"
-        >
-          <template #icon>
-            <NIcon :component="PlayIcon" />
-          </template>
-        </NButton>
-      </div>
-
-      <!-- Menu button -->
-      <div class="card-menu">
-        <NDropdown 
-          trigger="click" 
-          :options="menuOptions"
-          @select="handleMenuSelect"
-        >
-          <NButton 
-            quaternary 
-            circle 
-            size="small"
-            @click.stop
-          >
-            <template #icon>
-              <NIcon :component="MoreIcon" />
-            </template>
-          </NButton>
-        </NDropdown>
+      <div v-show="isHovered" class="card-overlay" @click.stop="handleCardClick">
+        <button class="launch-btn" @click.stop="handleLaunch" aria-label="실행">
+          <NIcon :component="PlayIcon" :size="32" />
+        </button>
       </div>
     </div>
 
@@ -239,12 +140,46 @@ const handleDelete = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 }
 
-.card-menu {
-  position: absolute;
-  top: 4px;
-  right: 4px;
+.launch-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: none;
+  background-color: #e87ea1;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  padding-left: 4px; /* optical-center the play triangle */
+}
+
+:global(.light-theme) .launch-btn {
+  background-color: #db2777;
+}
+
+.launch-btn:hover {
+  transform: scale(1.06);
+  background-color: #f093b0;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+:global(.light-theme) .launch-btn:hover {
+  background-color: #ec4899;
+}
+
+.launch-btn:active {
+  transform: scale(0.98);
+  background-color: #c96081;
+}
+
+:global(.light-theme) .launch-btn:active {
+  background-color: #be185d;
 }
 
 .card-info {
