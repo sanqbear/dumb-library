@@ -45,6 +45,46 @@ const searchQuery = ref('')
 const manualAppId = ref<number | null>(null)
 const manualName = ref('')
 
+// Preview modal state (shown when a row title is clicked)
+const previewGame = ref<SteamGame | null>(null)
+// 0 = library_600x900_2x, 1 = library_600x900, 2 = header.jpg
+const previewFallbackIndex = ref(0)
+const previewImageLoaded = ref(false)
+
+const previewUrlCandidates = (appId: number): string[] => [
+  `https://steamcdn-a.akamaihd.net/steam/apps/${appId}/library_600x900_2x.jpg`,
+  `https://steamcdn-a.akamaihd.net/steam/apps/${appId}/library_600x900.jpg`,
+  `https://steamcdn-a.akamaihd.net/steam/apps/${appId}/header.jpg`
+]
+
+const previewImageUrl = computed(() => {
+  if (!previewGame.value) return ''
+  const urls = previewUrlCandidates(previewGame.value.appId)
+  return urls[previewFallbackIndex.value] ?? ''
+})
+
+const openPreview = (game: SteamGame) => {
+  previewGame.value = game
+  previewFallbackIndex.value = 0
+  previewImageLoaded.value = false
+}
+
+const closePreview = () => {
+  previewGame.value = null
+}
+
+const handlePreviewImageError = () => {
+  if (!previewGame.value) return
+  const candidates = previewUrlCandidates(previewGame.value.appId)
+  if (previewFallbackIndex.value < candidates.length - 1) {
+    previewFallbackIndex.value += 1
+  }
+}
+
+const handlePreviewImageLoad = () => {
+  previewImageLoaded.value = true
+}
+
 const rowKey = (row: SteamGame) => row.appId
 
 // Filter games by case-insensitive substring match on the name.
@@ -61,7 +101,21 @@ const columns: DataTableColumns<SteamGame> = [
   {
     title: 'Name',
     key: 'name',
-    ellipsis: { tooltip: true }
+    ellipsis: { tooltip: true },
+    render(row) {
+      return h(
+        'span',
+        {
+          class: 'clickable-name',
+          title: `미리보기: ${row.name}`,
+          onClick: (e: MouseEvent) => {
+            e.stopPropagation()
+            openPreview(row)
+          }
+        },
+        row.name
+      )
+    }
   },
   {
     title: 'AppID',
@@ -86,6 +140,7 @@ watch(() => props.show, (v) => {
     manualAppId.value = null
     manualName.value = ''
     activeTab.value = 'installed'
+    previewGame.value = null
     scan()
   }
 })
@@ -261,6 +316,43 @@ const handleCancel = () => {
         </NButton>
       </NSpace>
     </template>
+
+    <!-- Preview modal — triggered by clicking a game name in the table -->
+    <NModal
+      :show="previewGame !== null"
+      @update:show="(v: boolean) => !v && closePreview()"
+      preset="card"
+      :title="previewGame?.name ?? ''"
+      :bordered="false"
+      size="medium"
+      :style="{ width: '440px' }"
+    >
+      <div :class="themeClass">
+        <div class="preview-body">
+          <div class="preview-image">
+            <NSpin v-if="!previewImageLoaded" size="small" />
+            <img
+              v-if="previewGame"
+              :key="previewImageUrl"
+              :src="previewImageUrl"
+              :alt="previewGame.name"
+              @load="handlePreviewImageLoad"
+              @error="handlePreviewImageError"
+              :style="{ opacity: previewImageLoaded ? 1 : 0 }"
+            />
+          </div>
+          <div class="preview-meta" v-if="previewGame">
+            <span>AppID</span>
+            <code>{{ previewGame.appId }}</code>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="closePreview">닫기</NButton>
+        </NSpace>
+      </template>
+    </NModal>
   </NModal>
 </template>
 
@@ -297,6 +389,82 @@ const handleCancel = () => {
 
 .light-theme .games-count {
   color: #52525b;
+}
+
+/* h()-rendered spans do not receive the scoped data-v attribute, so we
+   expose these rules globally. Class name is specific to this dialog so
+   collision risk is minimal. */
+:global(.clickable-name) {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  border-bottom: 1px dotted transparent;
+  transition: color 0.12s ease, border-bottom-color 0.12s ease;
+}
+
+:global(.clickable-name:hover) {
+  color: #f093b0;
+  border-bottom-color: currentColor;
+}
+
+:global(.light-theme .clickable-name:hover) {
+  color: #db2777;
+}
+
+.preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.preview-image {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  background-color: #18181b;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.light-theme .preview-image {
+  background-color: #e4e4e7;
+}
+
+.preview-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.2s ease;
+}
+
+.preview-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #a1a1aa;
+}
+
+.light-theme .preview-meta {
+  color: #52525b;
+}
+
+.preview-meta code {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+
+.light-theme .preview-meta code {
+  background-color: rgba(0, 0, 0, 0.06);
 }
 
 .manual-help {
