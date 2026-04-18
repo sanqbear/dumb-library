@@ -95,7 +95,7 @@ const canReextractIcon = computed(() =>
 const steamAppId = computed<number | null>(() => {
   if (props.program?.category !== 'steam') return null
   const match = props.program.executablePath.match(/^steam:\/\/run\/(\d+)$/)
-  return match ? parseInt(match[1], 10) : null
+  return match && match[1] ? parseInt(match[1], 10) : null
 })
 
 // Resolve preview URL: wl-image:// when pointing at the saved path, data: when user just selected a new file.
@@ -298,9 +298,9 @@ const handleReextractIcon = async () => {
 // Submit form
 const handleSubmit = async () => {
   if (!isValid.value || !props.program) return
-  
+
   isSubmitting.value = true
-  
+
   try {
     const updatedProgram = await libraryStore.updateProgram({
       id: props.program.id,
@@ -308,7 +308,7 @@ const handleSubmit = async () => {
       executablePath: executablePath.value,
       tags: [...tags.value]
     })
-    
+
     if (updatedProgram) {
       if (thumbnailChanged.value) {
         if (thumbnailPath.value === null) {
@@ -365,213 +365,144 @@ const handleDelete = () => {
 </script>
 
 <template>
-  <NModal
-    :show="show"
-    @update:show="emit('update:show', $event)"
-    preset="card"
-    :title="t('editDialog.title')"
-    :bordered="false"
-    size="medium"
-    :style="{ width: '520px' }"
-    :mask-closable="false"
-  >
+  <NModal :show="show" @update:show="emit('update:show', $event)" preset="card" :title="t('editDialog.title')"
+    :bordered="false" size="medium" :style="{ width: '520px' }" :mask-closable="false">
     <div v-if="program" :class="themeClass">
-    <NForm label-placement="top">
-      <!-- Thumbnail section -->
-      <div
-        class="media-section"
-        :class="{ 'is-drag-over': thumbInput.isDragOver.value }"
-        @dragenter="thumbInput.onDragEnter"
-        @dragover="thumbInput.onDragOver"
-        @dragleave="thumbInput.onDragLeave"
-        @drop="handleThumbDrop"
-      >
-        <div class="media-label">{{ t('editDialog.thumbnailLabel') }}</div>
-        <div class="media-row">
-          <div class="thumbnail-preview" :class="{ 'is-empty': !thumbnailPreview }">
-            <NImage
-              v-if="thumbnailPreview"
-              :src="thumbnailPreview"
-              object-fit="cover"
-              width="160"
-              height="240"
-              preview-disabled
-            />
-            <div v-else class="thumbnail-placeholder">
-              <NIcon :component="ImageIcon" :size="40" />
-              <span>{{ t('addDialog.dropHere') }}</span>
+      <NForm label-placement="top">
+        <!-- Thumbnail section -->
+        <div class="media-section" :class="{ 'is-drag-over': thumbInput.isDragOver.value }"
+          @dragenter="thumbInput.onDragEnter" @dragover="thumbInput.onDragOver" @dragleave="thumbInput.onDragLeave"
+          @drop="handleThumbDrop">
+          <div class="media-label">{{ t('editDialog.thumbnailLabel') }}</div>
+          <div class="media-row">
+            <div class="thumbnail-preview" :class="{ 'is-empty': !thumbnailPreview }">
+              <NImage v-if="thumbnailPreview" :src="thumbnailPreview" object-fit="cover" width="160" height="240"
+                preview-disabled />
+              <div v-else class="thumbnail-placeholder">
+                <NIcon :component="ImageIcon" :size="40" />
+                <span>{{ t('addDialog.dropHere') }}</span>
+              </div>
+            </div>
+            <div class="media-actions">
+              <NButton @click="handleSelectThumbnail" block>
+                <template #icon>
+                  <NIcon :component="ImageIcon" />
+                </template>
+                {{ t('addDialog.selectImage') }}
+              </NButton>
+              <NInputGroup>
+                <NInput v-model:value="thumbUrl" :placeholder="t('addDialog.imageUrl')"
+                  @keydown.enter.prevent="handleFetchThumbUrl" />
+                <NButton type="primary" :disabled="!thumbUrl.trim() || thumbInput.isFetching.value"
+                  :loading="thumbInput.isFetching.value" @click="handleFetchThumbUrl">
+                  <template #icon>
+                    <NIcon :component="LinkIcon" />
+                  </template>
+                  {{ t('addDialog.fetchUrl') }}
+                </NButton>
+              </NInputGroup>
+              <NButton v-if="steamAppId !== null" @click="handleOpenArtworkDialog" :disabled="isSubmitting" block>
+                <template #icon>
+                  <NIcon :component="CloudDownloadIcon" />
+                </template>
+                {{ t('editDialog.steamArtworkSelect') }}
+              </NButton>
+              <NButton v-if="steamAppId !== null" @click="handleSteamRedownload" :disabled="isSubmitting" quaternary
+                block>
+                {{ t('editDialog.steamCoverRestore') }}
+              </NButton>
+              <NButton v-if="thumbnailPath" @click="handleRemoveThumbnail" quaternary block>
+                <template #icon>
+                  <NIcon :component="CloseIcon" />
+                </template>
+                {{ t('common.remove') }}
+              </NButton>
             </div>
           </div>
-          <div class="media-actions">
-            <NButton @click="handleSelectThumbnail" block>
-              <template #icon><NIcon :component="ImageIcon" /></template>
-              {{ t('addDialog.selectImage') }}
-            </NButton>
-            <NInputGroup>
-              <NInput
-                v-model:value="thumbUrl"
-                :placeholder="t('addDialog.imageUrl')"
-                @keydown.enter.prevent="handleFetchThumbUrl"
-              />
-              <NButton
-                type="primary"
-                :disabled="!thumbUrl.trim() || thumbInput.isFetching.value"
-                :loading="thumbInput.isFetching.value"
-                @click="handleFetchThumbUrl"
-              >
-                <template #icon><NIcon :component="LinkIcon" /></template>
-                {{ t('addDialog.fetchUrl') }}
-              </NButton>
-            </NInputGroup>
-            <NButton
-              v-if="steamAppId !== null"
-              @click="handleOpenArtworkDialog"
-              :disabled="isSubmitting"
-              block
-            >
-              <template #icon><NIcon :component="CloudDownloadIcon" /></template>
-              {{ t('editDialog.steamArtworkSelect') }}
-            </NButton>
-            <NButton
-              v-if="steamAppId !== null"
-              @click="handleSteamRedownload"
-              :disabled="isSubmitting"
-              quaternary
-              block
-            >
-              {{ t('editDialog.steamCoverRestore') }}
-            </NButton>
-            <NButton
-              v-if="thumbnailPath"
-              @click="handleRemoveThumbnail"
-              quaternary
-              block
-            >
-              <template #icon><NIcon :component="CloseIcon" /></template>
-              {{ t('common.remove') }}
-            </NButton>
-          </div>
         </div>
-      </div>
 
-      <!-- Icon section -->
-      <div
-        class="media-section"
-        :class="{ 'is-drag-over': iconInput.isDragOver.value }"
-        @dragenter="iconInput.onDragEnter"
-        @dragover="iconInput.onDragOver"
-        @dragleave="iconInput.onDragLeave"
-        @drop="handleIconDrop"
-      >
-        <div class="media-label">{{ t('editDialog.iconLabel') }}</div>
-        <div class="media-row">
-          <div class="icon-preview" :class="{ 'is-empty': !iconPreview }">
-            <NImage
-              v-if="iconPreview"
-              :src="iconPreview"
-              object-fit="cover"
-              width="120"
-              height="120"
-              preview-disabled
-            />
-            <div v-else class="icon-placeholder">
-              <NIcon :component="ImageIcon" :size="32" />
-              <span>{{ t('addDialog.dropHere') }}</span>
+        <!-- Icon section -->
+        <div class="media-section" :class="{ 'is-drag-over': iconInput.isDragOver.value }"
+          @dragenter="iconInput.onDragEnter" @dragover="iconInput.onDragOver" @dragleave="iconInput.onDragLeave"
+          @drop="handleIconDrop">
+          <div class="media-label">{{ t('editDialog.iconLabel') }}</div>
+          <div class="media-row">
+            <div class="icon-preview" :class="{ 'is-empty': !iconPreview }">
+              <NImage v-if="iconPreview" :src="iconPreview" object-fit="cover" width="120" height="120"
+                preview-disabled />
+              <div v-else class="icon-placeholder">
+                <NIcon :component="ImageIcon" :size="32" />
+                <span>{{ t('addDialog.dropHere') }}</span>
+              </div>
+            </div>
+            <div class="media-actions">
+              <NButton @click="handleSelectIcon" block>
+                <template #icon>
+                  <NIcon :component="ImageIcon" />
+                </template>
+                {{ t('addDialog.selectImage') }}
+              </NButton>
+              <NInputGroup>
+                <NInput v-model:value="iconUrl" :placeholder="t('addDialog.imageUrl')"
+                  @keydown.enter.prevent="handleFetchIconUrl" />
+                <NButton type="primary" :disabled="!iconUrl.trim() || iconInput.isFetching.value"
+                  :loading="iconInput.isFetching.value" @click="handleFetchIconUrl">
+                  <template #icon>
+                    <NIcon :component="LinkIcon" />
+                  </template>
+                  {{ t('addDialog.fetchUrl') }}
+                </NButton>
+              </NInputGroup>
+              <NButton v-if="canReextractIcon" @click="handleReextractIcon" :disabled="isSubmitting" block>
+                <template #icon>
+                  <NIcon :component="RefreshIcon" />
+                </template>
+                {{ t('editDialog.reextractFromExe') }}
+              </NButton>
+              <NButton v-if="steamAppId !== null" @click="handleApplySteamCachedIcon" :disabled="isSubmitting" block>
+                <template #icon>
+                  <NIcon :component="CloudDownloadIcon" />
+                </template>
+                {{ t('editDialog.steamCacheIcon') }}
+              </NButton>
+              <NButton v-if="iconPath" @click="handleRemoveIcon" quaternary block>
+                <template #icon>
+                  <NIcon :component="CloseIcon" />
+                </template>
+                {{ t('common.remove') }}
+              </NButton>
             </div>
           </div>
-          <div class="media-actions">
-            <NButton @click="handleSelectIcon" block>
-              <template #icon><NIcon :component="ImageIcon" /></template>
-              {{ t('addDialog.selectImage') }}
-            </NButton>
-            <NInputGroup>
-              <NInput
-                v-model:value="iconUrl"
-                :placeholder="t('addDialog.imageUrl')"
-                @keydown.enter.prevent="handleFetchIconUrl"
-              />
-              <NButton
-                type="primary"
-                :disabled="!iconUrl.trim() || iconInput.isFetching.value"
-                :loading="iconInput.isFetching.value"
-                @click="handleFetchIconUrl"
-              >
-                <template #icon><NIcon :component="LinkIcon" /></template>
-                {{ t('addDialog.fetchUrl') }}
-              </NButton>
-            </NInputGroup>
-            <NButton
-              v-if="canReextractIcon"
-              @click="handleReextractIcon"
-              :disabled="isSubmitting"
-              block
-            >
-              <template #icon><NIcon :component="RefreshIcon" /></template>
-              {{ t('editDialog.reextractFromExe') }}
-            </NButton>
-            <NButton
-              v-if="steamAppId !== null"
-              @click="handleApplySteamCachedIcon"
-              :disabled="isSubmitting"
-              block
-            >
-              <template #icon><NIcon :component="CloudDownloadIcon" /></template>
-              {{ t('editDialog.steamCacheIcon') }}
-            </NButton>
-            <NButton
-              v-if="iconPath"
-              @click="handleRemoveIcon"
-              quaternary
-              block
-            >
-              <template #icon><NIcon :component="CloseIcon" /></template>
-              {{ t('common.remove') }}
-            </NButton>
-          </div>
         </div>
-      </div>
 
-      <!-- Title -->
-      <NFormItem :label="t('addDialog.titleLabel')" required>
-        <NInput
-          v-model:value="title"
-          :placeholder="t('addDialog.titlePlaceholder')"
-          clearable
-        />
-      </NFormItem>
+        <!-- Title -->
+        <NFormItem :label="t('addDialog.titleLabel')" required>
+          <NInput v-model:value="title" :placeholder="t('addDialog.titlePlaceholder')" clearable />
+        </NFormItem>
 
-      <!-- Executable Path -->
-      <NFormItem :label="t('addDialog.executablePath')" required>
-        <NInput
-          v-model:value="executablePath"
-          :placeholder="t('addDialog.executablePathPlaceholder')"
-          readonly
-        >
-          <template #suffix>
-            <NButton quaternary size="small" @click="handleSelectExecutable">
-              <template #icon>
-                <NIcon :component="FolderIcon" />
-              </template>
-            </NButton>
-          </template>
-        </NInput>
-      </NFormItem>
+        <!-- Executable Path -->
+        <NFormItem :label="t('addDialog.executablePath')" required>
+          <NInput v-model:value="executablePath" :placeholder="t('addDialog.executablePathPlaceholder')" readonly>
+            <template #suffix>
+              <NButton quaternary size="small" @click="handleSelectExecutable">
+                <template #icon>
+                  <NIcon :component="FolderIcon" />
+                </template>
+              </NButton>
+            </template>
+          </NInput>
+        </NFormItem>
 
-      <!-- Tags -->
-      <NFormItem :label="t('addDialog.tagsLabel')">
-        <NDynamicTags v-model:value="tags" />
-      </NFormItem>
-    </NForm>
+        <!-- Tags -->
+        <NFormItem :label="t('addDialog.tagsLabel')">
+          <NDynamicTags v-model:value="tags" />
+        </NFormItem>
+      </NForm>
     </div>
 
     <template #footer>
       <div class="footer-split">
-        <NButton
-          type="error"
-          ghost
-          @click="handleDelete"
-          :disabled="isSubmitting"
-        >
+        <NButton type="error" ghost @click="handleDelete" :disabled="isSubmitting">
           <template #icon>
             <NIcon :component="DeleteIcon" />
           </template>
@@ -581,31 +512,18 @@ const handleDelete = () => {
           <NButton @click="handleCancel" :disabled="isSubmitting">
             {{ t('common.cancel') }}
           </NButton>
-          <NButton
-            type="primary"
-            @click="handleSubmit"
-            :disabled="!isValid"
-            :loading="isSubmitting"
-          >
+          <NButton type="primary" @click="handleSubmit" :disabled="!isValid" :loading="isSubmitting">
             {{ t('common.save') }}
           </NButton>
         </NSpace>
       </div>
     </template>
 
-    <ImageCropDialog
-      v-model:show="showCropDialog"
-      :source="cropSourceUrl"
-      :aspect-ratio="cropAspect"
+    <ImageCropDialog v-model:show="showCropDialog" :source="cropSourceUrl" :aspect-ratio="cropAspect"
       :title="cropTarget === 'icon' ? t('editDialog.iconCropTitle') : t('editDialog.thumbnailCropTitle')"
-      @confirm="handleCropConfirm"
-    />
+      @confirm="handleCropConfirm" />
 
-    <SteamArtworkDialog
-      v-model:show="showArtworkDialog"
-      :app-id="steamAppId"
-      @selected="handleArtworkSelected"
-    />
+    <SteamArtworkDialog v-model:show="showArtworkDialog" :app-id="steamAppId" @selected="handleArtworkSelected" />
   </NModal>
 </template>
 
