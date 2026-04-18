@@ -12,7 +12,8 @@
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "build:win": "npm run build && electron-builder --win",
-    "build:dir": "npm run build && electron-builder --win --dir"
+    "build:dir": "npm run build && electron-builder --win --dir",
+    "build:portable": "npm run build && electron-builder --win portable"
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.13.0",
@@ -43,6 +44,12 @@
     "files": [
       "out/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "src/assets/icon.png",
+        "to": "icon.png"
+      }
+    ],
     "win": {
       "target": [
         {
@@ -50,13 +57,16 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "src/assets/icon.png"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
     }
   }
 }

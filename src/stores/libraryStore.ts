@@ -14,6 +14,10 @@ export const useLibraryStore = defineStore('library', () => {
   const selectedCategory = ref<string | null>(null)
   const selectedTags = ref<string[]>([])
 
+  // Sort state
+  const sortBy = ref<'createdAt' | 'title'>('createdAt')
+  const sortOrder = ref<'asc' | 'desc'>('desc')
+
   // Getters
   const filteredPrograms = computed(() => {
     let result = [...programs.value]
@@ -38,6 +42,17 @@ export const useLibraryStore = defineStore('library', () => {
       )
     }
     
+    // Sort
+    result.sort((a, b) => {
+      let cmp: number
+      if (sortBy.value === 'title') {
+        cmp = a.title.localeCompare(b.title, 'ko')
+      } else {
+        cmp = a.createdAt.localeCompare(b.createdAt)
+      }
+      return sortOrder.value === 'asc' ? cmp : -cmp
+    })
+
     return result
   })
 
@@ -214,6 +229,14 @@ export const useLibraryStore = defineStore('library', () => {
     selectedTags.value = []
   }
 
+  const setSortBy = (value: 'createdAt' | 'title'): void => {
+    sortBy.value = value
+  }
+
+  const setSortOrder = (value: 'asc' | 'desc'): void => {
+    sortOrder.value = value
+  }
+
   const addCategory = (category: string): void => {
     if (category && !categories.value.includes(category)) {
       categories.value.push(category)
@@ -236,6 +259,8 @@ export const useLibraryStore = defineStore('library', () => {
     searchQuery,
     selectedCategory,
     selectedTags,
+    sortBy,
+    sortOrder,
     
     // Getters
     filteredPrograms,
@@ -255,6 +280,8 @@ export const useLibraryStore = defineStore('library', () => {
     setSelectedCategory,
     setSelectedTags,
     clearFilters,
+    setSortBy,
+    setSortOrder,
     addCategory,
     removeCategory
   }

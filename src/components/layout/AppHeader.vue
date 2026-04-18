@@ -10,14 +10,15 @@ import {
   NTooltip,
   NPopover
 } from 'naive-ui'
-import { 
+import {
   Search as SearchIcon,
   Grid as GridIcon,
   List as ListIcon,
   Add as AddIcon,
   Moon as MoonIcon,
   Sunny as SunnyIcon,
-  FunnelOutline as FilterIcon
+  FunnelOutline as FilterIcon,
+  SwapVerticalOutline as SortIcon
 } from '@vicons/ionicons5'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -45,8 +46,24 @@ const tagOptions = computed(() =>
   }))
 )
 
+// Sort options
+const sortOptions = [
+  { label: '최신순', value: 'createdAt-desc' },
+  { label: '오래된순', value: 'createdAt-asc' },
+  { label: '이름순 (ㄱ-ㅎ)', value: 'title-asc' },
+  { label: '이름순 (ㅎ-ㄱ)', value: 'title-desc' }
+]
+
+const currentSort = computed(() => `${libraryStore.sortBy}-${libraryStore.sortOrder}`)
+
+const handleSortChange = (value: string) => {
+  const [by, order] = value.split('-') as ['createdAt' | 'title', 'asc' | 'desc']
+  libraryStore.setSortBy(by)
+  libraryStore.setSortOrder(order)
+}
+
 // Check if any filter is active
-const hasActiveFilters = computed(() => 
+const hasActiveFilters = computed(() =>
   libraryStore.selectedCategory !== null || libraryStore.selectedTags.length > 0
 )
 
@@ -128,6 +145,18 @@ const handleAddProgram = () => {
           </div>
         </div>
       </NPopover>
+
+      <NSelect
+        :value="currentSort"
+        :options="sortOptions"
+        :consistent-menu-width="false"
+        class="sort-select"
+        @update:value="handleSortChange"
+      >
+        <template #arrow>
+          <NIcon :component="SortIcon" />
+        </template>
+      </NSelect>
     </div>
 
     <div class="header-right">
@@ -234,6 +263,11 @@ const handleAddProgram = () => {
 }
 
 .header-right {
+  flex-shrink: 0;
+}
+
+.sort-select {
+  width: 150px;
   flex-shrink: 0;
 }
 

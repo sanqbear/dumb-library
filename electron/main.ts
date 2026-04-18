@@ -14,7 +14,11 @@ let mainWindow: BrowserWindow | null = null
 function createWindow(): void {
   const preloadPath = join(__dirname, '../preload/index.mjs')
   logger.info(`Preload path: ${preloadPath}`)
-  
+
+  const iconPath = isDev
+    ? join(app.getAppPath(), 'src/assets/icon.png')
+    : join(process.resourcesPath, 'icon.png')
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -22,6 +26,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    icon: iconPath,
     webPreferences: {
       preload: preloadPath,
       sandbox: false,
