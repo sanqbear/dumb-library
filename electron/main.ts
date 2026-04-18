@@ -50,7 +50,16 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    try {
+      const parsed = new URL(details.url)
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        shell.openExternal(details.url)
+      } else {
+        logger.warn(`Blocked window.open with disallowed scheme: ${parsed.protocol}`)
+      }
+    } catch {
+      logger.warn(`Blocked window.open with unparseable URL: ${details.url}`)
+    }
     return { action: 'deny' }
   })
 

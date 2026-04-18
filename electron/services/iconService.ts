@@ -22,17 +22,21 @@ export const extractIcon = async (executablePath: string, programId: string): Pr
   
   const iconsDir = getIconsPath()
   const destPath = path.join(iconsDir, `${programId}.png`)
-  
+
   // Create a temporary PowerShell script file
   const tempScriptPath = path.join(app.getPath('temp'), `extract-icon-${programId}.ps1`)
-  
+
+  // Paths are passed via env vars (not string interpolation) to eliminate
+  // PowerShell injection risk and to handle paths containing quotes/special chars.
   const psScript = `
 Add-Type -AssemblyName System.Drawing
 try {
-    $icon = [System.Drawing.Icon]::ExtractAssociatedIcon("${executablePath.replace(/\\/g, '\\\\')}")
+    $exePath = $env:WL_EXE_PATH
+    $outPath = $env:WL_OUT_PATH
+    $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exePath)
     if ($icon) {
         $bitmap = $icon.ToBitmap()
-        $bitmap.Save("${destPath.replace(/\\/g, '\\\\')}", [System.Drawing.Imaging.ImageFormat]::Png)
+        $bitmap.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
         $bitmap.Dispose()
         $icon.Dispose()
         Write-Output "success"
@@ -43,17 +47,24 @@ try {
     Write-Output "error: $_"
 }
 `
-  
+
   try {
     // Write script to temp file
     fs.writeFileSync(tempScriptPath, psScript, { encoding: 'utf8' })
-    
+
     // Execute PowerShell script
     const { stdout, stderr } = await execFileAsync('powershell', [
       '-NoProfile',
       '-ExecutionPolicy', 'Bypass',
       '-File', tempScriptPath
-    ], { timeout: 15000 })
+    ], {
+      timeout: 15000,
+      env: {
+        ...process.env,
+        WL_EXE_PATH: executablePath,
+        WL_OUT_PATH: destPath
+      }
+    })
     
     // Clean up temp script
     try {

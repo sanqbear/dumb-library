@@ -35,31 +35,61 @@ const ensureDirectories = (): void => {
   })
 }
 
+// Write to *.tmp then rename — survives crashes/power loss mid-write
+const writeFileAtomic = (filePath: string, content: string): void => {
+  const tempPath = `${filePath}.tmp`
+  fs.writeFileSync(tempPath, content, 'utf-8')
+  fs.renameSync(tempPath, filePath)
+}
+
+// True only when child resolves to a location strictly inside parent
+const isPathInside = (child: string, parent: string): boolean => {
+  const rel = path.relative(path.resolve(parent), path.resolve(child))
+  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel)
+}
+
+const isValidLibrary = (value: unknown): value is LibraryData => {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Partial<LibraryData>
+  return Array.isArray(v.programs) && Array.isArray(v.categories)
+}
+
+const isValidSettings = (value: unknown): value is Settings => {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Partial<Settings>
+  return (v.theme === 'dark' || v.theme === 'light') &&
+    (v.viewMode === 'grid' || v.viewMode === 'list')
+}
+
 // Library operations
 export const loadLibrary = (): LibraryData => {
   const libraryPath = getLibraryPath()
-  
+
   try {
     if (fs.existsSync(libraryPath)) {
       const data = fs.readFileSync(libraryPath, 'utf-8')
-      const parsed = JSON.parse(data) as LibraryData
+      const parsed: unknown = JSON.parse(data)
+      if (!isValidLibrary(parsed)) {
+        logger.warn('library.json has invalid shape, falling back to defaults')
+        return { ...DEFAULT_LIBRARY_DATA }
+      }
       logger.info(`Loaded library with ${parsed.programs.length} programs`)
       return parsed
     }
   } catch (error) {
     logger.error('Failed to load library:', error)
   }
-  
+
   logger.info('Returning default library data')
   return { ...DEFAULT_LIBRARY_DATA }
 }
 
 export const saveLibrary = (data: LibraryData): void => {
   const libraryPath = getLibraryPath()
-  
+
   try {
     ensureDirectories()
-    fs.writeFileSync(libraryPath, JSON.stringify(data, null, 2), 'utf-8')
+    writeFileAtomic(libraryPath, JSON.stringify(data, null, 2))
     logger.info(`Saved library with ${data.programs.length} programs`)
   } catch (error) {
     logger.error('Failed to save library:', error)
@@ -137,25 +167,29 @@ export const deleteProgram = (id: string): void => {
   }
   
   const program = library.programs[index]
-  
-  // Delete associated icon
-  if (program.iconPath && fs.existsSync(program.iconPath)) {
+
+  // Only delete files that live inside our managed directories — prevents
+  // a tampered library.json from causing arbitrary file deletion.
+  if (program.iconPath && isPathInside(program.iconPath, getIconsPath()) && fs.existsSync(program.iconPath)) {
     try {
       fs.unlinkSync(program.iconPath)
       logger.info(`Deleted icon: ${program.iconPath}`)
     } catch (error) {
       logger.warn(`Failed to delete icon: ${program.iconPath}`, error)
     }
+  } else if (program.iconPath) {
+    logger.warn(`Skipped icon deletion (outside managed dir): ${program.iconPath}`)
   }
-  
-  // Delete associated thumbnail
-  if (program.thumbnailPath && fs.existsSync(program.thumbnailPath)) {
+
+  if (program.thumbnailPath && isPathInside(program.thumbnailPath, getThumbnailsPath()) && fs.existsSync(program.thumbnailPath)) {
     try {
       fs.unlinkSync(program.thumbnailPath)
       logger.info(`Deleted thumbnail: ${program.thumbnailPath}`)
     } catch (error) {
       logger.warn(`Failed to delete thumbnail: ${program.thumbnailPath}`, error)
     }
+  } else if (program.thumbnailPath) {
+    logger.warn(`Skipped thumbnail deletion (outside managed dir): ${program.thumbnailPath}`)
   }
   
   library.programs.splice(index, 1)
@@ -192,26 +226,31 @@ export const updateProgramThumbnailPath = (programId: string, thumbnailPath: str
 // Settings operations
 export const loadSettings = (): Settings => {
   const settingsPath = getSettingsPath()
-  
+
   try {
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, 'utf-8')
-      const parsed = JSON.parse(data) as Settings
+      const parsed: unknown = JSON.parse(data)
+      if (!isValidSettings(parsed)) {
+        logger.warn('settings.json has invalid shape, falling back to defaults')
+        return { ...DEFAULT_SETTINGS }
+      }
       logger.info('Loaded settings')
       return parsed
     }
   } catch (error) {
     logger.error('Failed to load settings:', error)
   }
-  
+
   return { ...DEFAULT_SETTINGS }
 }
 
 export const saveSettings = (settings: Settings): void => {
   const settingsPath = getSettingsPath()
-  
+
   try {
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
+    ensureDirectories()
+    writeFileAtomic(settingsPath, JSON.stringify(settings, null, 2))
     logger.info('Saved settings')
   } catch (error) {
     logger.error('Failed to save settings:', error)
