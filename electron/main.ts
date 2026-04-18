@@ -30,6 +30,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    frame: false,
     icon: iconPath,
     webPreferences: {
       preload: preloadPath,
@@ -43,6 +44,14 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
     logger.info('Main window ready to show')
+  })
+
+  mainWindow.on('maximize', () => {
+    mainWindow?.webContents.send('window:maximize-changed', true)
+  })
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow?.webContents.send('window:maximize-changed', false)
   })
 
   mainWindow.on('closed', () => {
@@ -137,6 +146,28 @@ function registerIpcHandlers(): void {
       return join(app.getAppPath(), relativePath)
     }
     return join(process.resourcesPath, relativePath)
+  })
+
+  // Window controls (custom frame)
+  ipcMain.handle('window:minimize', () => {
+    mainWindow?.minimize()
+  })
+
+  ipcMain.handle('window:maximize', () => {
+    if (!mainWindow) return
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize()
+    } else {
+      mainWindow.maximize()
+    }
+  })
+
+  ipcMain.handle('window:close', () => {
+    mainWindow?.close()
+  })
+
+  ipcMain.handle('window:isMaximized', () => {
+    return mainWindow?.isMaximized() ?? false
   })
 
   logger.info('IPC handlers registered')

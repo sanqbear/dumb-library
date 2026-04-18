@@ -76,6 +76,13 @@ export interface ElectronAPI {
   
   // Utility
   getAssetPath: (relativePath: string) => Promise<string>
+
+  // Window controls
+  windowMinimize: () => Promise<void>
+  windowMaximize: () => Promise<void>
+  windowClose: () => Promise<void>
+  windowIsMaximized: () => Promise<boolean>
+  onWindowMaximizeChanged: (callback: (isMaximized: boolean) => void) => () => void
 }
 
 // Extend Window interface

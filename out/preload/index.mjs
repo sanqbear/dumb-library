@@ -20,7 +20,13 @@ const IPC_CHANNELS = {
   LOAD_SETTINGS: "settings:load",
   SAVE_SETTINGS: "settings:save",
   // Utility
-  GET_ASSET_PATH: "util:getAssetPath"
+  GET_ASSET_PATH: "util:getAssetPath",
+  // Window controls
+  WINDOW_MINIMIZE: "window:minimize",
+  WINDOW_MAXIMIZE: "window:maximize",
+  WINDOW_CLOSE: "window:close",
+  WINDOW_IS_MAXIMIZED: "window:isMaximized",
+  WINDOW_MAXIMIZE_CHANGED: "window:maximize-changed"
 };
 const electronAPI = {
   // Library operations
@@ -43,7 +49,19 @@ const electronAPI = {
   loadSettings: () => ipcRenderer.invoke(IPC_CHANNELS.LOAD_SETTINGS),
   saveSettings: (settings) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_SETTINGS, settings),
   // Utility
-  getAssetPath: (relativePath) => ipcRenderer.invoke(IPC_CHANNELS.GET_ASSET_PATH, relativePath)
+  getAssetPath: (relativePath) => ipcRenderer.invoke(IPC_CHANNELS.GET_ASSET_PATH, relativePath),
+  // Window controls
+  windowMinimize: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MINIMIZE),
+  windowMaximize: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MAXIMIZE),
+  windowClose: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_CLOSE),
+  windowIsMaximized: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_IS_MAXIMIZED),
+  onWindowMaximizeChanged: (callback) => {
+    const handler = (_event, value) => callback(value);
+    ipcRenderer.on(IPC_CHANNELS.WINDOW_MAXIMIZE_CHANGED, handler);
+    return () => {
+      ipcRenderer.off(IPC_CHANNELS.WINDOW_MAXIMIZE_CHANGED, handler);
+    };
+  }
 };
 if (process.contextIsolated) {
   try {

@@ -54,12 +54,35 @@ const ensureDirectories = () => {
     }
   });
 };
+const writeFileAtomic = (filePath, content) => {
+  const tempPath = `${filePath}.tmp`;
+  fs.writeFileSync(tempPath, content, "utf-8");
+  fs.renameSync(tempPath, filePath);
+};
+const isPathInside = (child, parent) => {
+  const rel = path.relative(path.resolve(parent), path.resolve(child));
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+};
+const isValidLibrary = (value) => {
+  if (!value || typeof value !== "object") return false;
+  const v = value;
+  return Array.isArray(v.programs) && Array.isArray(v.categories);
+};
+const isValidSettings = (value) => {
+  if (!value || typeof value !== "object") return false;
+  const v = value;
+  return (v.theme === "dark" || v.theme === "light") && (v.viewMode === "grid" || v.viewMode === "list");
+};
 const loadLibrary = () => {
   const libraryPath = getLibraryPath();
   try {
     if (fs.existsSync(libraryPath)) {
       const data = fs.readFileSync(libraryPath, "utf-8");
       const parsed = JSON.parse(data);
+      if (!isValidLibrary(parsed)) {
+        logger.warn("library.json has invalid shape, falling back to defaults");
+        return { ...DEFAULT_LIBRARY_DATA };
+      }
       logger.info(`Loaded library with ${parsed.programs.length} programs`);
       return parsed;
     }
@@ -73,7 +96,7 @@ const saveLibrary = (data) => {
   const libraryPath = getLibraryPath();
   try {
     ensureDirectories();
-    fs.writeFileSync(libraryPath, JSON.stringify(data, null, 2), "utf-8");
+    writeFileAtomic(libraryPath, JSON.stringify(data, null, 2));
     logger.info(`Saved library with ${data.programs.length} programs`);
   } catch (error) {
     logger.error("Failed to save library:", error);
@@ -132,21 +155,25 @@ const deleteProgram = (id) => {
     throw new Error(`Program not found: ${id}`);
   }
   const program = library.programs[index];
-  if (program.iconPath && fs.existsSync(program.iconPath)) {
+  if (program.iconPath && isPathInside(program.iconPath, getIconsPath()) && fs.existsSync(program.iconPath)) {
     try {
       fs.unlinkSync(program.iconPath);
       logger.info(`Deleted icon: ${program.iconPath}`);
     } catch (error) {
       logger.warn(`Failed to delete icon: ${program.iconPath}`, error);
     }
+  } else if (program.iconPath) {
+    logger.warn(`Skipped icon deletion (outside managed dir): ${program.iconPath}`);
   }
-  if (program.thumbnailPath && fs.existsSync(program.thumbnailPath)) {
+  if (program.thumbnailPath && isPathInside(program.thumbnailPath, getThumbnailsPath()) && fs.existsSync(program.thumbnailPath)) {
     try {
       fs.unlinkSync(program.thumbnailPath);
       logger.info(`Deleted thumbnail: ${program.thumbnailPath}`);
     } catch (error) {
       logger.warn(`Failed to delete thumbnail: ${program.thumbnailPath}`, error);
     }
+  } else if (program.thumbnailPath) {
+    logger.warn(`Skipped thumbnail deletion (outside managed dir): ${program.thumbnailPath}`);
   }
   library.programs.splice(index, 1);
   saveLibrary(library);
@@ -178,6 +205,10 @@ const loadSettings = () => {
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, "utf-8");
       const parsed = JSON.parse(data);
+      if (!isValidSettings(parsed)) {
+        logger.warn("settings.json has invalid shape, falling back to defaults");
+        return { ...DEFAULT_SETTINGS };
+      }
       logger.info("Loaded settings");
       return parsed;
     }
@@ -189,22 +220,28 @@ const loadSettings = () => {
 const saveSettings = (settings) => {
   const settingsPath = getSettingsPath();
   try {
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
+    ensureDirectories();
+    writeFileAtomic(settingsPath, JSON.stringify(settings, null, 2));
     logger.info("Saved settings");
   } catch (error) {
     logger.error("Failed to save settings:", error);
     throw error;
   }
 };
+const resolveTargetWindow = (window) => {
+  return window ?? BrowserWindow.getFocusedWindow() ?? void 0;
+};
 const selectExecutable = async (window) => {
-  const result = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow(), {
+  const options = {
     title: "실행 파일 선택",
     filters: [
       { name: "실행 파일", extensions: ["exe"] },
       { name: "모든 파일", extensions: ["*"] }
     ],
     properties: ["openFile"]
-  });
+  };
+  const target = resolveTargetWindow(window);
+  const result = target ? await dialog.showOpenDialog(target, options) : await dialog.showOpenDialog(options);
   if (result.canceled || result.filePaths.length === 0) {
     logger.debug("Executable selection canceled");
     return null;
@@ -214,14 +251,16 @@ const selectExecutable = async (window) => {
   return selectedPath;
 };
 const selectImage = async (window) => {
-  const result = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow(), {
+  const options = {
     title: "이미지 선택",
     filters: [
       { name: "이미지 파일", extensions: ["png", "jpg", "jpeg", "gif", "bmp", "webp"] },
       { name: "모든 파일", extensions: ["*"] }
     ],
     properties: ["openFile"]
-  });
+  };
+  const target = resolveTargetWindow(window);
+  const result = target ? await dialog.showOpenDialog(target, options) : await dialog.showOpenDialog(options);
   if (result.canceled || result.filePaths.length === 0) {
     logger.debug("Image selection canceled");
     return null;
@@ -296,10 +335,12 @@ const extractIcon = async (executablePath, programId) => {
   const psScript = `
 Add-Type -AssemblyName System.Drawing
 try {
-    $icon = [System.Drawing.Icon]::ExtractAssociatedIcon("${executablePath.replace(/\\/g, "\\\\")}")
+    $exePath = $env:WL_EXE_PATH
+    $outPath = $env:WL_OUT_PATH
+    $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exePath)
     if ($icon) {
         $bitmap = $icon.ToBitmap()
-        $bitmap.Save("${destPath.replace(/\\/g, "\\\\")}", [System.Drawing.Imaging.ImageFormat]::Png)
+        $bitmap.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
         $bitmap.Dispose()
         $icon.Dispose()
         Write-Output "success"
@@ -318,7 +359,14 @@ try {
       "Bypass",
       "-File",
       tempScriptPath
-    ], { timeout: 15e3 });
+    ], {
+      timeout: 15e3,
+      env: {
+        ...process.env,
+        WL_EXE_PATH: executablePath,
+        WL_OUT_PATH: destPath
+      }
+    });
     try {
       fs.unlinkSync(tempScriptPath);
     } catch {
@@ -362,6 +410,7 @@ function createWindow() {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    frame: false,
     icon: iconPath,
     webPreferences: {
       preload: preloadPath,
@@ -376,11 +425,26 @@ function createWindow() {
     mainWindow?.show();
     logger.info("Main window ready to show");
   });
+  mainWindow.on("maximize", () => {
+    mainWindow?.webContents.send("window:maximize-changed", true);
+  });
+  mainWindow.on("unmaximize", () => {
+    mainWindow?.webContents.send("window:maximize-changed", false);
+  });
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url);
+    try {
+      const parsed = new URL(details.url);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        shell.openExternal(details.url);
+      } else {
+        logger.warn(`Blocked window.open with disallowed scheme: ${parsed.protocol}`);
+      }
+    } catch {
+      logger.warn(`Blocked window.open with unparseable URL: ${details.url}`);
+    }
     return { action: "deny" };
   });
   if (isDev && process.env["ELECTRON_RENDERER_URL"]) {
@@ -434,6 +498,23 @@ function registerIpcHandlers() {
       return join(app.getAppPath(), relativePath);
     }
     return join(process.resourcesPath, relativePath);
+  });
+  ipcMain.handle("window:minimize", () => {
+    mainWindow?.minimize();
+  });
+  ipcMain.handle("window:maximize", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  });
+  ipcMain.handle("window:close", () => {
+    mainWindow?.close();
+  });
+  ipcMain.handle("window:isMaximized", () => {
+    return mainWindow?.isMaximized() ?? false;
   });
   logger.info("IPC handlers registered");
 }

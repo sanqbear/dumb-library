@@ -49,7 +49,14 @@ const IPC_CHANNELS = {
   SAVE_SETTINGS: 'settings:save',
   
   // Utility
-  GET_ASSET_PATH: 'util:getAssetPath'
+  GET_ASSET_PATH: 'util:getAssetPath',
+
+  // Window controls
+  WINDOW_MINIMIZE: 'window:minimize',
+  WINDOW_MAXIMIZE: 'window:maximize',
+  WINDOW_CLOSE: 'window:close',
+  WINDOW_IS_MAXIMIZED: 'window:isMaximized',
+  WINDOW_MAXIMIZE_CHANGED: 'window:maximize-changed'
 } as const
 
 // API exposed to renderer
@@ -83,7 +90,20 @@ const electronAPI = {
   saveSettings: (settings: Settings) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_SETTINGS, settings),
   
   // Utility
-  getAssetPath: (relativePath: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_ASSET_PATH, relativePath)
+  getAssetPath: (relativePath: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_ASSET_PATH, relativePath),
+
+  // Window controls
+  windowMinimize: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MINIMIZE),
+  windowMaximize: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MAXIMIZE),
+  windowClose: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_CLOSE),
+  windowIsMaximized: (): Promise<boolean> => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_IS_MAXIMIZED),
+  onWindowMaximizeChanged: (callback: (isMaximized: boolean) => void): (() => void) => {
+    const handler = (_event: unknown, value: boolean) => callback(value)
+    ipcRenderer.on(IPC_CHANNELS.WINDOW_MAXIMIZE_CHANGED, handler)
+    return () => {
+      ipcRenderer.off(IPC_CHANNELS.WINDOW_MAXIMIZE_CHANGED, handler)
+    }
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to renderer

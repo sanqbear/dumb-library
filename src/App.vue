@@ -3,6 +3,7 @@ import { onMounted, computed } from 'vue'
 import { NConfigProvider, NMessageProvider, NDialogProvider, darkTheme, lightTheme, type GlobalThemeOverrides } from 'naive-ui'
 import { useLibraryStore } from './stores/libraryStore'
 import { useSettingsStore } from './stores/settingsStore'
+import TitleBar from './components/layout/TitleBar.vue'
 import AppHeader from './components/layout/AppHeader.vue'
 import LibraryView from './components/library/LibraryView.vue'
 
@@ -48,10 +49,11 @@ onMounted(async () => {
   <NConfigProvider :theme="currentTheme" :theme-overrides="themeOverrides">
     <NMessageProvider>
       <NDialogProvider>
-        <div 
+        <div
           class="app-container"
           :class="{ 'light-theme': settingsStore.theme === 'light' }"
         >
+          <TitleBar />
           <AppHeader />
           <main class="main-content">
             <LibraryView />

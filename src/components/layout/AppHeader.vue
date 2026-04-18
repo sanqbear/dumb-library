@@ -91,10 +91,6 @@ const handleAddProgram = () => {
 
 <template>
   <header class="app-header">
-    <div class="header-left">
-      <h1 class="app-title">Waifu Library</h1>
-    </div>
-
     <div class="header-center">
       <NInput
         :value="libraryStore.searchQuery"
@@ -236,23 +232,9 @@ const handleAddProgram = () => {
   border-bottom-color: #e4e4e7;
 }
 
-.header-left {
-  flex-shrink: 0;
-}
-
-.app-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #fafafa;
-}
-
-.light-theme .app-title {
-  color: #18181b;
-}
-
 .header-center {
   flex: 1;
-  max-width: 500px;
+  max-width: 600px;
   display: flex;
   align-items: center;
   gap: 8px;
