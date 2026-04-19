@@ -32,7 +32,9 @@ export default {
     sortRecent: '最新',
     sortOldest: '最早',
     sortNameAsc: '名称 (A-Z)',
-    sortNameDesc: '名称 (Z-A)'
+    sortNameDesc: '名称 (Z-A)',
+    countFormat: '{count}个',
+    filteredCountFormat: '{filtered} / {total}'
   },
   library: {
     emptyTitle: '还没有程序',

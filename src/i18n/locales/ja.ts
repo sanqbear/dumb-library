@@ -32,7 +32,9 @@ export default {
     sortRecent: '新しい順',
     sortOldest: '古い順',
     sortNameAsc: '名前 (昇順)',
-    sortNameDesc: '名前 (降順)'
+    sortNameDesc: '名前 (降順)',
+    countFormat: '{count}件',
+    filteredCountFormat: '{filtered} / {total}件'
   },
   library: {
     emptyTitle: 'プログラムがまだありません',

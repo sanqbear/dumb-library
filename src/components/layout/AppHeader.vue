@@ -111,6 +111,14 @@ const hasActiveFilters = computed(() =>
   libraryStore.selectedCategory !== null || libraryStore.selectedTags.length > 0
 )
 
+// Count of currently shown items. Matches filtered/total pattern so users
+// see at a glance how much the current search/filter narrowed the library.
+const isCountFiltered = computed(() =>
+  libraryStore.searchQuery.trim() !== '' ||
+  libraryStore.selectedCategory !== null ||
+  libraryStore.selectedTags.length > 0
+)
+
 const handleSearch = (value: string) => {
   libraryStore.setSearchQuery(value)
 }
@@ -193,6 +201,12 @@ const handleClearFilters = () => {
           <NIcon :component="SortIcon" />
         </template>
       </NSelect>
+    </div>
+
+    <div class="header-count" aria-live="polite">
+      {{ isCountFiltered
+        ? t('header.filteredCountFormat', { filtered: libraryStore.filteredCount, total: libraryStore.programCount })
+        : t('header.countFormat', { count: libraryStore.programCount }) }}
     </div>
 
     <div class="header-right">
@@ -303,6 +317,18 @@ const handleClearFilters = () => {
 
 .search-input {
   flex: 1;
+}
+
+.header-count {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: #a1a1aa;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.light-theme .header-count {
+  color: #52525b;
 }
 
 .header-right {

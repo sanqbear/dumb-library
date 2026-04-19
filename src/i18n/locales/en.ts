@@ -32,7 +32,9 @@ export default {
     sortRecent: 'Most recent',
     sortOldest: 'Oldest',
     sortNameAsc: 'Name (A-Z)',
-    sortNameDesc: 'Name (Z-A)'
+    sortNameDesc: 'Name (Z-A)',
+    countFormat: '{count} items',
+    filteredCountFormat: '{filtered} / {total}'
   },
   library: {
     emptyTitle: 'No programs yet',

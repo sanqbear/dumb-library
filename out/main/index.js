@@ -34,8 +34,8 @@ const logger = {
   }
 };
 const PROVIDERS = {
-  local: { label: "로컬 다운로드" },
-  steam: { label: "스팀" }
+  local: { labelKey: "providers.local" },
+  steam: { labelKey: "providers.steam" }
 };
 const isProviderId = (value) => {
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(PROVIDERS, value);
@@ -51,7 +51,8 @@ const DEFAULT_LIBRARY_DATA = {
 };
 const DEFAULT_SETTINGS = {
   theme: "dark",
-  viewMode: "grid"
+  viewMode: "grid",
+  language: "ko"
 };
 const ensureDirectories = () => {
   const dirs = [getIconsPath(), getThumbnailsPath()];
@@ -106,7 +107,10 @@ const migrateProgram = (raw) => {
 const isValidSettings = (value) => {
   if (!value || typeof value !== "object") return false;
   const v = value;
-  return (v.theme === "dark" || v.theme === "light") && (v.viewMode === "grid" || v.viewMode === "list");
+  const validTheme = v.theme === "dark" || v.theme === "light";
+  const validView = v.viewMode === "grid" || v.viewMode === "list";
+  const validLang = v.language === void 0 || v.language === "ko" || v.language === "en" || v.language === "ja" || v.language === "zh-CN";
+  return validTheme && validView && validLang;
 };
 const loadLibrary = () => {
   const libraryPath = getLibraryPath();
@@ -266,7 +270,7 @@ const loadSettings = () => {
         return { ...DEFAULT_SETTINGS };
       }
       logger.info("Loaded settings");
-      return parsed;
+      return { ...DEFAULT_SETTINGS, ...parsed };
     }
   } catch (error) {
     logger.error("Failed to load settings:", error);

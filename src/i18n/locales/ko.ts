@@ -32,7 +32,9 @@ export default {
     sortRecent: '최신순',
     sortOldest: '오래된순',
     sortNameAsc: '이름순 (ㄱ-ㅎ)',
-    sortNameDesc: '이름순 (ㅎ-ㄱ)'
+    sortNameDesc: '이름순 (ㅎ-ㄱ)',
+    countFormat: '{count}개',
+    filteredCountFormat: '{filtered} / {total}개'
   },
   library: {
     emptyTitle: '아직 프로그램이 없어요',
