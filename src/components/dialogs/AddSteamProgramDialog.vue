@@ -340,7 +340,7 @@ const handleCancel = () => {
       <div :class="themeClass">
         <div class="preview-body">
           <div class="preview-image">
-            <NSpin v-if="!previewImageLoaded" size="small" />
+            <NSpin v-if="!previewImageLoaded" size="small" class="preview-spinner" />
             <img
               v-if="previewGame"
               :key="previewImageUrl"
@@ -452,6 +452,14 @@ const handleCancel = () => {
   height: 100%;
   object-fit: cover;
   transition: opacity 0.2s ease;
+}
+
+.preview-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .preview-meta {
