@@ -139,74 +139,76 @@ const handleClearFilters = () => {
 
 <template>
   <header class="app-header">
-    <div class="header-center">
-      <NInput
-        :value="libraryStore.searchQuery"
-        :placeholder="t('header.searchPlaceholder')"
-        clearable
-        @update:value="handleSearch"
-        class="search-input"
-      >
-        <template #prefix>
-          <NIcon :component="SearchIcon" />
-        </template>
-      </NInput>
+    <div class="header-left">
+      <div class="search-cluster">
+        <NInput
+          :value="libraryStore.searchQuery"
+          :placeholder="t('header.searchPlaceholder')"
+          clearable
+          @update:value="handleSearch"
+          class="search-input"
+        >
+          <template #prefix>
+            <NIcon :component="SearchIcon" />
+          </template>
+        </NInput>
 
-      <NPopover trigger="click" placement="bottom" v-model:show="showFilters">
-        <template #trigger>
-          <NButton quaternary circle :type="hasActiveFilters ? 'primary' : 'default'">
-            <template #icon>
-              <NIcon :component="FilterIcon" />
-            </template>
-          </NButton>
-        </template>
-        <div class="filter-popover">
-          <div class="filter-section">
-            <label>{{ t('header.provider') }}</label>
-            <NSelect
-              :value="libraryStore.selectedCategory"
-              :options="categoryOptions"
-              :placeholder="t('header.allProviders')"
-              clearable
-              @update:value="handleCategoryChange"
-            />
-          </div>
-          <div class="filter-section" v-if="tagOptions.length > 0">
-            <label>{{ t('header.tags') }}</label>
-            <NSelect
-              :value="libraryStore.selectedTags"
-              :options="tagOptions"
-              :placeholder="t('header.selectTags')"
-              multiple
-              clearable
-              @update:value="handleTagsChange"
-            />
-          </div>
-          <div class="filter-actions" v-if="hasActiveFilters">
-            <NButton size="small" quaternary @click="handleClearFilters">
-              {{ t('header.clearFilters') }}
+        <NPopover trigger="click" placement="bottom" v-model:show="showFilters">
+          <template #trigger>
+            <NButton quaternary circle :type="hasActiveFilters ? 'primary' : 'default'">
+              <template #icon>
+                <NIcon :component="FilterIcon" />
+              </template>
             </NButton>
+          </template>
+          <div class="filter-popover">
+            <div class="filter-section">
+              <label>{{ t('header.provider') }}</label>
+              <NSelect
+                :value="libraryStore.selectedCategory"
+                :options="categoryOptions"
+                :placeholder="t('header.allProviders')"
+                clearable
+                @update:value="handleCategoryChange"
+              />
+            </div>
+            <div class="filter-section" v-if="tagOptions.length > 0">
+              <label>{{ t('header.tags') }}</label>
+              <NSelect
+                :value="libraryStore.selectedTags"
+                :options="tagOptions"
+                :placeholder="t('header.selectTags')"
+                multiple
+                clearable
+                @update:value="handleTagsChange"
+              />
+            </div>
+            <div class="filter-actions" v-if="hasActiveFilters">
+              <NButton size="small" quaternary @click="handleClearFilters">
+                {{ t('header.clearFilters') }}
+              </NButton>
+            </div>
           </div>
-        </div>
-      </NPopover>
+        </NPopover>
 
-      <NSelect
-        :value="currentSort"
-        :options="sortOptions"
-        :consistent-menu-width="false"
-        class="sort-select"
-        @update:value="handleSortChange"
-      >
-        <template #arrow>
-          <NIcon :component="SortIcon" />
-        </template>
-      </NSelect>
-    </div>
+        <NSelect
+          :value="currentSort"
+          :options="sortOptions"
+          :consistent-menu-width="false"
+          class="sort-select"
+          @update:value="handleSortChange"
+        >
+          <template #arrow>
+            <NIcon :component="SortIcon" />
+          </template>
+        </NSelect>
+      </div>
 
-    <div class="header-count" aria-live="polite">
-      {{ isCountFiltered
-        ? t('header.filteredCountFormat', { filtered: libraryStore.filteredCount, total: libraryStore.programCount })
-        : t('header.countFormat', { count: libraryStore.programCount }) }}
+      <div class="header-count" aria-live="polite">
+        {{ isCountFiltered
+          ? t('header.filteredCountFormat', { filtered: libraryStore.filteredCount, total: libraryStore.programCount })
+          : t('header.countFormat', { count: libraryStore.programCount }) }}
+      </div>
     </div>
 
     <div class="header-right">
@@ -295,7 +297,6 @@ const handleClearFilters = () => {
 .app-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 12px 20px;
   background-color: #27272a;
   border-bottom: 1px solid #3f3f46;
@@ -307,16 +308,29 @@ const handleClearFilters = () => {
   border-bottom-color: #e4e4e7;
 }
 
-.header-center {
+/* Left cluster grows to fill free space, pushing .header-right to the edge.
+   Its children (search-cluster + count) stay left-aligned so the count
+   docks right next to the sort select instead of drifting to center. */
+.header-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.search-cluster {
   flex: 1;
   max-width: 600px;
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .search-input {
   flex: 1;
+  min-width: 0;
 }
 
 .header-count {
@@ -325,10 +339,13 @@ const handleClearFilters = () => {
   color: #a1a1aa;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  padding-left: 12px;
+  border-left: 1px solid #3f3f46;
 }
 
 .light-theme .header-count {
   color: #52525b;
+  border-left-color: #e4e4e7;
 }
 
 .header-right {
