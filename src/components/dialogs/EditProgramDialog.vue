@@ -301,28 +301,36 @@ const handleSubmit = async () => {
 
   isSubmitting.value = true
 
+  // Snapshot pending media changes before awaiting updateProgram. The store
+  // mutation inside updateProgram replaces props.program, which re-fires the
+  // init watch and resets thumbnailPath/iconPath to the stored (old) paths —
+  // clobbering the user's pending selection before we can read it.
+  const programId = props.program.id
+  const pendingThumb = thumbnailChanged.value ? thumbnailPath.value : undefined
+  const pendingIcon = iconChanged.value ? iconPath.value : undefined
+
   try {
     const updatedProgram = await libraryStore.updateProgram({
-      id: props.program.id,
+      id: programId,
       title: title.value.trim(),
       executablePath: executablePath.value,
       tags: [...tags.value]
     })
 
     if (updatedProgram) {
-      if (thumbnailChanged.value) {
-        if (thumbnailPath.value === null) {
-          await libraryStore.deleteThumbnail(props.program.id)
+      if (pendingThumb !== undefined) {
+        if (pendingThumb === null) {
+          await libraryStore.deleteThumbnail(programId)
         } else {
-          await libraryStore.saveThumbnail(props.program.id, thumbnailPath.value)
+          await libraryStore.saveThumbnail(programId, pendingThumb)
         }
       }
 
-      if (iconChanged.value) {
-        if (iconPath.value === null) {
-          await libraryStore.deleteIcon(props.program.id)
+      if (pendingIcon !== undefined) {
+        if (pendingIcon === null) {
+          await libraryStore.deleteIcon(programId)
         } else {
-          await libraryStore.saveIcon(props.program.id, iconPath.value)
+          await libraryStore.saveIcon(programId, pendingIcon)
         }
       }
 
