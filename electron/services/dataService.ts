@@ -45,6 +45,23 @@ const writeFileAtomic = (filePath: string, content: string): void => {
   fs.renameSync(tempPath, filePath)
 }
 
+// Trim each tag, drop blanks (whitespace-only), and remove exact duplicates
+// while preserving order. Used on create/update/migrate so no empty or
+// untrimmed tag is ever persisted.
+const normalizeTags = (tags: unknown): string[] => {
+  if (!Array.isArray(tags)) return []
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const tag of tags) {
+    if (typeof tag !== 'string') continue
+    const trimmed = tag.trim()
+    if (!trimmed || seen.has(trimmed)) continue
+    seen.add(trimmed)
+    result.push(trimmed)
+  }
+  return result
+}
+
 // True only when child resolves to a location strictly inside parent
 const isPathInside = (child: string, parent: string): boolean => {
   const rel = path.relative(path.resolve(parent), path.resolve(child))
@@ -92,9 +109,9 @@ const migrateProgram = (raw: unknown): Program | null => {
           .map(normalizeImagePath)
           .filter((v): v is string => v !== null)
       : [],
-    marketUrl: typeof p.marketUrl === 'string' && p.marketUrl.trim() ? p.marketUrl : null,
+    marketUrl: typeof p.marketUrl === 'string' && p.marketUrl.trim() ? p.marketUrl.trim() : null,
     category: isProviderId(p.category) ? p.category : 'local',
-    tags: Array.isArray(p.tags) ? p.tags.filter((t): t is string => typeof t === 'string') : [],
+    tags: normalizeTags(p.tags),
     createdAt: typeof p.createdAt === 'string' ? p.createdAt : new Date().toISOString(),
     updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : new Date().toISOString()
   }
@@ -163,14 +180,14 @@ export const addProgram = (data: CreateProgramData): Program => {
   // Future integrations (steam, etc.) will call a separate entry point.
   const newProgram: Program = {
     id: uuidv4(),
-    title: data.title,
-    executablePath: normalizeExecutablePathForStorage(data.executablePath),
+    title: data.title.trim(),
+    executablePath: normalizeExecutablePathForStorage(data.executablePath.trim()),
     iconPath: null,
     thumbnailPath: null,
     previewImages: [],
     marketUrl: data.marketUrl?.trim() || null,
     category: 'local',
-    tags: data.tags || [],
+    tags: normalizeTags(data.tags),
     createdAt: now,
     updatedAt: now
   }
@@ -221,11 +238,11 @@ export const updateProgram = (data: UpdateProgramData): Program => {
   const program = library.programs[index]
   const updatedProgram: Program = {
     ...program,
-    title: data.title ?? program.title,
+    title: data.title !== undefined ? data.title.trim() : program.title,
     executablePath: data.executablePath !== undefined
-      ? normalizeExecutablePathForStorage(data.executablePath)
+      ? normalizeExecutablePathForStorage(data.executablePath.trim())
       : program.executablePath,
-    tags: data.tags ?? program.tags,
+    tags: data.tags !== undefined ? normalizeTags(data.tags) : program.tags,
     marketUrl: data.marketUrl !== undefined
       ? (data.marketUrl.trim() || null)
       : program.marketUrl,
