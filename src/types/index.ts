@@ -37,11 +37,19 @@ export interface Program {
   executablePath: string
   iconPath: string | null
   thumbnailPath: string | null
+  // Up to 3 landscape (16:9) preview images. userData-relative paths;
+  // array order is the display order.
+  previewImages: string[]
+  // Optional market/store page (http/https) opened in the system browser.
+  marketUrl: string | null
   category: ProviderId
   tags: string[]
   createdAt: string
   updatedAt: string
 }
+
+// Maximum number of landscape preview images a program may hold.
+export const MAX_PREVIEW_IMAGES = 3
 
 // Data for creating a new program — `category` is assigned by the source
 // (e.g. local-add sets 'local'), not user-editable.
@@ -49,6 +57,7 @@ export interface CreateProgramData {
   title: string
   executablePath: string
   tags?: string[]
+  marketUrl?: string
 }
 
 // Data for updating a program — `category` is intentionally omitted.
@@ -57,6 +66,7 @@ export interface UpdateProgramData {
   title?: string
   executablePath?: string
   tags?: string[]
+  marketUrl?: string
 }
 
 // Steam integration
@@ -102,6 +112,7 @@ export interface ElectronAPI {
   deleteProgram: (id: string) => Promise<void>
   launchProgram: (executablePath: string) => Promise<void>
   revealProgram: (executablePath: string) => Promise<void>
+  openExternal: (url: string) => Promise<boolean>
 
   // Dialog operations
   selectExecutable: () => Promise<string | null>
@@ -110,6 +121,11 @@ export interface ElectronAPI {
   // Thumbnail operations
   saveThumbnail: (programId: string, imagePath: string) => Promise<string>
   deleteThumbnail: (programId: string) => Promise<void>
+
+  // Preview image operations (landscape, max 3 per program)
+  savePreviewImage: (programId: string, imagePath: string) => Promise<string>
+  deletePreviewImage: (programId: string, relPath: string) => Promise<void>
+  reorderPreviewImages: (programId: string, relPaths: string[]) => Promise<void>
   
   // Icon operations
   extractIcon: (executablePath: string, programId: string) => Promise<string | null>

@@ -52,10 +52,22 @@ export default {
   },
   cardMenu: {
     launch: '启动',
+    viewDetail: '查看详情',
     edit: '编辑',
     changeThumbnail: '更改缩略图',
     revealInExplorer: '在资源管理器中显示',
     delete: '删除'
+  },
+  detailView: {
+    launch: '启动',
+    edit: '编辑',
+    openMarket: '打开链接',
+    marketOpenFailed: '无法打开链接',
+    back: '返回',
+    previews: '预览',
+    noPreviews: '没有预览图片',
+    pathLabel: '可执行路径',
+    tagsLabel: '标签'
   },
   addDialog: {
     title: '添加程序',
@@ -72,7 +84,13 @@ export default {
     addFailed: '添加程序失败',
     onlyImages: '仅支持图片文件',
     urlFetchFailed: '从 URL 获取图片失败',
-    imageReadFailed: '读取图片失败'
+    imageReadFailed: '读取图片失败',
+    stepExe: '可执行文件',
+    stepTitle: '标题',
+    stepImages: '图片',
+    stepTags: '标签',
+    next: '下一步',
+    prev: '上一步'
   },
   editDialog: {
     title: '编辑程序',
@@ -80,6 +98,12 @@ export default {
     iconLabel: '图标 (256×256)',
     thumbnailCropTitle: '裁剪缩略图 (2:3)',
     iconCropTitle: '裁剪图标 (1:1)',
+    previewLabel: '预览 (16:9，最多 3 张)',
+    previewCropTitle: '裁剪预览 (16:9)',
+    setAsThumbnail: '设为缩略图',
+    previewSaveFailed: '保存预览图片失败',
+    marketUrlLabel: '市场 URL',
+    marketUrlPlaceholder: 'https://store.example.com/...',
     reextractFromExe: '从 .exe 重新提取',
     steamArtworkSelect: 'Steam 美术资源',
     steamCoverRestore: '恢复默认封面',

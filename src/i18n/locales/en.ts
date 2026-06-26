@@ -52,10 +52,22 @@ export default {
   },
   cardMenu: {
     launch: 'Launch',
+    viewDetail: 'View details',
     edit: 'Edit',
     changeThumbnail: 'Change thumbnail',
     revealInExplorer: 'Show in Explorer',
     delete: 'Delete'
+  },
+  detailView: {
+    launch: 'Launch',
+    edit: 'Edit',
+    openMarket: 'Open link',
+    marketOpenFailed: 'Failed to open the link',
+    back: 'Back',
+    previews: 'Previews',
+    noPreviews: 'No preview images',
+    pathLabel: 'Executable path',
+    tagsLabel: 'Tags'
   },
   addDialog: {
     title: 'Add Program',
@@ -72,7 +84,13 @@ export default {
     addFailed: 'Failed to add program',
     onlyImages: 'Only image files are supported',
     urlFetchFailed: 'Failed to fetch image from URL',
-    imageReadFailed: 'Failed to read image'
+    imageReadFailed: 'Failed to read image',
+    stepExe: 'Executable',
+    stepTitle: 'Title',
+    stepImages: 'Images',
+    stepTags: 'Tags',
+    next: 'Next',
+    prev: 'Back'
   },
   editDialog: {
     title: 'Edit Program',
@@ -80,6 +98,12 @@ export default {
     iconLabel: 'Icon (256×256)',
     thumbnailCropTitle: 'Crop thumbnail (2:3)',
     iconCropTitle: 'Crop icon (1:1)',
+    previewLabel: 'Previews (16:9, up to 3)',
+    previewCropTitle: 'Crop preview (16:9)',
+    setAsThumbnail: 'Set as thumbnail',
+    previewSaveFailed: 'Failed to save preview image',
+    marketUrlLabel: 'Market URL',
+    marketUrlPlaceholder: 'https://store.example.com/...',
     reextractFromExe: 'Re-extract from .exe',
     steamArtworkSelect: 'Steam artwork',
     steamCoverRestore: 'Restore default cover',

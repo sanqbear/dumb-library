@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { h, ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { NDataTable, NButton, NIcon, NSpace, NImage, NTag, useMessage, useDialog } from 'naive-ui'
 import { Play as PlayIcon, Create as EditIcon, Trash as DeleteIcon } from '@vicons/ionicons5'
@@ -7,15 +8,13 @@ import type { DataTableColumns } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
 import type { Program } from '../../types'
 import { PROVIDERS, libImageUrl } from '../../types'
-import EditProgramDialog from '../dialogs/EditProgramDialog.vue'
 
 const { t } = useI18n()
+const router = useRouter()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const dialog = useDialog()
 
-const showEditDialog = ref(false)
-const editingProgram = ref<Program | null>(null)
 const tableMaxHeight = ref(500)
 
 const updateTableHeight = () => {
@@ -48,15 +47,22 @@ const handleLaunch = async (program: Program) => {
 }
 
 const handleEdit = (program: Program) => {
-  editingProgram.value = program
-  showEditDialog.value = true
+  router.push({ name: 'edit', params: { id: program.id } })
+}
+
+const handleRowClick = (program: Program) => {
+  router.push({ name: 'detail', params: { id: program.id } })
 }
 
 // Cast through unknown — naive-ui's CreateRowProps narrows to HTMLAttributes,
 // which (depending on @vue/runtime-dom version) doesn't always include the
 // data-* index signature. The attribute lands on the <tr> regardless.
 const rowProps = (row: Program) =>
-  ({ 'data-program-id': row.id } as unknown as Record<string, string>)
+  ({
+    'data-program-id': row.id,
+    style: 'cursor: pointer;',
+    onClick: () => handleRowClick(row)
+  } as unknown as Record<string, string>)
 
 const handleDelete = (program: Program) => {
   dialog.warning({
@@ -135,20 +141,22 @@ const columns = computed<DataTableColumns<Program>>(() => [
     width: 180,
     fixed: 'right',
     render(row) {
+      // stop propagation so action clicks don't also trigger row navigation
+      const stop = (fn: () => void) => (e: MouseEvent) => { e.stopPropagation(); fn() }
       return h(NSpace, { size: 'small', wrap: false, align: 'center' }, {
         default: () => [
           h(NButton, {
             type: 'primary',
             quaternary: true,
             circle: true,
-            onClick: () => handleLaunch(row)
+            onClick: stop(() => handleLaunch(row))
           }, {
             icon: () => h(NIcon, { component: PlayIcon })
           }),
           h(NButton, {
             quaternary: true,
             circle: true,
-            onClick: () => handleEdit(row)
+            onClick: stop(() => handleEdit(row))
           }, {
             icon: () => h(NIcon, { component: EditIcon })
           }),
@@ -156,7 +164,7 @@ const columns = computed<DataTableColumns<Program>>(() => [
             type: 'error',
             quaternary: true,
             circle: true,
-            onClick: () => handleDelete(row)
+            onClick: stop(() => handleDelete(row))
           }, {
             icon: () => h(NIcon, { component: DeleteIcon })
           })
@@ -178,11 +186,6 @@ const columns = computed<DataTableColumns<Program>>(() => [
       :bordered="false"
       striped
       :max-height="tableMaxHeight"
-    />
-
-    <EditProgramDialog 
-      v-model:show="showEditDialog"
-      :program="editingProgram"
     />
   </div>
 </template>

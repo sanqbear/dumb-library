@@ -4,6 +4,7 @@ import logger from './services/logger'
 import * as dataService from './services/dataService'
 import * as fileService from './services/fileService'
 import * as thumbnailService from './services/thumbnailService'
+import * as previewService from './services/previewService'
 import * as iconService from './services/iconService'
 import * as steamService from './services/steamService'
 import * as imageService from './services/imageService'
@@ -129,6 +130,23 @@ function registerIpcHandlers(): void {
     await fileService.revealInExplorer(executablePath)
   })
 
+  // Open an external market/store URL in the system browser. Only http(s) is
+  // allowed — same policy as setWindowOpenHandler.
+  ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        logger.warn(`Blocked openExternal with disallowed scheme: ${parsed.protocol}`)
+        return false
+      }
+      await shell.openExternal(url)
+      return true
+    } catch (error) {
+      logger.warn(`Failed to open external URL: ${url}`, error)
+      return false
+    }
+  })
+
   // Dialog operations
   ipcMain.handle('dialog:selectExecutable', async () => {
     return await fileService.selectExecutable(mainWindow)
@@ -145,6 +163,19 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('thumbnail:delete', (_event, programId: string) => {
     thumbnailService.deleteThumbnail(programId)
+  })
+
+  // Preview image operations (landscape, max 3 per program)
+  ipcMain.handle('preview:save', (_event, { programId, imagePath }: { programId: string; imagePath: string }) => {
+    return previewService.savePreview(programId, imagePath)
+  })
+
+  ipcMain.handle('preview:delete', (_event, { programId, relPath }: { programId: string; relPath: string }) => {
+    previewService.deletePreview(programId, relPath)
+  })
+
+  ipcMain.handle('preview:reorder', (_event, { programId, relPaths }: { programId: string; relPaths: string[] }) => {
+    previewService.reorderPreviews(programId, relPaths)
   })
 
   // Icon operations

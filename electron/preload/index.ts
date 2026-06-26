@@ -36,6 +36,7 @@ const IPC_CHANNELS = {
   DELETE_PROGRAM: 'program:delete',
   LAUNCH_PROGRAM: 'program:launch',
   REVEAL_PROGRAM: 'program:reveal',
+  OPEN_EXTERNAL: 'shell:openExternal',
 
   // Dialog
   SELECT_EXECUTABLE: 'dialog:selectExecutable',
@@ -44,7 +45,12 @@ const IPC_CHANNELS = {
   // Thumbnail
   SAVE_THUMBNAIL: 'thumbnail:save',
   DELETE_THUMBNAIL: 'thumbnail:delete',
-  
+
+  // Preview images
+  SAVE_PREVIEW: 'preview:save',
+  DELETE_PREVIEW: 'preview:delete',
+  REORDER_PREVIEW: 'preview:reorder',
+
   // Icon
   EXTRACT_ICON: 'icon:extract',
   SAVE_ICON: 'icon:save',
@@ -86,7 +92,8 @@ const electronAPI = {
   deleteProgram: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_PROGRAM, id),
   launchProgram: (executablePath: string) => ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_PROGRAM, executablePath),
   revealProgram: (executablePath: string) => ipcRenderer.invoke(IPC_CHANNELS.REVEAL_PROGRAM, executablePath),
-  
+  openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, url),
+
   // Dialog operations
   selectExecutable: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_EXECUTABLE),
   selectImage: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_IMAGE),
@@ -94,9 +101,17 @@ const electronAPI = {
   // Thumbnail operations
   saveThumbnail: (programId: string, imagePath: string) => 
     ipcRenderer.invoke(IPC_CHANNELS.SAVE_THUMBNAIL, { programId, imagePath }),
-  deleteThumbnail: (programId: string) => 
+  deleteThumbnail: (programId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.DELETE_THUMBNAIL, programId),
-  
+
+  // Preview image operations
+  savePreviewImage: (programId: string, imagePath: string): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SAVE_PREVIEW, { programId, imagePath }),
+  deletePreviewImage: (programId: string, relPath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DELETE_PREVIEW, { programId, relPath }),
+  reorderPreviewImages: (programId: string, relPaths: string[]): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.REORDER_PREVIEW, { programId, relPaths }),
+
   // Icon operations
   extractIcon: (executablePath: string, programId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXTRACT_ICON, { executablePath, programId }),

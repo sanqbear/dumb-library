@@ -197,6 +197,16 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
+  const openMarketUrl = async (program: Program): Promise<boolean> => {
+    if (!program.marketUrl) return false
+    try {
+      return await window.electron.openExternal(program.marketUrl)
+    } catch (e) {
+      console.error('Failed to open market URL:', e)
+      return false
+    }
+  }
+
   const revealProgram = async (program: Program): Promise<void> => {
     try {
       await window.electron.revealProgram(program.executablePath)
@@ -239,6 +249,50 @@ export const useLibraryStore = defineStore('library', () => {
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to delete thumbnail'
       console.error('Failed to delete thumbnail:', e)
+    }
+  }
+
+  const savePreviewImage = async (programId: string, imagePath: string): Promise<string | null> => {
+    try {
+      const relPath = await window.electron.savePreviewImage(programId, imagePath)
+      const program = programs.value.find(p => p.id === programId)
+      if (program && relPath) {
+        program.previewImages = [...program.previewImages, relPath]
+        program.updatedAt = new Date().toISOString()
+      }
+      return relPath
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to save preview image'
+      console.error('Failed to save preview image:', e)
+      return null
+    }
+  }
+
+  const deletePreviewImage = async (programId: string, relPath: string): Promise<void> => {
+    try {
+      await window.electron.deletePreviewImage(programId, relPath)
+      const program = programs.value.find(p => p.id === programId)
+      if (program) {
+        program.previewImages = program.previewImages.filter(p => p !== relPath)
+        program.updatedAt = new Date().toISOString()
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to delete preview image'
+      console.error('Failed to delete preview image:', e)
+    }
+  }
+
+  const reorderPreviewImages = async (programId: string, relPaths: string[]): Promise<void> => {
+    try {
+      await window.electron.reorderPreviewImages(programId, relPaths)
+      const program = programs.value.find(p => p.id === programId)
+      if (program) {
+        program.previewImages = [...relPaths]
+        program.updatedAt = new Date().toISOString()
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to reorder preview images'
+      console.error('Failed to reorder preview images:', e)
     }
   }
 
@@ -415,8 +469,12 @@ export const useLibraryStore = defineStore('library', () => {
     deleteProgram,
     launchProgram,
     revealProgram,
+    openMarketUrl,
     saveThumbnail,
     deleteThumbnail,
+    savePreviewImage,
+    deletePreviewImage,
+    reorderPreviewImages,
     saveIcon,
     deleteIcon,
     reextractIcon,

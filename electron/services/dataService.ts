@@ -13,6 +13,7 @@ const getLibraryPath = () => path.join(getUserDataPath(), 'library.json')
 const getSettingsPath = () => path.join(getUserDataPath(), 'settings.json')
 const getIconsPath = () => path.join(getUserDataPath(), 'icons')
 const getThumbnailsPath = () => path.join(getUserDataPath(), 'thumbnails')
+const getPreviewsPath = () => path.join(getUserDataPath(), 'previews')
 
 // Default data
 const DEFAULT_LIBRARY_DATA: LibraryData = {
@@ -28,7 +29,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 // Ensure directories exist
 const ensureDirectories = (): void => {
-  const dirs = [getIconsPath(), getThumbnailsPath()]
+  const dirs = [getIconsPath(), getThumbnailsPath(), getPreviewsPath()]
   dirs.forEach(dir => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true })
@@ -86,6 +87,12 @@ const migrateProgram = (raw: unknown): Program | null => {
     executablePath: p.executablePath,
     iconPath: normalizeImagePath(p.iconPath),
     thumbnailPath: normalizeImagePath(p.thumbnailPath),
+    previewImages: Array.isArray(p.previewImages)
+      ? p.previewImages
+          .map(normalizeImagePath)
+          .filter((v): v is string => v !== null)
+      : [],
+    marketUrl: typeof p.marketUrl === 'string' && p.marketUrl.trim() ? p.marketUrl : null,
     category: isProviderId(p.category) ? p.category : 'local',
     tags: Array.isArray(p.tags) ? p.tags.filter((t): t is string => typeof t === 'string') : [],
     createdAt: typeof p.createdAt === 'string' ? p.createdAt : new Date().toISOString(),
@@ -160,6 +167,8 @@ export const addProgram = (data: CreateProgramData): Program => {
     executablePath: normalizeExecutablePathForStorage(data.executablePath),
     iconPath: null,
     thumbnailPath: null,
+    previewImages: [],
+    marketUrl: data.marketUrl?.trim() || null,
     category: 'local',
     tags: data.tags || [],
     createdAt: now,
@@ -185,6 +194,9 @@ export const addSteamProgram = (data: CreateSteamProgramData): Program => {
     executablePath: `steam://run/${data.appId}`,
     iconPath: null,
     thumbnailPath: null,
+    previewImages: [],
+    // Default to the Steam store page so the market button works out of the box.
+    marketUrl: `https://store.steampowered.com/app/${data.appId}`,
     category: 'steam',
     tags: [],
     createdAt: now,
@@ -214,6 +226,9 @@ export const updateProgram = (data: UpdateProgramData): Program => {
       ? normalizeExecutablePathForStorage(data.executablePath)
       : program.executablePath,
     tags: data.tags ?? program.tags,
+    marketUrl: data.marketUrl !== undefined
+      ? (data.marketUrl.trim() || null)
+      : program.marketUrl,
     updatedAt: new Date().toISOString()
   }
 
@@ -266,7 +281,23 @@ export const deleteProgram = (id: string): void => {
   } else if (program.thumbnailPath && !thumbAbs) {
     logger.warn(`Skipped thumbnail deletion (outside managed dir): ${program.thumbnailPath}`)
   }
-  
+
+  // Preview images: delete every file the program references that still
+  // resolves inside the managed previews directory.
+  for (const previewRel of program.previewImages) {
+    const previewAbs = resolveManaged(previewRel, getPreviewsPath())
+    if (previewAbs && fs.existsSync(previewAbs)) {
+      try {
+        fs.unlinkSync(previewAbs)
+        logger.info(`Deleted preview: ${previewAbs}`)
+      } catch (error) {
+        logger.warn(`Failed to delete preview: ${previewAbs}`, error)
+      }
+    } else if (previewRel && !previewAbs) {
+      logger.warn(`Skipped preview deletion (outside managed dir): ${previewRel}`)
+    }
+  }
+
   library.programs.splice(index, 1)
   saveLibrary(library)
   logger.info(`Deleted program: ${program.title} (${id})`)
@@ -296,6 +327,28 @@ export const updateProgramThumbnailPath = (programId: string, thumbnailPath: str
     saveLibrary(library)
     logger.info(`Updated thumbnail path for program: ${programId}`)
   }
+}
+
+// Replace a program's full preview-image list (append/remove/reorder all go
+// through here). Caller is responsible for the actual image files on disk.
+export const updateProgramPreviewImages = (programId: string, previewImages: string[]): void => {
+  const library = loadLibrary()
+  const program = library.programs.find(p => p.id === programId)
+
+  if (program) {
+    program.previewImages = previewImages
+    program.updatedAt = new Date().toISOString()
+    saveLibrary(library)
+    logger.info(`Updated preview images for program: ${programId} (${previewImages.length})`)
+  }
+}
+
+// Read a program's current preview-image list (used by previewService to
+// append/remove without clobbering concurrent changes).
+export const getProgramPreviewImages = (programId: string): string[] => {
+  const library = loadLibrary()
+  const program = library.programs.find(p => p.id === programId)
+  return program ? [...program.previewImages] : []
 }
 
 // Settings operations
@@ -335,4 +388,4 @@ export const saveSettings = (settings: Settings): void => {
 }
 
 // Export paths for other services
-export { getIconsPath, getThumbnailsPath, ensureDirectories }
+export { getIconsPath, getThumbnailsPath, getPreviewsPath, ensureDirectories }

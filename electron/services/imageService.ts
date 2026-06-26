@@ -12,11 +12,14 @@ const MAX_FETCH_BYTES = 20 * 1024 * 1024 // 20MB — plenty for any cover/icon s
 const THUMBNAIL_WIDTH = 600
 const THUMBNAIL_HEIGHT = 900
 const ICON_SIZE = 256
+const PREVIEW_WIDTH = 1280
+const PREVIEW_HEIGHT = 720
 const WEBP_QUALITY = 85
 
 const getUserDataPath = () => app.getPath('userData')
 export const getThumbnailsDir = () => path.join(getUserDataPath(), 'thumbnails')
 export const getIconsDir = () => path.join(getUserDataPath(), 'icons')
+export const getPreviewsDir = () => path.join(getUserDataPath(), 'previews')
 
 const ensureDir = (dir: string): void => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
@@ -90,6 +93,32 @@ export const processIcon = async (
 
   logger.info(`Processed icon: ${destAbs}`)
   return `icons/${destFile}`
+}
+
+/**
+ * Process a source image into a 1280x720 (16:9) webp preview image.
+ * Unlike thumbnails/icons there can be several per program, so the filename
+ * carries a random suffix and the caller tracks the returned path in an array.
+ * Returns the path relative to userData (e.g., "previews/<id>-<uuid>.webp").
+ */
+export const processPreview = async (
+  source: string | Buffer,
+  programId: string
+): Promise<string> => {
+  const dir = getPreviewsDir()
+  ensureDir(dir)
+
+  const destFile = `${programId}-${randomUUID()}.webp`
+  const destAbs = path.join(dir, destFile)
+
+  await sharp(source)
+    .rotate()
+    .resize(PREVIEW_WIDTH, PREVIEW_HEIGHT, { fit: 'cover', position: 'centre' })
+    .webp({ quality: WEBP_QUALITY })
+    .toFile(destAbs)
+
+  logger.info(`Processed preview: ${destAbs}`)
+  return `previews/${destFile}`
 }
 
 /**
@@ -210,11 +239,13 @@ export const deleteImage = (relPath: string): void => {
 export default {
   processThumbnail,
   processIcon,
+  processPreview,
   readImageAsDataUrl,
   fetchImageFromUrl,
   writeTempBuffer,
   cleanupTempImages,
   deleteImage,
   getThumbnailsDir,
-  getIconsDir
+  getIconsDir,
+  getPreviewsDir
 }

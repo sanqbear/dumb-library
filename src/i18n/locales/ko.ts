@@ -52,10 +52,22 @@ export default {
   },
   cardMenu: {
     launch: '실행',
+    viewDetail: '상세 보기',
     edit: '편집',
     changeThumbnail: '썸네일 변경',
     revealInExplorer: '탐색기에서 보기',
     delete: '삭제'
+  },
+  detailView: {
+    launch: '실행',
+    edit: '편집',
+    openMarket: '링크 이동',
+    marketOpenFailed: '링크를 열지 못했습니다',
+    back: '뒤로',
+    previews: '미리보기',
+    noPreviews: '미리보기 이미지가 없습니다',
+    pathLabel: '실행 경로',
+    tagsLabel: '태그'
   },
   addDialog: {
     title: '프로그램 추가',
@@ -72,7 +84,13 @@ export default {
     addFailed: '프로그램 추가에 실패했습니다',
     onlyImages: '이미지 파일만 지원합니다',
     urlFetchFailed: 'URL에서 이미지를 가져오지 못했습니다',
-    imageReadFailed: '이미지를 읽지 못했습니다'
+    imageReadFailed: '이미지를 읽지 못했습니다',
+    stepExe: '실행 파일',
+    stepTitle: '제목',
+    stepImages: '이미지',
+    stepTags: '태그',
+    next: '다음',
+    prev: '이전'
   },
   editDialog: {
     title: '프로그램 수정',
@@ -80,6 +98,12 @@ export default {
     iconLabel: '아이콘 (256×256)',
     thumbnailCropTitle: '썸네일 크롭 (2:3)',
     iconCropTitle: '아이콘 크롭 (1:1)',
+    previewLabel: '미리보기 (16:9, 최대 3개)',
+    previewCropTitle: '미리보기 크롭 (16:9)',
+    setAsThumbnail: '썸네일로 지정',
+    previewSaveFailed: '미리보기 저장에 실패했습니다',
+    marketUrlLabel: '마켓 URL',
+    marketUrlPlaceholder: 'https://store.example.com/...',
     reextractFromExe: '.exe에서 재추출',
     steamArtworkSelect: 'Steam 아트워크 선택',
     steamCoverRestore: '기본 커버로 복원',

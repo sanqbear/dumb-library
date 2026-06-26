@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { NConfigProvider, NMessageProvider, NDialogProvider, darkTheme, lightTheme, type GlobalThemeOverrides } from 'naive-ui'
 import { useLibraryStore } from './stores/libraryStore'
 import { useSettingsStore } from './stores/settingsStore'
 import TitleBar from './components/layout/TitleBar.vue'
 import AppHeader from './components/layout/AppHeader.vue'
-import LibraryView from './components/library/LibraryView.vue'
 
 const libraryStore = useLibraryStore()
 const settingsStore = useSettingsStore()
+const route = useRoute()
+
+// The library search/filter header is only meaningful on the library route;
+// the detail/edit pages provide their own headers.
+const showLibraryHeader = computed(() => route.name === 'library')
 
 // Sakura Rose palette — softer pastel for dark surfaces,
 // richer saturation for light surfaces (pastels wash out on white).
@@ -54,9 +59,9 @@ onMounted(async () => {
           :class="{ 'light-theme': settingsStore.theme === 'light' }"
         >
           <TitleBar />
-          <AppHeader />
+          <AppHeader v-if="showLibraryHeader" />
           <main class="main-content">
-            <LibraryView />
+            <RouterView />
           </main>
         </div>
       </NDialogProvider>

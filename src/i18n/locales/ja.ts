@@ -52,10 +52,22 @@ export default {
   },
   cardMenu: {
     launch: '起動',
+    viewDetail: '詳細を見る',
     edit: '編集',
     changeThumbnail: 'サムネイル変更',
     revealInExplorer: 'エクスプローラーで表示',
     delete: '削除'
+  },
+  detailView: {
+    launch: '起動',
+    edit: '編集',
+    openMarket: 'リンクを開く',
+    marketOpenFailed: 'リンクを開けませんでした',
+    back: '戻る',
+    previews: 'プレビュー',
+    noPreviews: 'プレビュー画像がありません',
+    pathLabel: '実行パス',
+    tagsLabel: 'タグ'
   },
   addDialog: {
     title: 'プログラム追加',
@@ -72,7 +84,13 @@ export default {
     addFailed: 'プログラム追加に失敗しました',
     onlyImages: '画像ファイルのみ対応しています',
     urlFetchFailed: 'URLから画像を取得できませんでした',
-    imageReadFailed: '画像を読み込めませんでした'
+    imageReadFailed: '画像を読み込めませんでした',
+    stepExe: '実行ファイル',
+    stepTitle: 'タイトル',
+    stepImages: '画像',
+    stepTags: 'タグ',
+    next: '次へ',
+    prev: '戻る'
   },
   editDialog: {
     title: 'プログラム編集',
@@ -80,6 +98,12 @@ export default {
     iconLabel: 'アイコン (256×256)',
     thumbnailCropTitle: 'サムネイルをクロップ (2:3)',
     iconCropTitle: 'アイコンをクロップ (1:1)',
+    previewLabel: 'プレビュー (16:9、最大3枚)',
+    previewCropTitle: 'プレビューをクロップ (16:9)',
+    setAsThumbnail: 'サムネイルに設定',
+    previewSaveFailed: 'プレビューの保存に失敗しました',
+    marketUrlLabel: 'マーケットURL',
+    marketUrlPlaceholder: 'https://store.example.com/...',
     reextractFromExe: '.exeから再抽出',
     steamArtworkSelect: 'Steamアートワーク',
     steamCoverRestore: 'デフォルトカバーに戻す',

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, nextTick, ref, type Component } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { NCard, NImage, NIcon, NTag, NDropdown, useMessage, useDialog } from 'naive-ui'
 import type { DropdownMixedOption } from 'naive-ui/es/dropdown/src/interface'
@@ -7,23 +8,24 @@ import {
   Play as PlayIcon,
   Image as ImageIcon,
   FolderOpenOutline as FolderIcon,
+  InformationCircleOutline as InfoIcon,
+  CreateOutline as EditIcon,
   TrashOutline as TrashIcon
 } from '@vicons/ionicons5'
 import type { Program } from '../../types'
 import { PROVIDERS, libImageUrl } from '../../types'
 import { useLibraryStore } from '../../stores/libraryStore'
-import EditProgramDialog from '../dialogs/EditProgramDialog.vue'
 
 const props = defineProps<{
   program: Program
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
 
-const showEditDialog = ref(false)
 const isHovered = ref(false)
 
 const displayImage = computed(() => {
@@ -58,7 +60,11 @@ const handleLaunch = async () => {
 }
 
 const handleCardClick = () => {
-  showEditDialog.value = true
+  router.push({ name: 'detail', params: { id: props.program.id } })
+}
+
+const handleEdit = () => {
+  router.push({ name: 'edit', params: { id: props.program.id } })
 }
 
 // Right-click context menu. Protocol-based programs (Steam) have no filesystem
@@ -72,7 +78,9 @@ const renderMenuIcon = (icon: Component) => () => h(NIcon, null, { default: () =
 
 const menuOptions = computed(() => {
   const options: DropdownMixedOption[] = [
-    { label: t('cardMenu.launch'), key: 'launch', icon: renderMenuIcon(PlayIcon) }
+    { label: t('cardMenu.launch'), key: 'launch', icon: renderMenuIcon(PlayIcon) },
+    { label: t('cardMenu.viewDetail'), key: 'detail', icon: renderMenuIcon(InfoIcon) },
+    { label: t('cardMenu.edit'), key: 'edit', icon: renderMenuIcon(EditIcon) }
   ]
   if (canReveal.value) {
     options.push({ label: t('cardMenu.revealInExplorer'), key: 'reveal', icon: renderMenuIcon(FolderIcon) })
@@ -105,6 +113,8 @@ const closeMenu = () => {
 const handleMenuSelect = (key: string) => {
   showMenu.value = false
   if (key === 'launch') handleLaunch()
+  else if (key === 'detail') handleCardClick()
+  else if (key === 'edit') handleEdit()
   else if (key === 'reveal') handleReveal()
   else if (key === 'delete') handleDelete()
 }
@@ -187,12 +197,6 @@ const handleDelete = () => {
         </NTag>
       </div>
     </div>
-
-    <!-- Edit Dialog -->
-    <EditProgramDialog
-      v-model:show="showEditDialog"
-      :program="program"
-    />
 
     <!-- Right-click context menu -->
     <NDropdown

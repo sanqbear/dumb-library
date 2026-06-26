@@ -2,6 +2,8 @@
 import { ref, computed, watch } from 'vue'
 import {
   NModal,
+  NSteps,
+  NStep,
   NForm,
   NFormItem,
   NInput,
@@ -13,150 +15,177 @@ import {
   NIcon,
   useMessage
 } from 'naive-ui'
-import { FolderOpen as FolderIcon, Image as ImageIcon, Close as CloseIcon, LinkOutline as LinkIcon } from '@vicons/ionicons5'
+import {
+  FolderOpen as FolderIcon,
+  Image as ImageIcon,
+  Close as CloseIcon,
+  LinkOutline as LinkIcon,
+  AddOutline as AddIcon
+} from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useImageInput } from '../../composables/useImageInput'
 import { useThemeClass } from '../../composables/useThemeClass'
+import { MAX_PREVIEW_IMAGES } from '../../types'
 import ImageCropDialog from './ImageCropDialog.vue'
 
-const props = defineProps<{
-  show: boolean
-}>()
-
-const emit = defineEmits<{
-  (e: 'update:show', value: boolean): void
-}>()
+const props = defineProps<{ show: boolean }>()
+const emit = defineEmits<{ (e: 'update:show', value: boolean): void }>()
 
 const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const themeClass = useThemeClass()
 
-// Drag&drop + URL fetch shared helpers
 const thumbInput = useImageInput()
+const previewInput = useImageInput()
+
+// Wizard step: 0=exe, 1=title, 2=images, 3=tags
+const step = ref(0)
+const LAST_STEP = 3
 
 // Form data
 const title = ref('')
 const executablePath = ref('')
 const tags = ref<string[]>([])
+const marketUrl = ref('')
+
+// Thumbnail (single) — holds a temp cropped path until submit.
 const thumbnailPath = ref<string | null>(null)
 const thumbnailPreview = ref<string>('')
 const thumbUrl = ref('')
 
-// Crop flow — once a source is picked (file picker / drag / URL), we open
-// the crop dialog. User confirms the crop → we get a temp file path holding
-// the cropped bytes, which becomes our new `thumbnailPath`.
+// Previews — collected as {path,preview}; persisted after the program is created.
+const pendingPreviews = ref<{ path: string; preview: string }[]>([])
+const previewUrl = ref('')
+const canAddPreview = computed(() => pendingPreviews.value.length < MAX_PREVIEW_IMAGES)
+
+// Crop flow
 const showCropDialog = ref(false)
 const cropSourceUrl = ref('')
+const cropAspect = ref(2 / 3)
+const cropTarget = ref<'thumbnail' | 'preview'>('thumbnail')
 
 const isSubmitting = ref(false)
 
-// Preview is always a data URL — the selected source file lives outside
-// userData so we can't serve it via wl-image:// yet. Translate via IPC.
 watch(thumbnailPath, async (value) => {
-  if (!value) {
-    thumbnailPreview.value = ''
-    return
-  }
-  thumbnailPreview.value = (await window.electron.readImageAsDataUrl(value)) ?? ''
+  thumbnailPreview.value = value ? (await window.electron.readImageAsDataUrl(value)) ?? '' : ''
 })
 
-// Reset form when dialog closes
-watch(() => props.show, (newVal) => {
-  if (!newVal) {
-    title.value = ''
-    executablePath.value = ''
-    tags.value = []
-    thumbnailPath.value = null
-    thumbnailPreview.value = ''
-    thumbUrl.value = ''
-  }
-})
+const resetForm = () => {
+  step.value = 0
+  title.value = ''
+  executablePath.value = ''
+  tags.value = []
+  marketUrl.value = ''
+  thumbnailPath.value = null
+  thumbnailPreview.value = ''
+  thumbUrl.value = ''
+  pendingPreviews.value = []
+  previewUrl.value = ''
+}
 
-// Opens the crop dialog for a newly acquired source (file/drop/URL).
-const openCropFor = async (absSourcePath: string) => {
+watch(() => props.show, (newVal) => { if (!newVal) resetForm() })
+
+// Step navigation + per-step validation gates
+const canProceed = computed(() => {
+  if (step.value === 0) return executablePath.value.trim() !== ''
+  if (step.value === 1) return title.value.trim() !== ''
+  return true
+})
+const goNext = () => { if (canProceed.value && step.value < LAST_STEP) step.value += 1 }
+const goPrev = () => { if (step.value > 0) step.value -= 1 }
+
+// Crop helpers
+const openCropFor = async (absSourcePath: string, target: 'thumbnail' | 'preview') => {
   const dataUrl = await window.electron.readImageAsDataUrl(absSourcePath)
-  if (!dataUrl) {
-    message.error(t('addDialog.imageReadFailed'))
-    return
-  }
+  if (!dataUrl) { message.error(t('addDialog.imageReadFailed')); return }
   cropSourceUrl.value = dataUrl
+  cropAspect.value = target === 'preview' ? 16 / 9 : 2 / 3
+  cropTarget.value = target
   showCropDialog.value = true
 }
 
-const handleCropConfirm = (tempPath: string) => {
-  thumbnailPath.value = tempPath
-}
-
-const handleThumbDrop = async (e: DragEvent) => {
-  const absPath = thumbInput.onDrop(e)
-  if (absPath) {
-    await openCropFor(absPath)
+const handleCropConfirm = async (tempPath: string) => {
+  if (cropTarget.value === 'thumbnail') {
+    thumbnailPath.value = tempPath
   } else {
-    message.warning(t('addDialog.onlyImages'))
+    if (pendingPreviews.value.length >= MAX_PREVIEW_IMAGES) return
+    const preview = (await window.electron.readImageAsDataUrl(tempPath)) ?? ''
+    pendingPreviews.value = [...pendingPreviews.value, { path: tempPath, preview }]
   }
 }
 
-const handleFetchThumbUrl = async () => {
-  const tempPath = await thumbInput.fetchFromUrl(thumbUrl.value)
-  if (tempPath) {
-    thumbUrl.value = ''
-    await openCropFor(tempPath)
-  } else {
-    message.error(t('addDialog.urlFetchFailed'))
-  }
-}
-
-// Validation
-const isValid = computed(() => {
-  return title.value.trim() !== '' && executablePath.value.trim() !== ''
-})
-
-// Select executable file
+// Exe + title
 const handleSelectExecutable = async () => {
   const path = await window.electron.selectExecutable()
   if (path) {
     executablePath.value = path
-    // Auto-fill title from filename if empty
     if (!title.value.trim()) {
-      const fileName = path.split('\\').pop()?.replace('.exe', '') || ''
-      title.value = fileName
+      title.value = path.split('\\').pop()?.replace('.exe', '') || ''
     }
   }
 }
 
-// Select thumbnail image via OS file picker
+// Thumbnail
 const handleSelectThumbnail = async () => {
   const path = await window.electron.selectImage()
-  if (path) {
-    await openCropFor(path)
-  }
+  if (path) await openCropFor(path, 'thumbnail')
+}
+const handleRemoveThumbnail = () => { thumbnailPath.value = null }
+const handleThumbDrop = async (e: DragEvent) => {
+  const absPath = thumbInput.onDrop(e)
+  if (absPath) await openCropFor(absPath, 'thumbnail')
+  else message.warning(t('addDialog.onlyImages'))
+}
+const handleFetchThumbUrl = async () => {
+  const tempPath = await thumbInput.fetchFromUrl(thumbUrl.value)
+  if (tempPath) { thumbUrl.value = ''; await openCropFor(tempPath, 'thumbnail') }
+  else message.error(t('addDialog.urlFetchFailed'))
 }
 
-// Remove thumbnail
-const handleRemoveThumbnail = () => {
-  thumbnailPath.value = null
+// Previews
+const handleSelectPreview = async () => {
+  if (!canAddPreview.value) return
+  const path = await window.electron.selectImage()
+  if (path) await openCropFor(path, 'preview')
+}
+const handlePreviewDrop = async (e: DragEvent) => {
+  if (!canAddPreview.value) return
+  const absPath = previewInput.onDrop(e)
+  if (absPath) await openCropFor(absPath, 'preview')
+  else message.warning(t('addDialog.onlyImages'))
+}
+const handleFetchPreviewUrl = async () => {
+  if (!canAddPreview.value) return
+  const tempPath = await previewInput.fetchFromUrl(previewUrl.value)
+  if (tempPath) { previewUrl.value = ''; await openCropFor(tempPath, 'preview') }
+  else message.error(t('addDialog.urlFetchFailed'))
+}
+const handleRemovePreview = (index: number) => {
+  pendingPreviews.value = pendingPreviews.value.filter((_, i) => i !== index)
 }
 
-// Submit form
+const isValid = computed(() => title.value.trim() !== '' && executablePath.value.trim() !== '')
+
 const handleSubmit = async () => {
   if (!isValid.value) return
-  
   isSubmitting.value = true
-  
   try {
     const newProgram = await libraryStore.addProgram({
       title: title.value.trim(),
       executablePath: executablePath.value,
-      tags: [...tags.value]
+      tags: [...tags.value],
+      marketUrl: marketUrl.value.trim()
     })
-    
+
     if (newProgram) {
       if (thumbnailPath.value) {
         await libraryStore.saveThumbnail(newProgram.id, thumbnailPath.value)
       }
-
+      for (const p of pendingPreviews.value) {
+        await libraryStore.savePreviewImage(newProgram.id, p.path)
+      }
       message.success(t('addDialog.addedSuccess'))
       emit('update:show', false)
     } else {
@@ -170,169 +199,204 @@ const handleSubmit = async () => {
   }
 }
 
-const handleCancel = () => {
-  emit('update:show', false)
-}
+const handleCancel = () => { emit('update:show', false) }
 </script>
 
 <template>
-  <NModal
-    :show="show"
-    @update:show="emit('update:show', $event)"
-    preset="card"
-    :title="t('addDialog.title')"
-    :bordered="false"
-    size="medium"
-    :style="{ width: '520px' }"
-    :mask-closable="false"
-  >
+  <NModal :show="show" @update:show="emit('update:show', $event)" preset="card" :title="t('addDialog.title')"
+    :bordered="false" size="medium" :style="{ width: '560px' }" :mask-closable="false">
     <div :class="themeClass">
-    <NForm label-placement="top">
-      <!-- Thumbnail -->
-      <div
-        class="thumbnail-section"
-        :class="{ 'is-drag-over': thumbInput.isDragOver.value }"
-        @dragenter="thumbInput.onDragEnter"
-        @dragover="thumbInput.onDragOver"
-        @dragleave="thumbInput.onDragLeave"
-        @drop="handleThumbDrop"
-      >
-        <div class="thumbnail-preview" :class="{ 'is-empty': !thumbnailPreview }">
-          <NImage
-            v-if="thumbnailPreview"
-            :src="thumbnailPreview"
-            object-fit="cover"
-            width="160"
-            height="240"
-            preview-disabled
-          />
-          <div v-else class="thumbnail-placeholder">
-            <NIcon :component="ImageIcon" :size="40" />
-            <span>{{ t('addDialog.dropHere') }}</span>
-          </div>
-        </div>
-        <div class="thumbnail-actions">
-          <NButton @click="handleSelectThumbnail" block>
-            <template #icon><NIcon :component="ImageIcon" /></template>
-            {{ t('addDialog.selectImage') }}
-          </NButton>
-          <NInputGroup>
-            <NInput
-              v-model:value="thumbUrl"
-              :placeholder="t('addDialog.imageUrl')"
-              @keydown.enter.prevent="handleFetchThumbUrl"
-            />
-            <NButton
-              type="primary"
-              :disabled="!thumbUrl.trim() || thumbInput.isFetching.value"
-              :loading="thumbInput.isFetching.value"
-              @click="handleFetchThumbUrl"
-            >
-              <template #icon><NIcon :component="LinkIcon" /></template>
-              {{ t('addDialog.fetchUrl') }}
-            </NButton>
-          </NInputGroup>
-          <NButton
-            v-if="thumbnailPath"
-            @click="handleRemoveThumbnail"
-            quaternary
-            block
-          >
-            <template #icon><NIcon :component="CloseIcon" /></template>
-            {{ t('common.remove') }}
-          </NButton>
-        </div>
-      </div>
+      <NSteps :current="step + 1" size="small" class="wizard-steps">
+        <NStep :title="t('addDialog.stepExe')" />
+        <NStep :title="t('addDialog.stepTitle')" />
+        <NStep :title="t('addDialog.stepImages')" />
+        <NStep :title="t('addDialog.stepTags')" />
+      </NSteps>
 
-      <!-- Title -->
-      <NFormItem :label="t('addDialog.titleLabel')" required>
-        <NInput
-          v-model:value="title"
-          :placeholder="t('addDialog.titlePlaceholder')"
-          clearable
-        />
-      </NFormItem>
-
-      <!-- Executable Path -->
-      <NFormItem :label="t('addDialog.executablePath')" required>
-        <NInput
-          v-model:value="executablePath"
-          :placeholder="t('addDialog.executablePathPlaceholder')"
-          readonly
-        >
-          <template #suffix>
-            <NButton quaternary size="small" @click="handleSelectExecutable">
-              <template #icon>
-                <NIcon :component="FolderIcon" />
+      <NForm label-placement="top" class="wizard-body">
+        <!-- Step 0: Executable path -->
+        <template v-if="step === 0">
+          <NFormItem :label="t('addDialog.executablePath')" required>
+            <NInput v-model:value="executablePath" :placeholder="t('addDialog.executablePathPlaceholder')" readonly>
+              <template #suffix>
+                <NButton quaternary size="small" @click="handleSelectExecutable">
+                  <template #icon><NIcon :component="FolderIcon" /></template>
+                </NButton>
               </template>
-            </NButton>
-          </template>
-        </NInput>
-      </NFormItem>
+            </NInput>
+          </NFormItem>
+          <NButton @click="handleSelectExecutable" block dashed>
+            <template #icon><NIcon :component="FolderIcon" /></template>
+            {{ t('addDialog.executablePathPlaceholder') }}
+          </NButton>
+        </template>
 
-      <!-- Tags -->
-      <NFormItem :label="t('addDialog.tagsLabel')">
-        <NDynamicTags v-model:value="tags" />
-      </NFormItem>
-    </NForm>
+        <!-- Step 1: Title -->
+        <template v-else-if="step === 1">
+          <NFormItem :label="t('addDialog.titleLabel')" required>
+            <NInput v-model:value="title" :placeholder="t('addDialog.titlePlaceholder')" clearable
+              @keydown.enter.prevent="goNext" />
+          </NFormItem>
+        </template>
+
+        <!-- Step 2: Images (thumbnail + previews) -->
+        <template v-else-if="step === 2">
+          <!-- Thumbnail -->
+          <div class="media-section" :class="{ 'is-drag-over': thumbInput.isDragOver.value }"
+            @dragenter="thumbInput.onDragEnter" @dragover="thumbInput.onDragOver" @dragleave="thumbInput.onDragLeave"
+            @drop="handleThumbDrop">
+            <div class="media-label">{{ t('editDialog.thumbnailLabel') }}</div>
+            <div class="media-row">
+              <div class="thumbnail-preview" :class="{ 'is-empty': !thumbnailPreview }">
+                <NImage v-if="thumbnailPreview" :src="thumbnailPreview" object-fit="cover" width="120" height="180"
+                  preview-disabled />
+                <div v-else class="media-placeholder">
+                  <NIcon :component="ImageIcon" :size="32" />
+                  <span>{{ t('addDialog.dropHere') }}</span>
+                </div>
+              </div>
+              <div class="media-actions">
+                <NButton @click="handleSelectThumbnail" block>
+                  <template #icon><NIcon :component="ImageIcon" /></template>
+                  {{ t('addDialog.selectImage') }}
+                </NButton>
+                <NInputGroup>
+                  <NInput v-model:value="thumbUrl" :placeholder="t('addDialog.imageUrl')"
+                    @keydown.enter.prevent="handleFetchThumbUrl" />
+                  <NButton type="primary" :disabled="!thumbUrl.trim() || thumbInput.isFetching.value"
+                    :loading="thumbInput.isFetching.value" @click="handleFetchThumbUrl">
+                    <template #icon><NIcon :component="LinkIcon" /></template>
+                    {{ t('addDialog.fetchUrl') }}
+                  </NButton>
+                </NInputGroup>
+                <NButton v-if="thumbnailPath" @click="handleRemoveThumbnail" quaternary block>
+                  <template #icon><NIcon :component="CloseIcon" /></template>
+                  {{ t('common.remove') }}
+                </NButton>
+              </div>
+            </div>
+          </div>
+
+          <!-- Previews -->
+          <div class="media-section" :class="{ 'is-drag-over': previewInput.isDragOver.value }"
+            @dragenter="previewInput.onDragEnter" @dragover="previewInput.onDragOver"
+            @dragleave="previewInput.onDragLeave" @drop="handlePreviewDrop">
+            <div class="media-label">
+              {{ t('editDialog.previewLabel') }} ({{ pendingPreviews.length }}/{{ MAX_PREVIEW_IMAGES }})
+            </div>
+            <div class="preview-grid">
+              <div v-for="(item, i) in pendingPreviews" :key="i" class="preview-tile">
+                <NImage :src="item.preview" object-fit="cover" width="100%" height="100%" preview-disabled />
+                <NButton class="preview-remove" size="tiny" circle type="error" @click="handleRemovePreview(i)">
+                  <template #icon><NIcon :component="CloseIcon" /></template>
+                </NButton>
+              </div>
+              <button v-if="canAddPreview" type="button" class="preview-add" @click="handleSelectPreview">
+                <NIcon :component="AddIcon" :size="24" />
+              </button>
+            </div>
+            <NInputGroup v-if="canAddPreview" class="preview-url">
+              <NInput v-model:value="previewUrl" :placeholder="t('addDialog.imageUrl')"
+                @keydown.enter.prevent="handleFetchPreviewUrl" />
+              <NButton type="primary" :disabled="!previewUrl.trim() || previewInput.isFetching.value"
+                :loading="previewInput.isFetching.value" @click="handleFetchPreviewUrl">
+                <template #icon><NIcon :component="LinkIcon" /></template>
+                {{ t('addDialog.fetchUrl') }}
+              </NButton>
+            </NInputGroup>
+          </div>
+        </template>
+
+        <!-- Step 3: Tags + market URL -->
+        <template v-else>
+          <NFormItem :label="t('editDialog.marketUrlLabel')">
+            <NInput v-model:value="marketUrl" :placeholder="t('editDialog.marketUrlPlaceholder')" clearable>
+              <template #prefix><NIcon :component="LinkIcon" /></template>
+            </NInput>
+          </NFormItem>
+          <NFormItem :label="t('addDialog.tagsLabel')">
+            <NDynamicTags v-model:value="tags" />
+          </NFormItem>
+        </template>
+      </NForm>
     </div>
 
     <template #footer>
-      <NSpace justify="end">
-        <NButton @click="handleCancel" :disabled="isSubmitting">
-          {{ t('common.cancel') }}
-        </NButton>
-        <NButton
-          type="primary"
-          @click="handleSubmit"
-          :disabled="!isValid"
-          :loading="isSubmitting"
-        >
-          {{ t('common.add') }}
-        </NButton>
-      </NSpace>
+      <div class="wizard-footer">
+        <NButton v-if="step > 0" @click="goPrev" :disabled="isSubmitting">{{ t('addDialog.prev') }}</NButton>
+        <span class="footer-spacer" />
+        <NSpace>
+          <NButton @click="handleCancel" :disabled="isSubmitting">{{ t('common.cancel') }}</NButton>
+          <NButton v-if="step < LAST_STEP" type="primary" :disabled="!canProceed" @click="goNext">
+            {{ t('addDialog.next') }}
+          </NButton>
+          <NButton v-else type="primary" :disabled="!isValid" :loading="isSubmitting" @click="handleSubmit">
+            {{ t('common.add') }}
+          </NButton>
+        </NSpace>
+      </div>
     </template>
 
-    <ImageCropDialog
-      v-model:show="showCropDialog"
-      :source="cropSourceUrl"
-      :aspect-ratio="2 / 3"
-      :title="t('editDialog.thumbnailCropTitle')"
-      @confirm="handleCropConfirm"
-    />
+    <ImageCropDialog v-model:show="showCropDialog" :source="cropSourceUrl" :aspect-ratio="cropAspect"
+      :title="cropTarget === 'preview' ? t('editDialog.previewCropTitle') : t('editDialog.thumbnailCropTitle')"
+      @confirm="handleCropConfirm" />
   </NModal>
 </template>
 
 <style scoped>
-.thumbnail-section {
-  display: flex;
-  gap: 16px;
+.wizard-steps {
+  margin-bottom: 20px;
+}
+
+.wizard-body {
+  min-height: 240px;
+}
+
+.media-section {
   margin-bottom: 16px;
-  padding: 16px;
+  padding: 12px 16px;
   background-color: #3f3f46;
   border-radius: 8px;
   transition: box-shadow 0.15s ease;
 }
 
-.light-theme .thumbnail-section {
+.light-theme .media-section {
   background-color: #f4f4f5;
 }
 
-.thumbnail-section.is-drag-over {
+.media-section.is-drag-over {
   box-shadow: 0 0 0 2px #e87ea1;
 }
 
-.light-theme .thumbnail-section.is-drag-over {
+.light-theme .media-section.is-drag-over {
   box-shadow: 0 0 0 2px #db2777;
 }
 
+.media-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #a1a1aa;
+  margin-bottom: 10px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.light-theme .media-label {
+  color: #52525b;
+}
+
+.media-row {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+}
+
 .thumbnail-preview {
-  width: 160px;
-  height: 240px;
+  width: 120px;
+  height: 180px;
   border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0;
-  position: relative;
 }
 
 .thumbnail-preview.is-empty {
@@ -345,37 +409,84 @@ const handleCancel = () => {
   background-color: #e4e4e7;
 }
 
-.thumbnail-section.is-drag-over .thumbnail-preview.is-empty {
-  border-color: #e87ea1;
-}
-
-.light-theme .thumbnail-section.is-drag-over .thumbnail-preview.is-empty {
-  border-color: #db2777;
-}
-
-.thumbnail-placeholder {
+.media-placeholder {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   color: #71717a;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   pointer-events: none;
 }
 
-.light-theme .thumbnail-placeholder {
-  color: #71717a;
-}
-
-.thumbnail-actions {
-  flex: 1;
-  min-width: 0;
+.media-actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
   justify-content: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.preview-tile {
+  position: relative;
+  width: 150px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #27272a;
+}
+
+.preview-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+.preview-add {
+  width: 150px;
+  aspect-ratio: 16 / 9;
+  border: 2px dashed #52525b;
+  border-radius: 6px;
+  background-color: #27272a;
+  color: #a1a1aa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.preview-add:hover {
+  border-color: #e87ea1;
+  color: #e87ea1;
+}
+
+.light-theme .preview-add {
+  background-color: #e4e4e7;
+  border-color: #d4d4d8;
+}
+
+.preview-url {
+  margin-top: 10px;
+}
+
+.wizard-footer {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.footer-spacer {
+  flex: 1;
 }
 </style>
