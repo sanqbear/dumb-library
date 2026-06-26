@@ -54,6 +54,7 @@ export default {
     launch: '실행',
     edit: '편집',
     changeThumbnail: '썸네일 변경',
+    revealInExplorer: '탐색기에서 보기',
     delete: '삭제'
   },
   addDialog: {

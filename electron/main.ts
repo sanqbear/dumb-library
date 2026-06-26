@@ -125,6 +125,10 @@ function registerIpcHandlers(): void {
     await fileService.launchProgram(executablePath)
   })
 
+  ipcMain.handle('program:reveal', async (_event, executablePath: string) => {
+    await fileService.revealInExplorer(executablePath)
+  })
+
   // Dialog operations
   ipcMain.handle('dialog:selectExecutable', async () => {
     return await fileService.selectExecutable(mainWindow)

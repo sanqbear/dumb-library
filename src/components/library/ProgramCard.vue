@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, h, nextTick, ref, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NCard, NImage, NIcon, NTag, useMessage } from 'naive-ui'
-import { Play as PlayIcon, Image as ImageIcon, FolderOpenOutline as FolderIcon } from '@vicons/ionicons5'
+import { NCard, NImage, NIcon, NTag, NDropdown, useMessage, useDialog } from 'naive-ui'
+import type { DropdownMixedOption } from 'naive-ui/es/dropdown/src/interface'
+import {
+  Play as PlayIcon,
+  Image as ImageIcon,
+  FolderOpenOutline as FolderIcon,
+  TrashOutline as TrashIcon
+} from '@vicons/ionicons5'
 import type { Program } from '../../types'
 import { PROVIDERS, libImageUrl } from '../../types'
 import { useLibraryStore } from '../../stores/libraryStore'
@@ -15,6 +21,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const message = useMessage()
+const confirmDialog = useDialog()
 
 const showEditDialog = ref(false)
 const isHovered = ref(false)
@@ -53,6 +60,73 @@ const handleLaunch = async () => {
 const handleCardClick = () => {
   showEditDialog.value = true
 }
+
+// Right-click context menu. Protocol-based programs (Steam) have no filesystem
+// location, so "show in explorer" is omitted for them.
+const canReveal = computed(() => {
+  const exe = props.program.executablePath
+  return !!exe && !isProtocolUrl(exe)
+})
+
+const renderMenuIcon = (icon: Component) => () => h(NIcon, null, { default: () => h(icon) })
+
+const menuOptions = computed(() => {
+  const options: DropdownMixedOption[] = [
+    { label: t('cardMenu.launch'), key: 'launch', icon: renderMenuIcon(PlayIcon) }
+  ]
+  if (canReveal.value) {
+    options.push({ label: t('cardMenu.revealInExplorer'), key: 'reveal', icon: renderMenuIcon(FolderIcon) })
+  }
+  options.push({ type: 'divider', key: 'divider' })
+  options.push({ label: t('cardMenu.delete'), key: 'delete', icon: renderMenuIcon(TrashIcon) })
+  return options
+})
+
+const showMenu = ref(false)
+const menuX = ref(0)
+const menuY = ref(0)
+
+const handleContextMenu = (e: MouseEvent) => {
+  e.preventDefault()
+  // Force a teardown/rebuild so the dropdown repositions to the new cursor
+  // point even when it's already open over another card (Naive UI guidance).
+  showMenu.value = false
+  nextTick(() => {
+    menuX.value = e.clientX
+    menuY.value = e.clientY
+    showMenu.value = true
+  })
+}
+
+const closeMenu = () => {
+  showMenu.value = false
+}
+
+const handleMenuSelect = (key: string) => {
+  showMenu.value = false
+  if (key === 'launch') handleLaunch()
+  else if (key === 'reveal') handleReveal()
+  else if (key === 'delete') handleDelete()
+}
+
+const handleReveal = async () => {
+  await libraryStore.revealProgram(props.program)
+}
+
+const handleDelete = () => {
+  const program = props.program
+  confirmDialog.warning({
+    title: t('editDialog.deleteConfirmTitle'),
+    content: t('editDialog.deleteConfirmMessage', { title: program.title }),
+    positiveText: t('common.delete'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      const success = await libraryStore.deleteProgram(program.id)
+      if (success) message.success(t('editDialog.deleted'))
+      else message.error(t('editDialog.deleteFailed'))
+    }
+  })
+}
 </script>
 
 <template>
@@ -63,6 +137,7 @@ const handleCardClick = () => {
     :bordered="false"
     content-style="padding: 0"
     @click="handleCardClick"
+    @contextmenu="handleContextMenu"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
   >
@@ -114,9 +189,21 @@ const handleCardClick = () => {
     </div>
 
     <!-- Edit Dialog -->
-    <EditProgramDialog 
+    <EditProgramDialog
       v-model:show="showEditDialog"
       :program="program"
+    />
+
+    <!-- Right-click context menu -->
+    <NDropdown
+      trigger="manual"
+      placement="bottom-start"
+      :show="showMenu"
+      :x="menuX"
+      :y="menuY"
+      :options="menuOptions"
+      :on-clickoutside="closeMenu"
+      @select="handleMenuSelect"
     />
   </NCard>
 </template>

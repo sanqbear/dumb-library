@@ -81,8 +81,24 @@ export const launchProgram = async (executablePath: string): Promise<void> => {
   }
 }
 
+/**
+ * Reveal a program's executable in the OS file manager (Explorer on Windows),
+ * selecting the file. Protocol-based programs (e.g. steam://run/<appId>) have
+ * no filesystem location, so the call is a no-op for them.
+ */
+export const revealInExplorer = async (executablePath: string): Promise<void> => {
+  if (isProtocolUrl(executablePath)) {
+    logger.warn(`Cannot reveal protocol URL in explorer: ${executablePath}`)
+    return
+  }
+  const resolved = resolveExecutablePath(executablePath)
+  logger.info(`Revealing in explorer: ${executablePath} (resolved: ${resolved})`)
+  shell.showItemInFolder(resolved)
+}
+
 export default {
   selectExecutable,
   selectImage,
-  launchProgram
+  launchProgram,
+  revealInExplorer
 }

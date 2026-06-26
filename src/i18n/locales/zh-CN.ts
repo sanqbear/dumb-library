@@ -54,6 +54,7 @@ export default {
     launch: '启动',
     edit: '编辑',
     changeThumbnail: '更改缩略图',
+    revealInExplorer: '在资源管理器中显示',
     delete: '删除'
   },
   addDialog: {

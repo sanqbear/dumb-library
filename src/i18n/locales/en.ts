@@ -54,6 +54,7 @@ export default {
     launch: 'Launch',
     edit: 'Edit',
     changeThumbnail: 'Change thumbnail',
+    revealInExplorer: 'Show in Explorer',
     delete: 'Delete'
   },
   addDialog: {

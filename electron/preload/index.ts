@@ -35,7 +35,8 @@ const IPC_CHANNELS = {
   UPDATE_PROGRAM: 'program:update',
   DELETE_PROGRAM: 'program:delete',
   LAUNCH_PROGRAM: 'program:launch',
-  
+  REVEAL_PROGRAM: 'program:reveal',
+
   // Dialog
   SELECT_EXECUTABLE: 'dialog:selectExecutable',
   SELECT_IMAGE: 'dialog:selectImage',
@@ -84,6 +85,7 @@ const electronAPI = {
   updateProgram: (data: UpdateProgramData) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_PROGRAM, data),
   deleteProgram: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_PROGRAM, id),
   launchProgram: (executablePath: string) => ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_PROGRAM, executablePath),
+  revealProgram: (executablePath: string) => ipcRenderer.invoke(IPC_CHANNELS.REVEAL_PROGRAM, executablePath),
   
   // Dialog operations
   selectExecutable: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_EXECUTABLE),

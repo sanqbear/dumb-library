@@ -54,6 +54,7 @@ export default {
     launch: '起動',
     edit: '編集',
     changeThumbnail: 'サムネイル変更',
+    revealInExplorer: 'エクスプローラーで表示',
     delete: '削除'
   },
   addDialog: {

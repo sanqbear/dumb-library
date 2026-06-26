@@ -101,7 +101,8 @@ export interface ElectronAPI {
   updateProgram: (data: UpdateProgramData) => Promise<Program>
   deleteProgram: (id: string) => Promise<void>
   launchProgram: (executablePath: string) => Promise<void>
-  
+  revealProgram: (executablePath: string) => Promise<void>
+
   // Dialog operations
   selectExecutable: () => Promise<string | null>
   selectImage: () => Promise<string | null>

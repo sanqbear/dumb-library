@@ -197,6 +197,15 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
+  const revealProgram = async (program: Program): Promise<void> => {
+    try {
+      await window.electron.revealProgram(program.executablePath)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to reveal program'
+      console.error('Failed to reveal program:', e)
+    }
+  }
+
   const saveThumbnail = async (programId: string, imagePath: string): Promise<string | null> => {
     try {
       const thumbnailPath = await window.electron.saveThumbnail(programId, imagePath)
@@ -405,6 +414,7 @@ export const useLibraryStore = defineStore('library', () => {
     updateProgram,
     deleteProgram,
     launchProgram,
+    revealProgram,
     saveThumbnail,
     deleteThumbnail,
     saveIcon,
