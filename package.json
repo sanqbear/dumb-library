@@ -20,15 +20,14 @@
     "electron-log": "^5.4.3",
     "naive-ui": "^2.43.2",
     "pinia": "^3.0.4",
-    "sharp": "^0.34.5",
-    "uuid": "^13.0.0",
+    "sharp": "^0.35.2",
+    "uuid": "^14.0.1",
     "vue": "^3.5.24",
     "vue-advanced-cropper": "^2.8.9",
     "vue-i18n": "^11.3.2"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
-    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/tsconfig": "^0.8.1",
     "electron": "^40.0.0",
