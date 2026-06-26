@@ -67,7 +67,8 @@ export default {
     previews: 'プレビュー',
     noPreviews: 'プレビュー画像がありません',
     pathLabel: '実行パス',
-    tagsLabel: 'タグ'
+    tagsLabel: 'タグ',
+    memoLabel: 'メモ'
   },
   addDialog: {
     title: 'プログラム追加',
@@ -78,6 +79,9 @@ export default {
     tagsLabel: 'タグ',
     keywordsLabel: '検索キーワード',
     keywordsHint: '分類には使われず、検索のみに使用されます',
+    memoLabel: 'メモ',
+    memoPlaceholder: '参考用のメモを入力',
+    memoHint: '検索には含まれない参考用メモです',
     selectImage: 'ファイルから選択',
     imageUrl: '画像URL',
     fetchUrl: '取得',

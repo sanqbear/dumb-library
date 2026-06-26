@@ -12,7 +12,7 @@ const settingsStore = useSettingsStore()
 
 const isEmpty = computed(() => libraryStore.filteredPrograms.length === 0)
 const isFiltered = computed(() =>
-  libraryStore.searchQuery.trim() !== '' ||
+  libraryStore.effectiveSearch.trim() !== '' ||
   libraryStore.selectedCategory !== null ||
   libraryStore.selectedTags.length > 0
 )

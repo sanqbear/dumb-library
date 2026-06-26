@@ -196,6 +196,12 @@ const handleMenuSelect = (key: string) => {
           <span v-if="program.tags.length === 0" class="tags-empty">—</span>
         </div>
       </section>
+
+      <!-- Reference memo — display only, never part of search/filtering. -->
+      <section v-if="program.memo" class="detail-section">
+        <div class="section-label">{{ t('detailView.memoLabel') }}</div>
+        <p class="detail-memo">{{ program.memo }}</p>
+      </section>
     </div>
   </div>
 </template>
@@ -372,5 +378,22 @@ const handleMenuSelect = (key: string) => {
 
 .tags-empty {
   color: #71717a;
+}
+
+.detail-memo {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #d4d4d8;
+  background-color: #27272a;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.light-theme .detail-memo {
+  color: #3f3f46;
+  background-color: #ffffff;
 }
 </style>

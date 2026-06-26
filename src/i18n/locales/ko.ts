@@ -67,7 +67,8 @@ export default {
     previews: '미리보기',
     noPreviews: '미리보기 이미지가 없습니다',
     pathLabel: '실행 경로',
-    tagsLabel: '태그'
+    tagsLabel: '태그',
+    memoLabel: '메모'
   },
   addDialog: {
     title: '프로그램 추가',
@@ -78,6 +79,9 @@ export default {
     tagsLabel: '태그',
     keywordsLabel: '검색 키워드',
     keywordsHint: '분류에는 쓰이지 않고 검색에만 사용됩니다',
+    memoLabel: '메모',
+    memoPlaceholder: '참고용 메모를 입력하세요',
+    memoHint: '검색에는 포함되지 않는 참고용 메모입니다',
     selectImage: '파일에서 선택',
     imageUrl: '이미지 URL',
     fetchUrl: '가져오기',

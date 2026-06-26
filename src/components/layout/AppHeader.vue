@@ -117,11 +117,22 @@ const hasActiveFilters = computed(() =>
 // Count of currently shown items. Matches filtered/total pattern so users
 // see at a glance how much the current search/filter narrowed the library.
 const isCountFiltered = computed(() =>
-  libraryStore.searchQuery.trim() !== '' ||
+  libraryStore.effectiveSearch.trim() !== '' ||
   libraryStore.selectedCategory !== null ||
   libraryStore.selectedTags.length > 0
 )
 
+// Live read from the native `input` event (bubbles out of NInput's inner
+// <input>). Fires on every keystroke including IME composition steps, so
+// Hangul filtering reacts per visible character instead of per syllable.
+// Leaves the committed ref bound to the field untouched to avoid rewriting
+// the input value mid-composition. See IME input handling guideline.
+const handleSearchInput = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  if (target) libraryStore.setSearchQueryLive(target.value)
+}
+
+// Committed/clear path: composition end and the clearable button emit here.
 const handleSearch = (value: string) => {
   libraryStore.setSearchQuery(value)
 }
@@ -151,17 +162,22 @@ const handleRandomPick = () => {
   <header class="app-header">
     <div class="header-left">
       <div class="search-cluster">
-        <NInput
-          :value="libraryStore.searchQuery"
-          :placeholder="t('header.searchPlaceholder')"
-          clearable
-          @update:value="handleSearch"
-          class="search-input"
-        >
-          <template #prefix>
-            <NIcon :component="SearchIcon" />
-          </template>
-        </NInput>
+        <!-- Native @input on the wrapper catches the inner <input>'s DOM event
+             (it bubbles), giving a live, IME-aware read of what the user sees.
+             v-model stays on NInput for composition-safe committed state. -->
+        <div class="search-input-wrap" @input="handleSearchInput">
+          <NInput
+            :value="libraryStore.searchQuery"
+            :placeholder="t('header.searchPlaceholder')"
+            clearable
+            @update:value="handleSearch"
+            class="search-input"
+          >
+            <template #prefix>
+              <NIcon :component="SearchIcon" />
+            </template>
+          </NInput>
+        </div>
 
         <NPopover trigger="click" placement="bottom" v-model:show="showFilters">
           <template #trigger>
@@ -353,6 +369,12 @@ const handleRandomPick = () => {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.search-input-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
 }
 
 .search-input {

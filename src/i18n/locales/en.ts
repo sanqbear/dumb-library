@@ -67,7 +67,8 @@ export default {
     previews: 'Previews',
     noPreviews: 'No preview images',
     pathLabel: 'Executable path',
-    tagsLabel: 'Tags'
+    tagsLabel: 'Tags',
+    memoLabel: 'Memo'
   },
   addDialog: {
     title: 'Add Program',
@@ -78,6 +79,9 @@ export default {
     tagsLabel: 'Tags',
     keywordsLabel: 'Search keywords',
     keywordsHint: 'Used only for search, not for categorization',
+    memoLabel: 'Memo',
+    memoPlaceholder: 'Enter a reference note',
+    memoHint: 'A reference note — not included in search',
     selectImage: 'Select from file',
     imageUrl: 'Image URL',
     fetchUrl: 'Fetch',

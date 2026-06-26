@@ -9,9 +9,19 @@ export const useLibraryStore = defineStore('library', () => {
   const error = ref<string | null>(null)
 
   // Filter state
+  // `searchQuery` is the committed value bound to the search field (IME
+  // composition-aware). `searchQueryLive` is updated from the input's native
+  // `input` event on every keystroke — including Hangul composition steps —
+  // so filtering reacts per visible character rather than per finished
+  // syllable. See docs guideline on IME input handling.
   const searchQuery = ref('')
+  const searchQueryLive = ref('')
   const selectedCategory = ref<ProviderId | null>(null)
   const selectedTags = ref<string[]>([])
+
+  // The text the user currently sees in the field. Falls back to the
+  // committed value for seeded/cleared states where no live keystroke arrived.
+  const effectiveSearch = computed(() => searchQueryLive.value || searchQuery.value)
 
   // Sort state — default to 가나다(title ascending) on first launch
   const sortBy = ref<'createdAt' | 'title'>('title')
@@ -29,9 +39,10 @@ export const useLibraryStore = defineStore('library', () => {
     let result = [...programs.value]
     
     // Filter by search query — matches title, categorization tags, and
-    // search-index keywords so any of them can surface a program.
-    if (searchQuery.value.trim()) {
-      const query = searchQuery.value.toLowerCase().trim()
+    // search-index keywords so any of them can surface a program. Reads the
+    // live value so Hangul filtering updates mid-composition.
+    if (effectiveSearch.value.trim()) {
+      const query = effectiveSearch.value.toLowerCase().trim()
       result = result.filter(p =>
         p.title.toLowerCase().includes(query) ||
         p.tags.some(tag => tag.toLowerCase().includes(query)) ||
@@ -387,8 +398,18 @@ export const useLibraryStore = defineStore('library', () => {
   }
 
   // Filter actions
+  // Committed/clear path (composition end, clear button, programmatic reset).
+  // Keeps both refs in sync so the live fallback never serves stale text.
   const setSearchQuery = (query: string): void => {
     searchQuery.value = query
+    searchQueryLive.value = query
+  }
+
+  // Live path — driven by the input's native `input` event. Updates only the
+  // live ref, leaving the field-bound committed ref untouched so naive-ui does
+  // not rewrite the input value mid-composition (which would break the IME).
+  const setSearchQueryLive = (query: string): void => {
+    searchQueryLive.value = query
   }
 
   const setSelectedCategory = (category: ProviderId | null): void => {
@@ -401,6 +422,7 @@ export const useLibraryStore = defineStore('library', () => {
 
   const clearFilters = (): void => {
     searchQuery.value = ''
+    searchQueryLive.value = ''
     selectedCategory.value = null
     selectedTags.value = []
   }
@@ -453,6 +475,7 @@ export const useLibraryStore = defineStore('library', () => {
     isLoading,
     error,
     searchQuery,
+    searchQueryLive,
     selectedCategory,
     selectedTags,
     sortBy,
@@ -461,6 +484,7 @@ export const useLibraryStore = defineStore('library', () => {
 
     // Getters
     filteredPrograms,
+    effectiveSearch,
     allTags,
     programCount,
     filteredCount,
@@ -487,6 +511,7 @@ export const useLibraryStore = defineStore('library', () => {
     scanSteamGames,
     addSteamPrograms,
     setSearchQuery,
+    setSearchQueryLive,
     setSelectedCategory,
     setSelectedTags,
     clearFilters,

@@ -49,6 +49,7 @@ const title = ref('')
 const executablePath = ref('')
 const tags = ref<string[]>([])
 const keywords = ref<string[]>([])
+const memo = ref('')
 const marketUrl = ref('')
 
 // Thumbnail (single) — holds a temp cropped path until submit.
@@ -79,6 +80,7 @@ const resetForm = () => {
   executablePath.value = ''
   tags.value = []
   keywords.value = []
+  memo.value = ''
   marketUrl.value = ''
   thumbnailPath.value = null
   thumbnailPreview.value = ''
@@ -179,6 +181,7 @@ const handleSubmit = async () => {
       executablePath: executablePath.value,
       tags: [...tags.value],
       keywords: [...keywords.value],
+      memo: memo.value.trim(),
       marketUrl: marketUrl.value.trim()
     })
 
@@ -324,6 +327,13 @@ const handleCancel = () => { emit('update:show', false) }
             <div class="field-stack">
               <NDynamicTags v-model:value="keywords" />
               <span class="field-hint">{{ t('addDialog.keywordsHint') }}</span>
+            </div>
+          </NFormItem>
+          <NFormItem :label="t('addDialog.memoLabel')">
+            <div class="field-stack">
+              <NInput v-model:value="memo" type="textarea" :placeholder="t('addDialog.memoPlaceholder')"
+                :autosize="{ minRows: 3, maxRows: 6 }" />
+              <span class="field-hint">{{ t('addDialog.memoHint') }}</span>
             </div>
           </NFormItem>
         </template>

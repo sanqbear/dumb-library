@@ -62,6 +62,12 @@ const normalizeTags = (tags: unknown): string[] => {
   return result
 }
 
+// Coerce a memo value to a stored string. Non-strings become ''. Outer
+// whitespace is trimmed while interior newlines (multi-line notes) are kept.
+const normalizeMemo = (memo: unknown): string => {
+  return typeof memo === 'string' ? memo.trim() : ''
+}
+
 // True only when child resolves to a location strictly inside parent
 const isPathInside = (child: string, parent: string): boolean => {
   const rel = path.relative(path.resolve(parent), path.resolve(child))
@@ -113,6 +119,7 @@ const migrateProgram = (raw: unknown): Program | null => {
     category: isProviderId(p.category) ? p.category : 'local',
     tags: normalizeTags(p.tags),
     keywords: normalizeTags(p.keywords),
+    memo: normalizeMemo(p.memo),
     createdAt: typeof p.createdAt === 'string' ? p.createdAt : new Date().toISOString(),
     updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : new Date().toISOString()
   }
@@ -190,6 +197,7 @@ export const addProgram = (data: CreateProgramData): Program => {
     category: 'local',
     tags: normalizeTags(data.tags),
     keywords: normalizeTags(data.keywords),
+    memo: normalizeMemo(data.memo),
     createdAt: now,
     updatedAt: now
   }
@@ -219,6 +227,7 @@ export const addSteamProgram = (data: CreateSteamProgramData): Program => {
     category: 'steam',
     tags: [],
     keywords: [],
+    memo: '',
     createdAt: now,
     updatedAt: now
   }
@@ -247,6 +256,7 @@ export const updateProgram = (data: UpdateProgramData): Program => {
       : program.executablePath,
     tags: data.tags !== undefined ? normalizeTags(data.tags) : program.tags,
     keywords: data.keywords !== undefined ? normalizeTags(data.keywords) : program.keywords,
+    memo: data.memo !== undefined ? normalizeMemo(data.memo) : program.memo,
     marketUrl: data.marketUrl !== undefined
       ? (data.marketUrl.trim() || null)
       : program.marketUrl,

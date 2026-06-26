@@ -55,6 +55,7 @@ const title = ref('')
 const executablePath = ref('')
 const tags = ref<string[]>([])
 const keywords = ref<string[]>([])
+const memo = ref('')
 const marketUrl = ref('')
 
 // Thumbnail / icon state — pending changes deferred until Save
@@ -123,6 +124,7 @@ watch(
       executablePath.value = p.executablePath
       tags.value = [...p.tags]
       keywords.value = [...(p.keywords ?? [])]
+      memo.value = p.memo ?? ''
       marketUrl.value = p.marketUrl ?? ''
       thumbnailPath.value = p.thumbnailPath
       originalThumbnailPath.value = p.thumbnailPath
@@ -323,6 +325,7 @@ const handleSubmit = async () => {
       executablePath: executablePath.value,
       tags: [...tags.value],
       keywords: [...keywords.value],
+      memo: memo.value.trim(),
       marketUrl: marketUrl.value.trim()
     })
 
@@ -457,6 +460,15 @@ const handleDelete = () => {
               <div class="field-stack">
                 <NDynamicTags v-model:value="keywords" />
                 <span class="field-hint">{{ t('addDialog.keywordsHint') }}</span>
+              </div>
+            </NFormItem>
+
+            <!-- Memo (reference note, excluded from search) -->
+            <NFormItem :label="t('addDialog.memoLabel')">
+              <div class="field-stack">
+                <NInput v-model:value="memo" type="textarea" :placeholder="t('addDialog.memoPlaceholder')"
+                  :autosize="{ minRows: 3, maxRows: 8 }" />
+                <span class="field-hint">{{ t('addDialog.memoHint') }}</span>
               </div>
             </NFormItem>
           </div>

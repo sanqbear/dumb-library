@@ -67,7 +67,8 @@ export default {
     previews: '预览',
     noPreviews: '没有预览图片',
     pathLabel: '可执行路径',
-    tagsLabel: '标签'
+    tagsLabel: '标签',
+    memoLabel: '备注'
   },
   addDialog: {
     title: '添加程序',
@@ -78,6 +79,9 @@ export default {
     tagsLabel: '标签',
     keywordsLabel: '搜索关键词',
     keywordsHint: '仅用于搜索，不用于分类',
+    memoLabel: '备注',
+    memoPlaceholder: '输入参考备注',
+    memoHint: '仅供参考的备注，不包含在搜索中',
     selectImage: '从文件选择',
     imageUrl: '图片 URL',
     fetchUrl: '获取',

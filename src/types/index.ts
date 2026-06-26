@@ -47,6 +47,9 @@ export interface Program {
   // Free-form search-index keywords. Unlike `tags` they are not used for
   // categorization/filtering chips — they only widen what the search box matches.
   keywords: string[]
+  // Free-form reference note. Intentionally excluded from search/filtering —
+  // it's display-only context shown on the detail screen.
+  memo: string
   createdAt: string
   updatedAt: string
 }
@@ -61,6 +64,7 @@ export interface CreateProgramData {
   executablePath: string
   tags?: string[]
   keywords?: string[]
+  memo?: string
   marketUrl?: string
 }
 
@@ -71,6 +75,7 @@ export interface UpdateProgramData {
   executablePath?: string
   tags?: string[]
   keywords?: string[]
+  memo?: string
   marketUrl?: string
 }
 
