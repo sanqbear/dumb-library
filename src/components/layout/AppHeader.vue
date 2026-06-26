@@ -23,8 +23,10 @@ import {
   SwapVerticalOutline as SortIcon,
   DesktopOutline as DesktopIcon,
   LogoSteam as SteamIcon,
-  LanguageOutline as LanguageIcon
+  LanguageOutline as LanguageIcon,
+  ShuffleOutline as ShuffleIcon
 } from '@vicons/ionicons5'
+import { useMessage } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import AddProgramDialog from '../dialogs/AddProgramDialog.vue'
@@ -35,6 +37,7 @@ import { SUPPORTED_LOCALES, LOCALE_META, type LocaleCode } from '../../i18n'
 const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const settingsStore = useSettingsStore()
+const message = useMessage()
 
 const showAddDialog = ref(false)
 const showAddSteamDialog = ref(false)
@@ -134,6 +137,13 @@ const handleTagsChange = (values: string[]) => {
 const handleClearFilters = () => {
   libraryStore.clearFilters()
   showFilters.value = false
+}
+
+const handleRandomPick = () => {
+  const picked = libraryStore.pickRandom()
+  if (!picked) {
+    message.info(t('header.randomEmpty'))
+  }
 }
 </script>
 
@@ -244,6 +254,23 @@ const handleClearFilters = () => {
             {{ t('header.listView') }}
           </NTooltip>
         </NButtonGroup>
+
+        <!-- Random pick -->
+        <NTooltip>
+          <template #trigger>
+            <NButton
+              quaternary
+              circle
+              :disabled="libraryStore.programCount === 0"
+              @click="handleRandomPick"
+            >
+              <template #icon>
+                <NIcon :component="ShuffleIcon" />
+              </template>
+            </NButton>
+          </template>
+          {{ t('header.randomPick') }}
+        </NTooltip>
 
         <!-- Theme toggle -->
         <NTooltip>

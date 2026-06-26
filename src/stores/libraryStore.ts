@@ -13,9 +13,16 @@ export const useLibraryStore = defineStore('library', () => {
   const selectedCategory = ref<ProviderId | null>(null)
   const selectedTags = ref<string[]>([])
 
-  // Sort state
-  const sortBy = ref<'createdAt' | 'title'>('createdAt')
-  const sortOrder = ref<'asc' | 'desc'>('desc')
+  // Sort state — default to 가나다(title ascending) on first launch
+  const sortBy = ref<'createdAt' | 'title'>('title')
+  const sortOrder = ref<'asc' | 'desc'>('asc')
+
+  // Random-pick highlight: ID of the program currently highlighted by
+  // pickRandom(). Components watch this to scroll into view and apply a
+  // non-layout-shifting visual ring. Auto-clears via a timer.
+  const highlightedProgramId = ref<string | null>(null)
+  let highlightTimer: number | null = null
+  const HIGHLIGHT_DURATION_MS = 3500
 
   // Getters
   const filteredPrograms = computed(() => {
@@ -340,6 +347,40 @@ export const useLibraryStore = defineStore('library', () => {
     sortOrder.value = value
   }
 
+  const clearHighlight = (): void => {
+    if (highlightTimer !== null) {
+      window.clearTimeout(highlightTimer)
+      highlightTimer = null
+    }
+    highlightedProgramId.value = null
+  }
+
+  // Pick a random program from the entire library (not the filtered view).
+  // If the picked program is currently filtered out, filters are cleared so
+  // it becomes visible. Returns the picked program, or null when the library
+  // is empty.
+  const pickRandom = (): Program | null => {
+    if (programs.value.length === 0) return null
+    const picked = programs.value[Math.floor(Math.random() * programs.value.length)]
+    if (!picked) return null
+
+    const visibleIds = new Set(filteredPrograms.value.map(p => p.id))
+    if (!visibleIds.has(picked.id)) {
+      clearFilters()
+    }
+
+    if (highlightTimer !== null) {
+      window.clearTimeout(highlightTimer)
+    }
+    highlightedProgramId.value = picked.id
+    highlightTimer = window.setTimeout(() => {
+      highlightedProgramId.value = null
+      highlightTimer = null
+    }, HIGHLIGHT_DURATION_MS)
+
+    return picked
+  }
+
   return {
     // State
     programs,
@@ -350,6 +391,7 @@ export const useLibraryStore = defineStore('library', () => {
     selectedTags,
     sortBy,
     sortOrder,
+    highlightedProgramId,
 
     // Getters
     filteredPrograms,
@@ -378,6 +420,8 @@ export const useLibraryStore = defineStore('library', () => {
     setSelectedTags,
     clearFilters,
     setSortBy,
-    setSortOrder
+    setSortOrder,
+    pickRandom,
+    clearHighlight
   }
 })

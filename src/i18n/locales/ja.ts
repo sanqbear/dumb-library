@@ -34,7 +34,9 @@ export default {
     sortNameAsc: '名前 (昇順)',
     sortNameDesc: '名前 (降順)',
     countFormat: '{count}件',
-    filteredCountFormat: '{filtered} / {total}件'
+    filteredCountFormat: '{filtered} / {total}件',
+    randomPick: 'ランダム選択',
+    randomEmpty: '選択できる項目がありません'
   },
   library: {
     emptyTitle: 'プログラムがまだありません',

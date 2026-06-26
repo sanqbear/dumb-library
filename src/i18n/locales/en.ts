@@ -34,7 +34,9 @@ export default {
     sortNameAsc: 'Name (A-Z)',
     sortNameDesc: 'Name (Z-A)',
     countFormat: '{count} items',
-    filteredCountFormat: '{filtered} / {total}'
+    filteredCountFormat: '{filtered} / {total}',
+    randomPick: 'Random pick',
+    randomEmpty: 'Nothing to pick'
   },
   library: {
     emptyTitle: 'No programs yet',

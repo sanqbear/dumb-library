@@ -34,7 +34,9 @@ export default {
     sortNameAsc: '이름순 (ㄱ-ㅎ)',
     sortNameDesc: '이름순 (ㅎ-ㄱ)',
     countFormat: '{count}개',
-    filteredCountFormat: '{filtered} / {total}개'
+    filteredCountFormat: '{filtered} / {total}개',
+    randomPick: '랜덤 선택',
+    randomEmpty: '선택할 항목이 없습니다'
   },
   library: {
     emptyTitle: '아직 프로그램이 없어요',

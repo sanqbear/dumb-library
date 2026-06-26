@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NCard, NImage, NIcon, NTag, useMessage } from 'naive-ui'
-import { Play as PlayIcon, Image as ImageIcon } from '@vicons/ionicons5'
+import { Play as PlayIcon, Image as ImageIcon, FolderOpenOutline as FolderIcon } from '@vicons/ionicons5'
 import type { Program } from '../../types'
 import { PROVIDERS, libImageUrl } from '../../types'
 import { useLibraryStore } from '../../stores/libraryStore'
@@ -28,6 +28,19 @@ const displayImage = computed(() => {
 
 const hasImage = computed(() => !!displayImage.value)
 
+const isHighlighted = computed(() => libraryStore.highlightedProgramId === props.program.id)
+
+// Last folder segment of the executable's location (e.g. "C:\Games\MyGame\game.exe" → "MyGame").
+// Protocol-based programs (e.g. steam://run/<appId>) have no meaningful folder, so we skip them.
+const isProtocolUrl = (value: string) => /^[a-z][a-z0-9+.-]*:\/\//i.test(value)
+const folderName = computed(() => {
+  const exe = props.program.executablePath
+  if (!exe || isProtocolUrl(exe)) return ''
+  const parts = exe.replace(/\\/g, '/').replace(/\/+$/, '').split('/')
+  parts.pop() // drop the filename
+  return parts.length ? parts[parts.length - 1] : ''
+})
+
 const handleLaunch = async () => {
   try {
     await libraryStore.launchProgram(props.program)
@@ -45,6 +58,8 @@ const handleCardClick = () => {
 <template>
   <NCard
     class="program-card card-hover no-select"
+    :class="{ 'is-highlighted': isHighlighted }"
+    :data-program-id="program.id"
     :bordered="false"
     content-style="padding: 0"
     @click="handleCardClick"
@@ -77,6 +92,10 @@ const handleCardClick = () => {
     <!-- Info area -->
     <div class="card-info">
       <div class="card-title truncate">{{ program.title }}</div>
+      <div v-if="folderName" class="card-folder truncate" :title="program.executablePath">
+        <NIcon :component="FolderIcon" :size="13" class="card-folder-icon" />
+        <span class="truncate">{{ folderName }}</span>
+      </div>
       <div class="card-meta">
         <NTag size="small" type="info">
           {{ t(PROVIDERS[program.category].labelKey) }}
@@ -105,14 +124,55 @@ const handleCardClick = () => {
 <style scoped>
 .program-card {
   background-color: #27272a;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
   cursor: pointer;
+  /* Subtle top highlight + layered drop shadow give the card depth without
+     touching layout, so the grid never shifts on hover/highlight. */
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 4px 10px rgba(0, 0, 0, 0.28);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.program-card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.38),
+    0 16px 32px rgba(0, 0, 0, 0.34);
 }
 
 .light-theme .program-card {
   background-color: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-color: rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.light-theme .program-card:hover {
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.12),
+    0 18px 36px rgba(0, 0, 0, 0.16);
+}
+
+.program-card.is-highlighted {
+  box-shadow:
+    0 0 0 3px #e87ea1,
+    0 0 24px rgba(232, 126, 161, 0.55);
+  animation: highlight-pulse 1.4s ease-in-out infinite;
+}
+
+.light-theme .program-card.is-highlighted {
+  box-shadow:
+    0 0 0 3px #db2777,
+    0 0 24px rgba(219, 39, 119, 0.45);
+}
+
+@keyframes highlight-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.08); }
 }
 
 .card-image {
@@ -187,12 +247,35 @@ const handleCardClick = () => {
 
 .card-info {
   padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.light-theme .card-info {
+  border-top-color: rgba(0, 0, 0, 0.04);
 }
 
 .card-title {
   font-weight: 500;
   font-size: 0.9rem;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+.card-folder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: #a1a1aa;
+  margin-bottom: 8px;
+}
+
+.light-theme .card-folder {
+  color: #71717a;
+}
+
+.card-folder-icon {
+  flex-shrink: 0;
+  opacity: 0.8;
 }
 
 .card-meta {

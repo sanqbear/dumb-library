@@ -1,4 +1,5 @@
 import { dialog, shell, BrowserWindow } from 'electron'
+import { isProtocolUrl, resolveExecutablePath } from './executablePath'
 import logger from './logger'
 
 const resolveTargetWindow = (window: BrowserWindow | null): BrowserWindow | undefined => {
@@ -65,12 +66,14 @@ export const selectImage = async (window: BrowserWindow | null): Promise<string 
  */
 export const launchProgram = async (executablePath: string): Promise<void> => {
   try {
-    logger.info(`Launching program: ${executablePath}`)
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(executablePath)) {
+    if (isProtocolUrl(executablePath)) {
       // Protocol URL (steam://, etc.) — hand off to the OS handler.
+      logger.info(`Launching program: ${executablePath}`)
       await shell.openExternal(executablePath)
     } else {
-      await shell.openPath(executablePath)
+      const resolved = resolveExecutablePath(executablePath)
+      logger.info(`Launching program: ${executablePath} (resolved: ${resolved})`)
+      await shell.openPath(resolved)
     }
   } catch (error) {
     logger.error(`Failed to launch program: ${executablePath}`, error)

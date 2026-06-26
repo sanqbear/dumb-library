@@ -4,6 +4,7 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import type { LibraryData, Program, CreateProgramData, UpdateProgramData, Settings, CreateSteamProgramData } from '../../src/types'
 import { isProviderId } from '../../src/types'
+import { normalizeExecutablePathForStorage } from './executablePath'
 import logger from './logger'
 
 // Paths
@@ -156,7 +157,7 @@ export const addProgram = (data: CreateProgramData): Program => {
   const newProgram: Program = {
     id: uuidv4(),
     title: data.title,
-    executablePath: data.executablePath,
+    executablePath: normalizeExecutablePathForStorage(data.executablePath),
     iconPath: null,
     thumbnailPath: null,
     category: 'local',
@@ -209,7 +210,9 @@ export const updateProgram = (data: UpdateProgramData): Program => {
   const updatedProgram: Program = {
     ...program,
     title: data.title ?? program.title,
-    executablePath: data.executablePath ?? program.executablePath,
+    executablePath: data.executablePath !== undefined
+      ? normalizeExecutablePathForStorage(data.executablePath)
+      : program.executablePath,
     tags: data.tags ?? program.tags,
     updatedAt: new Date().toISOString()
   }

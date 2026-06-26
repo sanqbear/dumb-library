@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { promisify } from 'util'
 import { updateProgramIconPath } from './dataService'
+import { resolveExecutablePath } from './executablePath'
 import { processIcon, getIconsDir } from './imageService'
 import logger from './logger'
 import { app } from 'electron'
@@ -15,8 +16,9 @@ const execFileAsync = promisify(execFile)
  * Returns userData-relative path (e.g., "icons/<id>.webp") or null on failure.
  */
 export const extractIcon = async (executablePath: string, programId: string): Promise<string | null> => {
-  if (!fs.existsSync(executablePath)) {
-    logger.warn(`Executable not found: ${executablePath}`)
+  const resolvedExePath = resolveExecutablePath(executablePath)
+  if (!fs.existsSync(resolvedExePath)) {
+    logger.warn(`Executable not found: ${executablePath} (resolved: ${resolvedExePath})`)
     return null
   }
 
@@ -63,7 +65,7 @@ try {
       timeout: 15000,
       env: {
         ...process.env,
-        WL_EXE_PATH: executablePath,
+        WL_EXE_PATH: resolvedExePath,
         WL_OUT_PATH: tempPngPath
       }
     })

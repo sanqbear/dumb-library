@@ -34,7 +34,9 @@ export default {
     sortNameAsc: '名称 (A-Z)',
     sortNameDesc: '名称 (Z-A)',
     countFormat: '{count}个',
-    filteredCountFormat: '{filtered} / {total}'
+    filteredCountFormat: '{filtered} / {total}',
+    randomPick: '随机选择',
+    randomEmpty: '没有可选项目'
   },
   library: {
     emptyTitle: '还没有程序',

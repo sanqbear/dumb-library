@@ -52,6 +52,12 @@ const handleEdit = (program: Program) => {
   showEditDialog.value = true
 }
 
+// Cast through unknown — naive-ui's CreateRowProps narrows to HTMLAttributes,
+// which (depending on @vue/runtime-dom version) doesn't always include the
+// data-* index signature. The attribute lands on the <tr> regardless.
+const rowProps = (row: Program) =>
+  ({ 'data-program-id': row.id } as unknown as Record<string, string>)
+
 const handleDelete = (program: Program) => {
   dialog.warning({
     title: t('editDialog.deleteConfirmTitle'),
@@ -167,6 +173,8 @@ const columns = computed<DataTableColumns<Program>>(() => [
       :columns="columns"
       :data="libraryStore.filteredPrograms"
       :row-key="(row: Program) => row.id"
+      :row-props="rowProps"
+      :row-class-name="(row: Program) => libraryStore.highlightedProgramId === row.id ? 'is-highlighted' : ''"
       :bordered="false"
       striped
       :max-height="tableMaxHeight"
@@ -183,5 +191,16 @@ const columns = computed<DataTableColumns<Program>>(() => [
 .library-list {
   height: 100%;
   overflow: hidden;
+}
+
+/* Background tint on highlighted row cells — no border/padding change,
+   so the table layout stays identical when the highlight toggles. */
+.library-list :deep(tr.is-highlighted td) {
+  background-color: rgba(232, 126, 161, 0.18) !important;
+  transition: background-color 0.25s ease;
+}
+
+.light-theme .library-list :deep(tr.is-highlighted td) {
+  background-color: rgba(219, 39, 119, 0.14) !important;
 }
 </style>

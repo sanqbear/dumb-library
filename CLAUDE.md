@@ -57,6 +57,8 @@ Notable groupings:
 
 Stored in `userData/library.json` (atomic write via `.tmp` + rename). `dataService.migrateProgram` normalizes legacy absolute paths into `userData`-relative paths on load, dropping any path that escapes the userData root. Don't bypass it.
 
+`executablePath` accepts three shapes: an absolute filesystem path, a protocol URL (`steam://run/<appId>`), or an anchor-relative path (e.g. `Games/foo.exe`). The anchor is `process.env.PORTABLE_EXECUTABLE_DIR` in portable builds and `userData` otherwise — see [executablePath.ts](electron/services/executablePath.ts). Storage normalization runs in `addProgram`/`updateProgram` and only relativizes when running portable; installed mode preserves absolute paths because userData is rarely a useful base for game locations. Resolution back to absolute happens at consumption time in `launchProgram` and `extractIcon` — never `fs.existsSync` or `shell.openPath` the raw stored value.
+
 ## Image pipeline
 
 All user-facing covers and icons are normalized through `sharp` in `imageService.ts`:
