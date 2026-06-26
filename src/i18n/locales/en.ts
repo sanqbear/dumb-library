@@ -76,6 +76,8 @@ export default {
     executablePath: 'Executable Path',
     executablePathPlaceholder: 'Select executable file',
     tagsLabel: 'Tags',
+    keywordsLabel: 'Search keywords',
+    keywordsHint: 'Used only for search, not for categorization',
     selectImage: 'Select from file',
     imageUrl: 'Image URL',
     fetchUrl: 'Fetch',

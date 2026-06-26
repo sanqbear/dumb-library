@@ -48,6 +48,7 @@ const LAST_STEP = 3
 const title = ref('')
 const executablePath = ref('')
 const tags = ref<string[]>([])
+const keywords = ref<string[]>([])
 const marketUrl = ref('')
 
 // Thumbnail (single) — holds a temp cropped path until submit.
@@ -77,6 +78,7 @@ const resetForm = () => {
   title.value = ''
   executablePath.value = ''
   tags.value = []
+  keywords.value = []
   marketUrl.value = ''
   thumbnailPath.value = null
   thumbnailPreview.value = ''
@@ -176,6 +178,7 @@ const handleSubmit = async () => {
       title: title.value.trim(),
       executablePath: executablePath.value,
       tags: [...tags.value],
+      keywords: [...keywords.value],
       marketUrl: marketUrl.value.trim()
     })
 
@@ -204,7 +207,7 @@ const handleCancel = () => { emit('update:show', false) }
 
 <template>
   <NModal :show="show" @update:show="emit('update:show', $event)" preset="card" :title="t('addDialog.title')"
-    :bordered="false" size="medium" :style="{ width: '560px' }" :mask-closable="false">
+    :bordered="false" size="medium" :style="{ width: '760px', maxWidth: '92vw' }" :mask-closable="false">
     <div :class="themeClass">
       <NSteps :current="step + 1" size="small" class="wizard-steps">
         <NStep :title="t('addDialog.stepExe')" />
@@ -248,7 +251,7 @@ const handleCancel = () => { emit('update:show', false) }
             <div class="media-label">{{ t('editDialog.thumbnailLabel') }}</div>
             <div class="media-row">
               <div class="thumbnail-preview" :class="{ 'is-empty': !thumbnailPreview }">
-                <NImage v-if="thumbnailPreview" :src="thumbnailPreview" object-fit="cover" width="120" height="180"
+                <NImage v-if="thumbnailPreview" :src="thumbnailPreview" object-fit="cover" width="160" height="240"
                   preview-disabled />
                 <div v-else class="media-placeholder">
                   <NIcon :component="ImageIcon" :size="32" />
@@ -316,6 +319,12 @@ const handleCancel = () => { emit('update:show', false) }
           </NFormItem>
           <NFormItem :label="t('addDialog.tagsLabel')">
             <NDynamicTags v-model:value="tags" />
+          </NFormItem>
+          <NFormItem :label="t('addDialog.keywordsLabel')">
+            <div class="field-stack">
+              <NDynamicTags v-model:value="keywords" />
+              <span class="field-hint">{{ t('addDialog.keywordsHint') }}</span>
+            </div>
           </NFormItem>
         </template>
       </NForm>
@@ -392,8 +401,8 @@ const handleCancel = () => { emit('update:show', false) }
 }
 
 .thumbnail-preview {
-  width: 120px;
-  height: 180px;
+  width: 160px;
+  height: 240px;
   border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0;
@@ -439,7 +448,7 @@ const handleCancel = () => { emit('update:show', false) }
 
 .preview-tile {
   position: relative;
-  width: 150px;
+  width: 210px;
   aspect-ratio: 16 / 9;
   border-radius: 6px;
   overflow: hidden;
@@ -453,7 +462,7 @@ const handleCancel = () => { emit('update:show', false) }
 }
 
 .preview-add {
-  width: 150px;
+  width: 210px;
   aspect-ratio: 16 / 9;
   border: 2px dashed #52525b;
   border-radius: 6px;
@@ -478,6 +487,22 @@ const handleCancel = () => { emit('update:show', false) }
 
 .preview-url {
   margin-top: 10px;
+}
+
+.field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.field-hint {
+  font-size: 0.72rem;
+  color: #a1a1aa;
+}
+
+.light-theme .field-hint {
+  color: #71717a;
 }
 
 .wizard-footer {

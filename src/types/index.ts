@@ -44,6 +44,9 @@ export interface Program {
   marketUrl: string | null
   category: ProviderId
   tags: string[]
+  // Free-form search-index keywords. Unlike `tags` they are not used for
+  // categorization/filtering chips — they only widen what the search box matches.
+  keywords: string[]
   createdAt: string
   updatedAt: string
 }
@@ -57,6 +60,7 @@ export interface CreateProgramData {
   title: string
   executablePath: string
   tags?: string[]
+  keywords?: string[]
   marketUrl?: string
 }
 
@@ -66,6 +70,7 @@ export interface UpdateProgramData {
   title?: string
   executablePath?: string
   tags?: string[]
+  keywords?: string[]
   marketUrl?: string
 }
 

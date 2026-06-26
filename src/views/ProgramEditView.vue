@@ -54,6 +54,7 @@ const previewInput = useImageInput()
 const title = ref('')
 const executablePath = ref('')
 const tags = ref<string[]>([])
+const keywords = ref<string[]>([])
 const marketUrl = ref('')
 
 // Thumbnail / icon state — pending changes deferred until Save
@@ -121,6 +122,7 @@ watch(
       title.value = p.title
       executablePath.value = p.executablePath
       tags.value = [...p.tags]
+      keywords.value = [...(p.keywords ?? [])]
       marketUrl.value = p.marketUrl ?? ''
       thumbnailPath.value = p.thumbnailPath
       originalThumbnailPath.value = p.thumbnailPath
@@ -320,6 +322,7 @@ const handleSubmit = async () => {
       title: title.value.trim(),
       executablePath: executablePath.value,
       tags: [...tags.value],
+      keywords: [...keywords.value],
       marketUrl: marketUrl.value.trim()
     })
 
@@ -447,6 +450,14 @@ const handleDelete = () => {
             <!-- Tags -->
             <NFormItem :label="t('addDialog.tagsLabel')">
               <NDynamicTags v-model:value="tags" />
+            </NFormItem>
+
+            <!-- Search keywords (indexing only, not categorization) -->
+            <NFormItem :label="t('addDialog.keywordsLabel')">
+              <div class="field-stack">
+                <NDynamicTags v-model:value="keywords" />
+                <span class="field-hint">{{ t('addDialog.keywordsHint') }}</span>
+              </div>
             </NFormItem>
           </div>
 
@@ -781,5 +792,21 @@ const handleDelete = () => {
 
 .preview-url {
   margin-top: 12px;
+}
+
+.field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.field-hint {
+  font-size: 0.72rem;
+  color: #a1a1aa;
+}
+
+.light-theme .field-hint {
+  color: #71717a;
 }
 </style>

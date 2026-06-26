@@ -28,11 +28,14 @@ export const useLibraryStore = defineStore('library', () => {
   const filteredPrograms = computed(() => {
     let result = [...programs.value]
     
-    // Filter by search query
+    // Filter by search query — matches title, categorization tags, and
+    // search-index keywords so any of them can surface a program.
     if (searchQuery.value.trim()) {
       const query = searchQuery.value.toLowerCase().trim()
-      result = result.filter(p => 
-        p.title.toLowerCase().includes(query)
+      result = result.filter(p =>
+        p.title.toLowerCase().includes(query) ||
+        p.tags.some(tag => tag.toLowerCase().includes(query)) ||
+        (p.keywords ?? []).some(kw => kw.toLowerCase().includes(query))
       )
     }
     

@@ -76,6 +76,8 @@ export default {
     executablePath: '可执行文件路径',
     executablePathPlaceholder: '选择可执行文件',
     tagsLabel: '标签',
+    keywordsLabel: '搜索关键词',
+    keywordsHint: '仅用于搜索，不用于分类',
     selectImage: '从文件选择',
     imageUrl: '图片 URL',
     fetchUrl: '获取',

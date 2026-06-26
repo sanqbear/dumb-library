@@ -45,9 +45,9 @@ const writeFileAtomic = (filePath: string, content: string): void => {
   fs.renameSync(tempPath, filePath)
 }
 
-// Trim each tag, drop blanks (whitespace-only), and remove exact duplicates
-// while preserving order. Used on create/update/migrate so no empty or
-// untrimmed tag is ever persisted.
+// Trim each entry, drop blanks (whitespace-only), and remove exact duplicates
+// while preserving order. Used for both tags and keywords on
+// create/update/migrate so no empty or untrimmed value is ever persisted.
 const normalizeTags = (tags: unknown): string[] => {
   if (!Array.isArray(tags)) return []
   const seen = new Set<string>()
@@ -112,6 +112,7 @@ const migrateProgram = (raw: unknown): Program | null => {
     marketUrl: typeof p.marketUrl === 'string' && p.marketUrl.trim() ? p.marketUrl.trim() : null,
     category: isProviderId(p.category) ? p.category : 'local',
     tags: normalizeTags(p.tags),
+    keywords: normalizeTags(p.keywords),
     createdAt: typeof p.createdAt === 'string' ? p.createdAt : new Date().toISOString(),
     updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : new Date().toISOString()
   }
@@ -188,6 +189,7 @@ export const addProgram = (data: CreateProgramData): Program => {
     marketUrl: data.marketUrl?.trim() || null,
     category: 'local',
     tags: normalizeTags(data.tags),
+    keywords: normalizeTags(data.keywords),
     createdAt: now,
     updatedAt: now
   }
@@ -216,6 +218,7 @@ export const addSteamProgram = (data: CreateSteamProgramData): Program => {
     marketUrl: `https://store.steampowered.com/app/${data.appId}`,
     category: 'steam',
     tags: [],
+    keywords: [],
     createdAt: now,
     updatedAt: now
   }
@@ -243,6 +246,7 @@ export const updateProgram = (data: UpdateProgramData): Program => {
       ? normalizeExecutablePathForStorage(data.executablePath.trim())
       : program.executablePath,
     tags: data.tags !== undefined ? normalizeTags(data.tags) : program.tags,
+    keywords: data.keywords !== undefined ? normalizeTags(data.keywords) : program.keywords,
     marketUrl: data.marketUrl !== undefined
       ? (data.marketUrl.trim() || null)
       : program.marketUrl,

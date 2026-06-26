@@ -209,11 +209,11 @@ const handleMenuSelect = (key: string) => {
 
 .detail-header {
   position: relative;
-  min-height: 280px;
+  min-height: 120px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 16px 32px 28px;
+  padding: 16px 26px 16px;
   overflow: hidden;
 }
 
@@ -262,7 +262,7 @@ const handleMenuSelect = (key: string) => {
 .detail-title {
   font-size: 2rem;
   font-weight: 700;
-  margin: 0 0 16px;
+  margin: 10px 0px;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
   word-break: break-word;
 }

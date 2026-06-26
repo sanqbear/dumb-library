@@ -76,6 +76,8 @@ export default {
     executablePath: '実行ファイルパス',
     executablePathPlaceholder: '実行ファイルを選択',
     tagsLabel: 'タグ',
+    keywordsLabel: '検索キーワード',
+    keywordsHint: '分類には使われず、検索のみに使用されます',
     selectImage: 'ファイルから選択',
     imageUrl: '画像URL',
     fetchUrl: '取得',
