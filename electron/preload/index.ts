@@ -37,6 +37,9 @@ const IPC_CHANNELS = {
   LAUNCH_PROGRAM: 'program:launch',
   REVEAL_PROGRAM: 'program:reveal',
   OPEN_EXTERNAL: 'shell:openExternal',
+  // Main → renderer push: a single program's fields changed out-of-band
+  // (e.g. a Steam thumbnail finished downloading in the background).
+  PROGRAM_PATCHED: 'program:patched',
 
   // Dialog
   SELECT_EXECUTABLE: 'dialog:selectExecutable',
@@ -90,6 +93,17 @@ const electronAPI = {
   addProgram: (data: CreateProgramData) => ipcRenderer.invoke(IPC_CHANNELS.ADD_PROGRAM, data),
   updateProgram: (data: UpdateProgramData) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_PROGRAM, data),
   deleteProgram: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_PROGRAM, id),
+  // Subscribe to background patches for a single program. Returns an unsubscribe.
+  onProgramPatched: (
+    callback: (payload: { id: string; changes: Record<string, unknown> }) => void
+  ): (() => void) => {
+    const handler = (_event: unknown, payload: { id: string; changes: Record<string, unknown> }) =>
+      callback(payload)
+    ipcRenderer.on(IPC_CHANNELS.PROGRAM_PATCHED, handler)
+    return () => {
+      ipcRenderer.off(IPC_CHANNELS.PROGRAM_PATCHED, handler)
+    }
+  },
   launchProgram: (executablePath: string) => ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_PROGRAM, executablePath),
   revealProgram: (executablePath: string) => ipcRenderer.invoke(IPC_CHANNELS.REVEAL_PROGRAM, executablePath),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, url),

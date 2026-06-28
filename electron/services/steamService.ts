@@ -2,11 +2,16 @@ import { execFile } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { promisify } from 'util'
-import { processThumbnail } from './imageService'
+import { processThumbnail, readResponseCapped } from './imageService'
 import logger from './logger'
 import type { SteamGame } from '../../src/types'
 
 const execFileAsync = promisify(execFile)
+const fsp = fs.promises
+
+// Steam library cover art tops out around ~1MB; cap generously so a bad
+// response can't balloon main-process memory.
+const MAX_THUMBNAIL_BYTES = 15 * 1024 * 1024
 
 // ---- VDF / ACF parsing ------------------------------------------------------
 
@@ -69,7 +74,14 @@ const findSteamPath = async (): Promise<string | null> => {
 
 // ---- Installed game scanning -----------------------------------------------
 
-export const scanInstalledGames = async (): Promise<SteamGame[]> => {
+// Short-lived cache so reopening the "add Steam game" dialog (or a rescan
+// click) doesn't re-walk every steamapps folder. The installed set rarely
+// changes within a few seconds, so a small TTL is safe and keeps the scan IPC
+// responsive even when libraries live on slow/spread-out disks.
+const SCAN_CACHE_TTL_MS = 15_000
+let scanCache: { at: number; games: SteamGame[] } | null = null
+
+const scanInstalledGamesUncached = async (): Promise<SteamGame[]> => {
   const steamPath = await findSteamPath()
   if (!steamPath) {
     logger.info('Steam installation not found')
@@ -81,7 +93,7 @@ export const scanInstalledGames = async (): Promise<SteamGame[]> => {
 
   if (fs.existsSync(libraryFoldersVdf)) {
     try {
-      const content = fs.readFileSync(libraryFoldersVdf, 'utf-8')
+      const content = await fsp.readFile(libraryFoldersVdf, 'utf-8')
       libraryPaths.push(...extractAllPaths(content))
     } catch (error) {
       logger.warn('Failed to read libraryfolders.vdf:', error)
@@ -98,41 +110,59 @@ export const scanInstalledGames = async (): Promise<SteamGame[]> => {
 
   for (const libPath of libraryPaths) {
     const steamappsDir = path.join(libPath, 'steamapps')
-    if (!fs.existsSync(steamappsDir)) continue
 
     let files: string[]
     try {
-      files = fs.readdirSync(steamappsDir)
+      files = await fsp.readdir(steamappsDir)
     } catch (error) {
-      logger.warn(`Failed to read ${steamappsDir}:`, error)
+      // ENOENT (missing dir) is expected for some library entries; skip quietly.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn(`Failed to read ${steamappsDir}:`, error)
+      }
       continue
     }
 
-    for (const file of files) {
-      if (!file.startsWith('appmanifest_') || !file.endsWith('.acf')) continue
+    // Read all manifests in this library in parallel — they're independent.
+    const manifestFiles = files.filter(f => f.startsWith('appmanifest_') && f.endsWith('.acf'))
+    const parsedManifests = await Promise.all(
+      manifestFiles.map(async (file) => {
+        try {
+          const acfContent = await fsp.readFile(path.join(steamappsDir, file), 'utf-8')
+          return parseAppManifest(acfContent)
+        } catch (error) {
+          logger.warn(`Failed to parse ${file}:`, error)
+          return null
+        }
+      })
+    )
 
-      const manifestPath = path.join(steamappsDir, file)
-      try {
-        const acfContent = fs.readFileSync(manifestPath, 'utf-8')
-        const parsed = parseAppManifest(acfContent)
-        if (!parsed) continue
-        // Skip Steamworks Common Redistributables and similar non-game entries
-        if (parsed.appId < 10) continue
-        if (seenAppIds.has(parsed.appId)) continue
-        seenAppIds.add(parsed.appId)
-        games.push({
-          appId: parsed.appId,
-          name: parsed.name,
-          installDir: libPath
-        })
-      } catch (error) {
-        logger.warn(`Failed to parse ${file}:`, error)
-      }
+    for (const parsed of parsedManifests) {
+      if (!parsed) continue
+      // Skip Steamworks Common Redistributables and similar non-game entries
+      if (parsed.appId < 10) continue
+      if (seenAppIds.has(parsed.appId)) continue
+      seenAppIds.add(parsed.appId)
+      games.push({
+        appId: parsed.appId,
+        name: parsed.name,
+        installDir: libPath
+      })
     }
   }
 
   games.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   logger.info(`Scanned ${games.length} Steam games from ${libraryPaths.length} libraries`)
+  return games
+}
+
+export const scanInstalledGames = async (): Promise<SteamGame[]> => {
+  const now = Date.now()
+  if (scanCache && now - scanCache.at < SCAN_CACHE_TTL_MS) {
+    logger.debug('Returning cached Steam scan result')
+    return scanCache.games
+  }
+  const games = await scanInstalledGamesUncached()
+  scanCache = { at: now, games }
   return games
 }
 
@@ -152,8 +182,7 @@ const fetchWithTimeout = async (url: string, timeoutMs: number): Promise<Buffer 
   try {
     const res = await fetch(url, { signal: controller.signal })
     if (!res.ok) return null
-    const arrayBuffer = await res.arrayBuffer()
-    return Buffer.from(arrayBuffer)
+    return await readResponseCapped(res, MAX_THUMBNAIL_BYTES)
   } catch {
     return null
   } finally {
@@ -199,29 +228,29 @@ export const findSteamIcon = async (appId: number): Promise<string | null> => {
   const candidates: string[] = []
 
   const appSubdir = path.join(steamPath, 'appcache', 'librarycache', String(appId))
-  if (fs.existsSync(appSubdir)) {
-    try {
-      for (const file of fs.readdirSync(appSubdir)) {
-        if (ICON_IMAGE_EXTENSIONS.includes(path.extname(file).toLowerCase())) {
-          candidates.push(path.join(appSubdir, file))
-        }
+  try {
+    for (const file of await fsp.readdir(appSubdir)) {
+      if (ICON_IMAGE_EXTENSIONS.includes(path.extname(file).toLowerCase())) {
+        candidates.push(path.join(appSubdir, file))
       }
-    } catch (error) {
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       logger.warn(`Failed to scan ${appSubdir}:`, error)
     }
   }
 
   const libraryCacheDir = path.join(steamPath, 'appcache', 'librarycache')
-  if (fs.existsSync(libraryCacheDir)) {
-    try {
-      const prefix = `${appId}_`
-      for (const file of fs.readdirSync(libraryCacheDir)) {
-        if (!file.startsWith(prefix)) continue
-        if (ICON_IMAGE_EXTENSIONS.includes(path.extname(file).toLowerCase())) {
-          candidates.push(path.join(libraryCacheDir, file))
-        }
+  try {
+    const prefix = `${appId}_`
+    for (const file of await fsp.readdir(libraryCacheDir)) {
+      if (!file.startsWith(prefix)) continue
+      if (ICON_IMAGE_EXTENSIONS.includes(path.extname(file).toLowerCase())) {
+        candidates.push(path.join(libraryCacheDir, file))
       }
-    } catch (error) {
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       logger.warn(`Failed to scan ${libraryCacheDir}:`, error)
     }
   }

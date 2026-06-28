@@ -138,7 +138,23 @@ const isValidSettings = (value: unknown): value is Settings => {
 }
 
 // Library operations
-export const loadLibrary = (): LibraryData => {
+//
+// The library is held in an in-memory cache that is the single source of truth
+// for this process (it is the only writer). Reads return the cache; mutations
+// update the cache and enqueue a debounced disk write so a burst of changes
+// (e.g. adding many Steam games, then patching each thumbnail path) collapses
+// into one atomic write instead of one-per-change. flushLibrary() forces a
+// synchronous write and MUST be called on app quit so nothing is lost — this
+// matters especially for the portable build, whose data lives next to the exe
+// and which is often closed abruptly.
+
+let libraryCache: LibraryData | null = null
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+let pendingWrite = false
+const SAVE_DEBOUNCE_MS = 600
+
+// Read + migrate library.json from disk. Only used to seed the cache once.
+const readLibraryFromDisk = (): LibraryData => {
   const libraryPath = getLibraryPath()
 
   try {
@@ -166,13 +182,59 @@ export const loadLibrary = (): LibraryData => {
   return { ...DEFAULT_LIBRARY_DATA }
 }
 
-export const saveLibrary = (data: LibraryData): void => {
-  const libraryPath = getLibraryPath()
+// Cache accessor — seeds from disk on first use. Mutators operate on the
+// returned object directly and must call scheduleSave() afterwards.
+const getLibrary = (): LibraryData => {
+  if (libraryCache === null) {
+    libraryCache = readLibraryFromDisk()
+  }
+  return libraryCache
+}
 
+const writeLibraryToDisk = (data: LibraryData): void => {
+  const libraryPath = getLibraryPath()
+  ensureDirectories()
+  writeFileAtomic(libraryPath, JSON.stringify(data, null, 2))
+  logger.info(`Saved library with ${data.programs.length} programs`)
+}
+
+// Enqueue a debounced write. Coalesces rapid successive mutations.
+const scheduleSave = (): void => {
+  pendingWrite = true
+  if (saveTimer !== null) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    saveTimer = null
+    flushLibrary()
+  }, SAVE_DEBOUNCE_MS)
+}
+
+// Force any pending write to disk synchronously. Safe to call when nothing is
+// pending. Invoked on app quit to guarantee durability.
+export const flushLibrary = (): void => {
+  if (saveTimer !== null) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+  if (!pendingWrite || libraryCache === null) return
   try {
-    ensureDirectories()
-    writeFileAtomic(libraryPath, JSON.stringify(data, null, 2))
-    logger.info(`Saved library with ${data.programs.length} programs`)
+    writeLibraryToDisk(libraryCache)
+    pendingWrite = false
+  } catch (error) {
+    logger.error('Failed to flush library:', error)
+  }
+}
+
+export const loadLibrary = (): LibraryData => {
+  return getLibrary()
+}
+
+// Replace the whole library (renderer-driven save). Updates the cache and
+// writes through immediately since this is an explicit, infrequent operation.
+export const saveLibrary = (data: LibraryData): void => {
+  libraryCache = data
+  try {
+    writeLibraryToDisk(data)
+    pendingWrite = false
   } catch (error) {
     logger.error('Failed to save library:', error)
     throw error
@@ -181,7 +243,7 @@ export const saveLibrary = (data: LibraryData): void => {
 
 // Program operations
 export const addProgram = (data: CreateProgramData): Program => {
-  const library = loadLibrary()
+  const library = getLibrary()
   const now = new Date().toISOString()
 
   // Local-file adds always map to the 'local' provider.
@@ -203,19 +265,17 @@ export const addProgram = (data: CreateProgramData): Program => {
   }
 
   library.programs.push(newProgram)
-  saveLibrary(library)
+  scheduleSave()
   logger.info(`Added program: ${newProgram.title} (${newProgram.id})`)
 
   return newProgram
 }
 
-// Steam entry: launch target is a steam:// URL, not an .exe path.
-// No icon extraction — thumbnail is downloaded separately from Steam CDN.
-export const addSteamProgram = (data: CreateSteamProgramData): Program => {
-  const library = loadLibrary()
+// Build a Steam program entry without touching the cache. Shared by the
+// single-add and batch-add paths.
+const buildSteamProgram = (data: CreateSteamProgramData): Program => {
   const now = new Date().toISOString()
-
-  const newProgram: Program = {
+  return {
     id: uuidv4(),
     title: data.name,
     executablePath: `steam://run/${data.appId}`,
@@ -231,16 +291,38 @@ export const addSteamProgram = (data: CreateSteamProgramData): Program => {
     createdAt: now,
     updatedAt: now
   }
+}
+
+// Steam entry: launch target is a steam:// URL, not an .exe path.
+// No icon extraction — thumbnail is downloaded separately from Steam CDN.
+export const addSteamProgram = (data: CreateSteamProgramData): Program => {
+  const library = getLibrary()
+  const newProgram = buildSteamProgram(data)
 
   library.programs.push(newProgram)
-  saveLibrary(library)
+  scheduleSave()
   logger.info(`Added steam program: ${newProgram.title} (appId=${data.appId}, id=${newProgram.id})`)
 
   return newProgram
 }
 
+// Add many Steam programs in one shot. The library is read once and a single
+// debounced write covers all entries (instead of read+write per entry).
+export const addSteamProgramsBatch = (entries: CreateSteamProgramData[]): Program[] => {
+  const library = getLibrary()
+  const added: Program[] = []
+  for (const entry of entries) {
+    const newProgram = buildSteamProgram(entry)
+    library.programs.push(newProgram)
+    added.push(newProgram)
+  }
+  if (added.length > 0) scheduleSave()
+  logger.info(`Batch-added ${added.length} steam programs`)
+  return added
+}
+
 export const updateProgram = (data: UpdateProgramData): Program => {
-  const library = loadLibrary()
+  const library = getLibrary()
   const index = library.programs.findIndex(p => p.id === data.id)
 
   if (index === -1) {
@@ -264,14 +346,14 @@ export const updateProgram = (data: UpdateProgramData): Program => {
   }
 
   library.programs[index] = updatedProgram
-  saveLibrary(library)
+  scheduleSave()
   logger.info(`Updated program: ${updatedProgram.title} (${updatedProgram.id})`)
 
   return updatedProgram
 }
 
 export const deleteProgram = (id: string): void => {
-  const library = loadLibrary()
+  const library = getLibrary()
   const index = library.programs.findIndex(p => p.id === id)
   
   if (index === -1) {
@@ -330,32 +412,32 @@ export const deleteProgram = (id: string): void => {
   }
 
   library.programs.splice(index, 1)
-  saveLibrary(library)
+  scheduleSave()
   logger.info(`Deleted program: ${program.title} (${id})`)
 }
 
 // Update program's icon path
 export const updateProgramIconPath = (programId: string, iconPath: string | null): void => {
-  const library = loadLibrary()
+  const library = getLibrary()
   const program = library.programs.find(p => p.id === programId)
-  
+
   if (program) {
     program.iconPath = iconPath
     program.updatedAt = new Date().toISOString()
-    saveLibrary(library)
+    scheduleSave()
     logger.info(`Updated icon path for program: ${programId}`)
   }
 }
 
 // Update program's thumbnail path
 export const updateProgramThumbnailPath = (programId: string, thumbnailPath: string | null): void => {
-  const library = loadLibrary()
+  const library = getLibrary()
   const program = library.programs.find(p => p.id === programId)
-  
+
   if (program) {
     program.thumbnailPath = thumbnailPath
     program.updatedAt = new Date().toISOString()
-    saveLibrary(library)
+    scheduleSave()
     logger.info(`Updated thumbnail path for program: ${programId}`)
   }
 }
@@ -363,13 +445,13 @@ export const updateProgramThumbnailPath = (programId: string, thumbnailPath: str
 // Replace a program's full preview-image list (append/remove/reorder all go
 // through here). Caller is responsible for the actual image files on disk.
 export const updateProgramPreviewImages = (programId: string, previewImages: string[]): void => {
-  const library = loadLibrary()
+  const library = getLibrary()
   const program = library.programs.find(p => p.id === programId)
 
   if (program) {
     program.previewImages = previewImages
     program.updatedAt = new Date().toISOString()
-    saveLibrary(library)
+    scheduleSave()
     logger.info(`Updated preview images for program: ${programId} (${previewImages.length})`)
   }
 }
@@ -377,7 +459,7 @@ export const updateProgramPreviewImages = (programId: string, previewImages: str
 // Read a program's current preview-image list (used by previewService to
 // append/remove without clobbering concurrent changes).
 export const getProgramPreviewImages = (programId: string): string[] => {
-  const library = loadLibrary()
+  const library = getLibrary()
   const program = library.programs.find(p => p.id === programId)
   return program ? [...program.previewImages] : []
 }

@@ -8,7 +8,7 @@ import * as previewService from './services/previewService'
 import * as iconService from './services/iconService'
 import * as steamService from './services/steamService'
 import * as imageService from './services/imageService'
-import type { CreateProgramData, UpdateProgramData, Settings, LibraryData, CreateSteamProgramData, Program } from '../src/types'
+import type { CreateProgramData, UpdateProgramData, Settings, LibraryData, CreateSteamProgramData } from '../src/types'
 
 // Register the wl-image scheme as privileged BEFORE app.ready so it can be
 // used in <img> tags, supports streaming, and bypasses CSP for local assets.
@@ -32,6 +32,32 @@ if (process.env.PORTABLE_EXECUTABLE_DIR) {
 }
 
 let mainWindow: BrowserWindow | null = null
+
+// Push a message to the renderer, guarding against a torn-down window.
+const sendToRenderer = (channel: string, payload: unknown): void => {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload)
+  }
+}
+
+// Run `fn` over `items` with at most `limit` in flight at once. Used to bound
+// concurrent network downloads (Steam thumbnails) so a large multi-add doesn't
+// open dozens of sockets at once.
+const mapLimit = async <T>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<void>
+): Promise<void> => {
+  let cursor = 0
+  const workerCount = Math.min(limit, items.length)
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++
+      await fn(items[index], index)
+    }
+  })
+  await Promise.all(workers)
+}
 
 function createWindow(): void {
   const preloadPath = join(__dirname, '../preload/index.mjs')
@@ -270,20 +296,25 @@ function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('steam:addPrograms', async (_event, entries: CreateSteamProgramData[]) => {
-    const added: Program[] = []
-    for (const entry of entries) {
+    // Add every entry in a single batched write and return immediately — the
+    // caller does not wait on the network. Thumbnails are then downloaded in
+    // the background with bounded parallelism and pushed to the renderer one
+    // by one via 'program:patched' as each lands.
+    const added = dataService.addSteamProgramsBatch(entries)
+    const jobs = added.map((program, i) => ({ program, appId: entries[i].appId }))
+
+    void mapLimit(jobs, 4, async ({ program, appId }) => {
       try {
-        const program = dataService.addSteamProgram(entry)
-        const thumbPath = await steamService.downloadSteamThumbnail(entry.appId, program.id)
+        const thumbPath = await steamService.downloadSteamThumbnail(appId, program.id)
         if (thumbPath) {
           dataService.updateProgramThumbnailPath(program.id, thumbPath)
-          program.thumbnailPath = thumbPath
+          sendToRenderer('program:patched', { id: program.id, changes: { thumbnailPath: thumbPath } })
         }
-        added.push(program)
       } catch (error) {
-        logger.error(`Failed to add Steam program appId=${entry.appId}:`, error)
+        logger.error(`Failed to download Steam thumbnail appId=${appId}:`, error)
       }
-    }
+    })
+
     return added
   })
 
@@ -342,4 +373,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   logger.info('App quitting')
+  // Force any debounced library write to disk before we exit so no change is
+  // lost — critical for the portable build, whose data lives beside the exe.
+  dataService.flushLibrary()
 })

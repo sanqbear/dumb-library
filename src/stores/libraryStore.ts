@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Program, LibraryData, CreateProgramData, UpdateProgramData, ProviderId, SteamGame, CreateSteamProgramData } from '../types'
 
 export const useLibraryStore = defineStore('library', () => {
@@ -23,6 +23,35 @@ export const useLibraryStore = defineStore('library', () => {
   // committed value for seeded/cleared states where no live keystroke arrived.
   const effectiveSearch = computed(() => searchQueryLive.value || searchQuery.value)
 
+  // Debounced copy of the search text that actually drives filtering. The field
+  // and the result count react to effectiveSearch instantly, but the expensive
+  // filter/sort over the whole library only re-runs after a short pause. 120ms
+  // keeps per-character Hangul filtering responsive while collapsing bursts of
+  // keystrokes into a single recompute.
+  const debouncedSearch = ref('')
+  let searchDebounceTimer: number | null = null
+  watch(effectiveSearch, (value) => {
+    if (searchDebounceTimer !== null) window.clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = window.setTimeout(() => {
+      debouncedSearch.value = value
+      searchDebounceTimer = null
+    }, 120)
+  })
+
+  // Precomputed lowercase search blob (title + tags + keywords) per program id.
+  // Rebuilt only when the program list changes — not on every keystroke — so
+  // searching no longer re-lowercases every field of every program each time.
+  const searchIndex = computed(() => {
+    const index = new Map<string, string>()
+    for (const p of programs.value) {
+      index.set(
+        p.id,
+        `${p.title}\n${p.tags.join('\n')}\n${(p.keywords ?? []).join('\n')}`.toLowerCase()
+      )
+    }
+    return index
+  })
+
   // Sort state — default to 가나다(title ascending) on first launch
   const sortBy = ref<'createdAt' | 'title'>('title')
   const sortOrder = ref<'asc' | 'desc'>('asc')
@@ -37,31 +66,27 @@ export const useLibraryStore = defineStore('library', () => {
   // Getters
   const filteredPrograms = computed(() => {
     let result = [...programs.value]
-    
+
     // Filter by search query — matches title, categorization tags, and
-    // search-index keywords so any of them can surface a program. Reads the
-    // live value so Hangul filtering updates mid-composition.
-    if (effectiveSearch.value.trim()) {
-      const query = effectiveSearch.value.toLowerCase().trim()
-      result = result.filter(p =>
-        p.title.toLowerCase().includes(query) ||
-        p.tags.some(tag => tag.toLowerCase().includes(query)) ||
-        (p.keywords ?? []).some(kw => kw.toLowerCase().includes(query))
-      )
+    // search-index keywords (all folded into searchIndex). Uses the debounced
+    // value so rapid typing doesn't re-run the whole filter/sort per keystroke.
+    const query = debouncedSearch.value.toLowerCase().trim()
+    if (query) {
+      const index = searchIndex.value
+      result = result.filter(p => index.get(p.id)?.includes(query))
     }
-    
+
     // Filter by category
     if (selectedCategory.value) {
       result = result.filter(p => p.category === selectedCategory.value)
     }
-    
-    // Filter by tags
+
+    // Filter by tags — membership tested against a Set to avoid a nested scan.
     if (selectedTags.value.length > 0) {
-      result = result.filter(p => 
-        selectedTags.value.some(tag => p.tags.includes(tag))
-      )
+      const tagSet = new Set(selectedTags.value)
+      result = result.filter(p => p.tags.some(tag => tagSet.has(tag)))
     }
-    
+
     // Sort
     result.sort((a, b) => {
       let cmp: number
@@ -111,20 +136,25 @@ export const useLibraryStore = defineStore('library', () => {
       const newProgram = await window.electron.addProgram(data)
       programs.value.push(newProgram)
 
-      // Extract icon
+      // Extract the icon in the background. Icon extraction spawns PowerShell
+      // and can be slow (or hang up to its 15s timeout) on slow disks, network
+      // drives, or broken executables — blocking the add flow would leave the
+      // Add dialog spinning. The program is already added; patch its icon in
+      // place when extraction resolves.
       if (newProgram.executablePath) {
-        const iconPath = await window.electron.extractIcon(newProgram.executablePath, newProgram.id)
-        if (iconPath) {
-          const index = programs.value.findIndex(p => p.id === newProgram.id)
-          if (index !== -1) {
-            const program = programs.value[index]
+        void window.electron
+          .extractIcon(newProgram.executablePath, newProgram.id)
+          .then((iconPath) => {
+            if (!iconPath) return
+            const program = programs.value.find(p => p.id === newProgram.id)
             if (program) {
               program.iconPath = iconPath
+              program.updatedAt = new Date().toISOString()
             }
-          }
-        }
+          })
+          .catch((e) => console.error('Background icon extraction failed:', e))
       }
-      
+
       return newProgram
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to add program'
@@ -467,6 +497,19 @@ export const useLibraryStore = defineStore('library', () => {
     }, HIGHLIGHT_DURATION_MS)
 
     return picked
+  }
+
+  // Apply background patches pushed from the main process (e.g. a Steam
+  // thumbnail that finished downloading after the program was already added).
+  // Subscribed once for the app lifetime — the store is a singleton.
+  if (typeof window !== 'undefined' && window.electron?.onProgramPatched) {
+    window.electron.onProgramPatched(({ id, changes }) => {
+      const program = programs.value.find(p => p.id === id)
+      if (!program) return
+      Object.assign(program, changes)
+      // Bump updatedAt so image URLs cache-bust when a path is replaced in place.
+      program.updatedAt = new Date().toISOString()
+    })
   }
 
   return {

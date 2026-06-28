@@ -8,7 +8,6 @@ import {
   NInputGroup,
   NButton,
   NSpace,
-  NDynamicTags,
   NImage,
   NIcon,
   useMessage,
@@ -33,6 +32,7 @@ import { useImageInput } from '../composables/useImageInput'
 import { useThemeClass } from '../composables/useThemeClass'
 import ImageCropDialog from '../components/dialogs/ImageCropDialog.vue'
 import SteamArtworkDialog from '../components/dialogs/SteamArtworkDialog.vue'
+import TagInput from '../components/TagInput.vue'
 
 const props = defineProps<{ id: string }>()
 
@@ -452,13 +452,13 @@ const handleDelete = () => {
 
             <!-- Tags -->
             <NFormItem :label="t('addDialog.tagsLabel')">
-              <NDynamicTags v-model:value="tags" />
+              <TagInput v-model:value="tags" />
             </NFormItem>
 
             <!-- Search keywords (indexing only, not categorization) -->
             <NFormItem :label="t('addDialog.keywordsLabel')">
               <div class="field-stack">
-                <NDynamicTags v-model:value="keywords" />
+                <TagInput v-model:value="keywords" />
                 <span class="field-hint">{{ t('addDialog.keywordsHint') }}</span>
               </div>
             </NFormItem>

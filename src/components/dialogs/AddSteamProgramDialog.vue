@@ -152,16 +152,16 @@ const manualValid = computed(() =>
   manualAppId.value !== null && manualAppId.value > 0 && manualName.value.trim() !== ''
 )
 
+// Thumbnails now download in the background after the add returns (they arrive
+// via 'program:patched'), so a null thumbnailPath here is expected and no
+// longer warned about — only a failed/partial add is surfaced.
 const reportAddResult = (added: { thumbnailPath: string | null }[], requested: number) => {
-  const missingThumb = added.filter(p => !p.thumbnailPath).length
   if (added.length === 0) {
     message.error(t('steamDialog.addFailed'))
     return
   }
   if (added.length < requested) {
     message.warning(t('steamDialog.partialAdded', { added: added.length, requested }))
-  } else if (missingThumb > 0) {
-    message.warning(t('steamDialog.someMissingThumb', { added: added.length, missing: missingThumb }))
   } else {
     message.success(t('steamDialog.addedNGames', { n: added.length }))
   }

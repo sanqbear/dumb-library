@@ -2,7 +2,7 @@
 import { computed, h, nextTick, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { NCard, NImage, NIcon, NTag, NDropdown, useMessage, useDialog } from 'naive-ui'
+import { NCard, NIcon, NTag, NDropdown, useMessage, useDialog } from 'naive-ui'
 import type { DropdownMixedOption } from 'naive-ui/es/dropdown/src/interface'
 import {
   Play as PlayIcon,
@@ -153,14 +153,16 @@ const handleDelete = () => {
   >
     <!-- Image area -->
     <div class="card-image">
-      <NImage
+      <!-- Native lazy <img>: the browser only fetches the cover when the card
+           scrolls near the viewport, and it's far lighter than a per-card
+           NImage component instance when the grid holds many programs. -->
+      <img
         v-if="hasImage"
         :src="displayImage"
-        object-fit="cover"
-        width="100%"
-        height="100%"
-        preview-disabled
-        :fallback-src="undefined"
+        class="card-img"
+        loading="lazy"
+        decoding="async"
+        alt=""
       />
       <div v-else class="placeholder-image">
         <NIcon :component="ImageIcon" :size="48" />
@@ -276,6 +278,13 @@ const handleDelete = () => {
 
 .light-theme .card-image {
   background-color: #e4e4e7;
+}
+
+.card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .placeholder-image {

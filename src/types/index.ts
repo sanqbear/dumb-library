@@ -120,6 +120,11 @@ export interface ElectronAPI {
   addProgram: (data: CreateProgramData) => Promise<Program>
   updateProgram: (data: UpdateProgramData) => Promise<Program>
   deleteProgram: (id: string) => Promise<void>
+  // Background single-program patch pushed from main (e.g. async thumbnail).
+  // Returns an unsubscribe function.
+  onProgramPatched: (
+    callback: (payload: { id: string; changes: Partial<Program> }) => void
+  ) => () => void
   launchProgram: (executablePath: string) => Promise<void>
   revealProgram: (executablePath: string) => Promise<void>
   openExternal: (url: string) => Promise<boolean>

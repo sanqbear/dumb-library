@@ -186,6 +186,8 @@ const columns = computed<DataTableColumns<Program>>(() => [
       :bordered="false"
       striped
       :max-height="tableMaxHeight"
+      virtual-scroll
+      :min-row-height="48"
     />
   </div>
 </template>

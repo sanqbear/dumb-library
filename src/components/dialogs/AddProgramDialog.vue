@@ -10,7 +10,6 @@ import {
   NInputGroup,
   NButton,
   NSpace,
-  NDynamicTags,
   NImage,
   NIcon,
   useMessage
@@ -28,6 +27,7 @@ import { useImageInput } from '../../composables/useImageInput'
 import { useThemeClass } from '../../composables/useThemeClass'
 import { MAX_PREVIEW_IMAGES } from '../../types'
 import ImageCropDialog from './ImageCropDialog.vue'
+import TagInput from '../TagInput.vue'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ (e: 'update:show', value: boolean): void }>()
@@ -321,11 +321,11 @@ const handleCancel = () => { emit('update:show', false) }
             </NInput>
           </NFormItem>
           <NFormItem :label="t('addDialog.tagsLabel')">
-            <NDynamicTags v-model:value="tags" />
+            <TagInput v-model:value="tags" />
           </NFormItem>
           <NFormItem :label="t('addDialog.keywordsLabel')">
             <div class="field-stack">
-              <NDynamicTags v-model:value="keywords" />
+              <TagInput v-model:value="keywords" />
               <span class="field-hint">{{ t('addDialog.keywordsHint') }}</span>
             </div>
           </NFormItem>

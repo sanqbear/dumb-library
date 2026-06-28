@@ -8,6 +8,50 @@ import logger from './logger'
 const TEMP_FETCH_PREFIX = 'wl-fetch-'
 const MAX_FETCH_BYTES = 20 * 1024 * 1024 // 20MB — plenty for any cover/icon source
 
+// Read a fetch Response body into a Buffer, but never accumulate more than
+// `maxBytes`. Rejects early using the Content-Length header when present, then
+// guards again while streaming (a server may lie or omit the header). Returns
+// null when the cap is exceeded or the body can't be read, so a malformed or
+// hostile response can't blow up main-process memory. Shared by the URL-image
+// flow and the Steam thumbnail downloader.
+export const readResponseCapped = async (
+  res: Response,
+  maxBytes: number
+): Promise<Buffer | null> => {
+  const lenHeader = res.headers.get('content-length')
+  if (lenHeader) {
+    const declared = Number(lenHeader)
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      logger.warn(`Response Content-Length ${declared} exceeds cap ${maxBytes}`)
+      return null
+    }
+  }
+
+  if (!res.body) {
+    const arrayBuffer = await res.arrayBuffer()
+    if (arrayBuffer.byteLength > maxBytes) return null
+    return Buffer.from(arrayBuffer)
+  }
+
+  const reader = res.body.getReader()
+  const chunks: Buffer[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (value) {
+      total += value.byteLength
+      if (total > maxBytes) {
+        logger.warn(`Streamed response exceeded cap ${maxBytes}, aborting`)
+        try { await reader.cancel() } catch { /* ignore */ }
+        return null
+      }
+      chunks.push(Buffer.from(value))
+    }
+  }
+  return Buffer.concat(chunks)
+}
+
 // All sizes in output pixels. webp @ 85% gives ~40-50% of PNG source at same visual quality.
 const THUMBNAIL_WIDTH = 600
 const THUMBNAIL_HEIGHT = 900
@@ -177,12 +221,11 @@ export const fetchImageFromUrl = async (url: string): Promise<string | null> => 
       logger.warn(`URL content-type is not image (${contentType}): ${url}`)
       return null
     }
-    const arrayBuffer = await res.arrayBuffer()
-    if (arrayBuffer.byteLength > MAX_FETCH_BYTES) {
-      logger.warn(`Fetched image exceeds size limit (${arrayBuffer.byteLength}): ${url}`)
+    const buffer = await readResponseCapped(res, MAX_FETCH_BYTES)
+    if (!buffer) {
+      logger.warn(`Fetched image exceeds size limit or could not be read: ${url}`)
       return null
     }
-    const buffer = Buffer.from(arrayBuffer)
 
     const tempDir = app.getPath('temp')
     const tempFile = path.join(tempDir, `${TEMP_FETCH_PREFIX}${randomUUID()}.bin`)
