@@ -26,6 +26,8 @@ export default {
     filter: '필터',
     provider: '제공자',
     allProviders: '모든 제공자',
+    developer: '개발사',
+    allDevelopers: '모든 개발사',
     tags: '태그',
     selectTags: '태그 선택',
     clearFilters: '필터 초기화',
@@ -47,6 +49,7 @@ export default {
   listView: {
     columnTitle: 'Title',
     columnProvider: 'Provider',
+    columnDeveloper: 'Developer',
     columnTags: 'Tags',
     columnActions: 'Actions'
   },
@@ -67,6 +70,7 @@ export default {
     previews: '미리보기',
     noPreviews: '미리보기 이미지가 없습니다',
     pathLabel: '실행 경로',
+    developerLabel: '개발사(서클)',
     tagsLabel: '태그',
     memoLabel: '메모'
   },
@@ -74,6 +78,8 @@ export default {
     title: '프로그램 추가',
     titleLabel: '제목',
     titlePlaceholder: '프로그램 이름 입력',
+    developerLabel: '개발사(서클)',
+    developerPlaceholder: '개발사 또는 서클 이름',
     executablePath: '실행 파일 경로',
     executablePathPlaceholder: '실행 파일 선택',
     tagsLabel: '태그',
@@ -175,6 +181,24 @@ export default {
   providers: {
     local: '로컬 다운로드',
     steam: '스팀'
+  },
+  developer: {
+    manageTitle: '개발사(서클) 관리',
+    listLabel: '등록된 개발사',
+    empty: '등록된 개발사가 없습니다',
+    addNew: '새 개발사',
+    koRequired: '한국어 이름은 필수입니다. 다른 언어를 입력하지 않으면 한국어로 표시됩니다.',
+    namePlaceholder: '이름 입력',
+    selectPlaceholder: '개발사 선택 또는 검색',
+    manage: '개발사 관리',
+    createNamed: "'{name}' 새로 만들기",
+    none: '없음',
+    deleteConfirmTitle: '개발사 삭제',
+    deleteConfirmMessage: '"{name}"을(를) 삭제하시겠습니까? 이 개발사를 사용하는 항목에서 연결이 해제됩니다.',
+    added: '개발사가 추가되었습니다',
+    updated: '개발사가 수정되었습니다',
+    deleted: '개발사가 삭제되었습니다',
+    saveFailed: '저장에 실패했습니다'
   },
   window: {
     minimize: '최소화',

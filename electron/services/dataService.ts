@@ -2,7 +2,19 @@ import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import type { LibraryData, Program, CreateProgramData, UpdateProgramData, Settings, CreateSteamProgramData } from '../../src/types'
+import type {
+  LibraryData,
+  Program,
+  CreateProgramData,
+  UpdateProgramData,
+  Settings,
+  CreateSteamProgramData,
+  Developer,
+  LocalizedName,
+  CreateDeveloperData,
+  UpdateDeveloperData,
+  LocaleCode
+} from '../../src/types'
 import { isProviderId } from '../../src/types'
 import { normalizeExecutablePathForStorage } from './executablePath'
 import logger from './logger'
@@ -18,8 +30,11 @@ const getPreviewsPath = () => path.join(getUserDataPath(), 'previews')
 // Default data
 const DEFAULT_LIBRARY_DATA: LibraryData = {
   version: '1.0',
-  programs: []
+  programs: [],
+  developers: []
 }
+
+const LOCALE_CODES: LocaleCode[] = ['ko', 'en', 'ja', 'zh-CN']
 
 const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
@@ -66,6 +81,22 @@ const normalizeTags = (tags: unknown): string[] => {
 // whitespace is trimmed while interior newlines (multi-line notes) are kept.
 const normalizeMemo = (memo: unknown): string => {
   return typeof memo === 'string' ? memo.trim() : ''
+}
+
+// Normalize a Developer's localized names. Every language is trimmed; empty
+// optional languages are dropped. `ko` is mandatory — when missing/blank we fall
+// back to the first non-empty localized value so the entry always has a name.
+const normalizeNames = (raw: unknown): LocalizedName | null => {
+  if (!raw || typeof raw !== 'object') return null
+  const src = raw as Record<string, unknown>
+  const out: Partial<Record<LocaleCode, string>> = {}
+  for (const code of LOCALE_CODES) {
+    const value = src[code]
+    if (typeof value === 'string' && value.trim()) out[code] = value.trim()
+  }
+  const ko = out.ko ?? out.en ?? out.ja ?? out['zh-CN']
+  if (!ko) return null
+  return { ...out, ko }
 }
 
 // True only when child resolves to a location strictly inside parent
@@ -117,11 +148,27 @@ const migrateProgram = (raw: unknown): Program | null => {
       : [],
     marketUrl: typeof p.marketUrl === 'string' && p.marketUrl.trim() ? p.marketUrl.trim() : null,
     category: isProviderId(p.category) ? p.category : 'local',
+    developerId: typeof p.developerId === 'string' && p.developerId ? p.developerId : null,
     tags: normalizeTags(p.tags),
     keywords: normalizeTags(p.keywords),
     memo: normalizeMemo(p.memo),
     createdAt: typeof p.createdAt === 'string' ? p.createdAt : new Date().toISOString(),
     updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : new Date().toISOString()
+  }
+}
+
+// Validate/normalize a stored Developer entry. Drops entries with no usable name.
+const migrateDeveloper = (raw: unknown): Developer | null => {
+  if (!raw || typeof raw !== 'object') return null
+  const d = raw as Partial<Developer>
+  if (typeof d.id !== 'string' || !d.id) return null
+  const names = normalizeNames(d.names)
+  if (!names) return null
+  return {
+    id: d.id,
+    names,
+    createdAt: typeof d.createdAt === 'string' ? d.createdAt : new Date().toISOString(),
+    updatedAt: typeof d.updatedAt === 'string' ? d.updatedAt : new Date().toISOString()
   }
 }
 
@@ -151,6 +198,10 @@ const isValidSettings = (value: unknown): value is Settings => {
 let libraryCache: LibraryData | null = null
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 let pendingWrite = false
+// Set when readLibraryFromDisk rewrote anything during migration (e.g. legacy
+// inline `developer` strings → Developer entities). getLibrary schedules a save
+// so the normalized form is persisted even if the user makes no other change.
+let migrationDirty = false
 const SAVE_DEBOUNCE_MS = 600
 
 // Read + migrate library.json from disk. Only used to seed the cache once.
@@ -165,14 +216,54 @@ const readLibraryFromDisk = (): LibraryData => {
         logger.warn('library.json has invalid shape, falling back to defaults')
         return { ...DEFAULT_LIBRARY_DATA }
       }
+      // Developer master list — validate stored entries first.
+      const rawDevelopers = Array.isArray((parsed as { developers?: unknown }).developers)
+        ? (parsed as { developers: unknown[] }).developers
+        : []
+      const developers = rawDevelopers
+        .map(migrateDeveloper)
+        .filter((d): d is Developer => d !== null)
+
+      // Migrate legacy inline `developer` strings (pre-master-list format) into
+      // Developer entities, deduped by Korean name. Mutates the raw program so
+      // migrateProgram picks up the assigned developerId.
+      const devByKoName = new Map<string, Developer>()
+      for (const dev of developers) devByKoName.set(dev.names.ko.toLowerCase(), dev)
+      const now = new Date().toISOString()
+      for (const raw of parsed.programs) {
+        if (!raw || typeof raw !== 'object') continue
+        const rp = raw as { developer?: unknown; developerId?: unknown }
+        const legacy = typeof rp.developer === 'string' ? rp.developer.trim() : ''
+        const hasId = typeof rp.developerId === 'string' && rp.developerId
+        if (!legacy || hasId) continue
+        const key = legacy.toLowerCase()
+        let dev = devByKoName.get(key)
+        if (!dev) {
+          dev = { id: uuidv4(), names: { ko: legacy }, createdAt: now, updatedAt: now }
+          devByKoName.set(key, dev)
+          developers.push(dev)
+        }
+        rp.developerId = dev.id
+        migrationDirty = true
+      }
+
       const programs = parsed.programs
         .map(migrateProgram)
         .filter((p): p is Program => p !== null)
+
+      // Drop dangling references so a program never points at a deleted developer.
+      const devIds = new Set(developers.map(d => d.id))
+      for (const program of programs) {
+        if (program.developerId && !devIds.has(program.developerId)) {
+          program.developerId = null
+        }
+      }
+
       const version = typeof (parsed as { version?: unknown }).version === 'string'
         ? (parsed as { version: string }).version
         : '1.0'
-      logger.info(`Loaded library with ${programs.length} programs`)
-      return { version, programs }
+      logger.info(`Loaded library with ${programs.length} programs, ${developers.length} developers`)
+      return { version, programs, developers }
     }
   } catch (error) {
     logger.error('Failed to load library:', error)
@@ -187,6 +278,11 @@ const readLibraryFromDisk = (): LibraryData => {
 const getLibrary = (): LibraryData => {
   if (libraryCache === null) {
     libraryCache = readLibraryFromDisk()
+    // Persist the normalized form when load-time migration changed anything.
+    if (migrationDirty) {
+      migrationDirty = false
+      scheduleSave()
+    }
   }
   return libraryCache
 }
@@ -257,6 +353,7 @@ export const addProgram = (data: CreateProgramData): Program => {
     previewImages: [],
     marketUrl: data.marketUrl?.trim() || null,
     category: 'local',
+    developerId: typeof data.developerId === 'string' && data.developerId ? data.developerId : null,
     tags: normalizeTags(data.tags),
     keywords: normalizeTags(data.keywords),
     memo: normalizeMemo(data.memo),
@@ -285,6 +382,7 @@ const buildSteamProgram = (data: CreateSteamProgramData): Program => {
     // Default to the Steam store page so the market button works out of the box.
     marketUrl: `https://store.steampowered.com/app/${data.appId}`,
     category: 'steam',
+    developerId: null,
     tags: [],
     keywords: [],
     memo: '',
@@ -336,6 +434,9 @@ export const updateProgram = (data: UpdateProgramData): Program => {
     executablePath: data.executablePath !== undefined
       ? normalizeExecutablePathForStorage(data.executablePath.trim())
       : program.executablePath,
+    developerId: data.developerId !== undefined
+      ? (typeof data.developerId === 'string' && data.developerId ? data.developerId : null)
+      : program.developerId,
     tags: data.tags !== undefined ? normalizeTags(data.tags) : program.tags,
     keywords: data.keywords !== undefined ? normalizeTags(data.keywords) : program.keywords,
     memo: data.memo !== undefined ? normalizeMemo(data.memo) : program.memo,
@@ -414,6 +515,65 @@ export const deleteProgram = (id: string): void => {
   library.programs.splice(index, 1)
   scheduleSave()
   logger.info(`Deleted program: ${program.title} (${id})`)
+}
+
+// Developer (circle) master-list operations
+export const addDeveloper = (data: CreateDeveloperData): Developer => {
+  const names = normalizeNames(data.names)
+  if (!names) {
+    throw new Error('Developer requires at least one name')
+  }
+  const library = getLibrary()
+  const now = new Date().toISOString()
+  const developer: Developer = {
+    id: uuidv4(),
+    names,
+    createdAt: now,
+    updatedAt: now
+  }
+  library.developers.push(developer)
+  scheduleSave()
+  logger.info(`Added developer: ${developer.names.ko} (${developer.id})`)
+  return developer
+}
+
+export const updateDeveloper = (data: UpdateDeveloperData): Developer => {
+  const names = normalizeNames(data.names)
+  if (!names) {
+    throw new Error('Developer requires at least one name')
+  }
+  const library = getLibrary()
+  const index = library.developers.findIndex(d => d.id === data.id)
+  if (index === -1) {
+    throw new Error(`Developer not found: ${data.id}`)
+  }
+  const updated: Developer = {
+    ...library.developers[index],
+    names,
+    updatedAt: new Date().toISOString()
+  }
+  library.developers[index] = updated
+  scheduleSave()
+  logger.info(`Updated developer: ${updated.names.ko} (${updated.id})`)
+  return updated
+}
+
+export const deleteDeveloper = (id: string): void => {
+  const library = getLibrary()
+  const index = library.developers.findIndex(d => d.id === id)
+  if (index === -1) {
+    throw new Error(`Developer not found: ${id}`)
+  }
+  library.developers.splice(index, 1)
+  // Clear the reference on every program that pointed at the removed developer.
+  for (const program of library.programs) {
+    if (program.developerId === id) {
+      program.developerId = null
+      program.updatedAt = new Date().toISOString()
+    }
+  }
+  scheduleSave()
+  logger.info(`Deleted developer: ${id}`)
 }
 
 // Update program's icon path

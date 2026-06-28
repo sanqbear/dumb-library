@@ -8,10 +8,12 @@ import type { DataTableColumns } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
 import type { Program } from '../../types'
 import { PROVIDERS, libImageUrl } from '../../types'
+import { useDeveloperName } from '../../composables/useDeveloperName'
 
 const { t } = useI18n()
 const router = useRouter()
 const libraryStore = useLibraryStore()
+const { resolveDeveloperName } = useDeveloperName()
 const message = useMessage()
 const dialog = useDialog()
 
@@ -120,6 +122,15 @@ const columns = computed<DataTableColumns<Program>>(() => [
     width: 140,
     render(row) {
       return h(NTag, { size: 'small', type: 'info' }, { default: () => t(PROVIDERS[row.category].labelKey) })
+    }
+  },
+  {
+    title: t('listView.columnDeveloper'),
+    key: 'developer',
+    width: 160,
+    ellipsis: { tooltip: true },
+    render(row) {
+      return resolveDeveloperName(row.developerId) || '-'
     }
   },
   {

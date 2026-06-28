@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 interface CreateProgramData {
   title: string
   executablePath: string
+  developerId?: string | null
   tags?: string[]
 }
 
@@ -11,7 +12,24 @@ interface UpdateProgramData {
   id: string
   title?: string
   executablePath?: string
+  developerId?: string | null
   tags?: string[]
+}
+
+interface LocalizedName {
+  ko: string
+  en?: string
+  ja?: string
+  'zh-CN'?: string
+}
+
+interface CreateDeveloperData {
+  names: LocalizedName
+}
+
+interface UpdateDeveloperData {
+  id: string
+  names: LocalizedName
 }
 
 interface Settings {
@@ -34,6 +52,11 @@ const IPC_CHANNELS = {
   ADD_PROGRAM: 'program:add',
   UPDATE_PROGRAM: 'program:update',
   DELETE_PROGRAM: 'program:delete',
+
+  // Developer (circle) master list
+  ADD_DEVELOPER: 'developer:add',
+  UPDATE_DEVELOPER: 'developer:update',
+  DELETE_DEVELOPER: 'developer:delete',
   LAUNCH_PROGRAM: 'program:launch',
   REVEAL_PROGRAM: 'program:reveal',
   OPEN_EXTERNAL: 'shell:openExternal',
@@ -93,6 +116,12 @@ const electronAPI = {
   addProgram: (data: CreateProgramData) => ipcRenderer.invoke(IPC_CHANNELS.ADD_PROGRAM, data),
   updateProgram: (data: UpdateProgramData) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_PROGRAM, data),
   deleteProgram: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_PROGRAM, id),
+
+  // Developer (circle) operations
+  addDeveloper: (data: CreateDeveloperData) => ipcRenderer.invoke(IPC_CHANNELS.ADD_DEVELOPER, data),
+  updateDeveloper: (data: UpdateDeveloperData) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_DEVELOPER, data),
+  deleteDeveloper: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_DEVELOPER, id),
+
   // Subscribe to background patches for a single program. Returns an unsubscribe.
   onProgramPatched: (
     callback: (payload: { id: string; changes: Record<string, unknown> }) => void

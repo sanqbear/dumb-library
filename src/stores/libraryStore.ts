@@ -1,12 +1,20 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { Program, LibraryData, CreateProgramData, UpdateProgramData, ProviderId, SteamGame, CreateSteamProgramData } from '../types'
+import type { Program, LibraryData, CreateProgramData, UpdateProgramData, ProviderId, SteamGame, CreateSteamProgramData, Developer, CreateDeveloperData, UpdateDeveloperData } from '../types'
 
 export const useLibraryStore = defineStore('library', () => {
   // State
   const programs = ref<Program[]>([])
+  const developers = ref<Developer[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+
+  // Fast id → Developer lookup, rebuilt only when the developer list changes.
+  const developerMap = computed(() => {
+    const map = new Map<string, Developer>()
+    for (const d of developers.value) map.set(d.id, d)
+    return map
+  })
 
   // Filter state
   // `searchQuery` is the committed value bound to the search field (IME
@@ -17,6 +25,7 @@ export const useLibraryStore = defineStore('library', () => {
   const searchQuery = ref('')
   const searchQueryLive = ref('')
   const selectedCategory = ref<ProviderId | null>(null)
+  const selectedDeveloper = ref<string | null>(null)
   const selectedTags = ref<string[]>([])
 
   // The text the user currently sees in the field. Falls back to the
@@ -38,15 +47,21 @@ export const useLibraryStore = defineStore('library', () => {
     }, 120)
   })
 
-  // Precomputed lowercase search blob (title + tags + keywords) per program id.
-  // Rebuilt only when the program list changes — not on every keystroke — so
-  // searching no longer re-lowercases every field of every program each time.
+  // Precomputed lowercase search blob (title + developer + tags + keywords) per
+  // program id. Rebuilt only when the program list changes — not on every
+  // keystroke — so searching no longer re-lowercases every field of every
+  // program each time.
   const searchIndex = computed(() => {
+    const devMap = developerMap.value
     const index = new Map<string, string>()
     for (const p of programs.value) {
+      // Fold in every localized name of the linked developer so a search matches
+      // regardless of the UI language the name was typed in.
+      const dev = p.developerId ? devMap.get(p.developerId) : undefined
+      const devNames = dev ? Object.values(dev.names).filter(Boolean).join('\n') : ''
       index.set(
         p.id,
-        `${p.title}\n${p.tags.join('\n')}\n${(p.keywords ?? []).join('\n')}`.toLowerCase()
+        `${p.title}\n${devNames}\n${p.tags.join('\n')}\n${(p.keywords ?? []).join('\n')}`.toLowerCase()
       )
     }
     return index
@@ -79,6 +94,11 @@ export const useLibraryStore = defineStore('library', () => {
     // Filter by category
     if (selectedCategory.value) {
       result = result.filter(p => p.category === selectedCategory.value)
+    }
+
+    // Filter by developer (circle)
+    if (selectedDeveloper.value) {
+      result = result.filter(p => p.developerId === selectedDeveloper.value)
     }
 
     // Filter by tags — membership tested against a Set to avoid a nested scan.
@@ -120,6 +140,7 @@ export const useLibraryStore = defineStore('library', () => {
     try {
       const data: LibraryData = await window.electron.loadLibrary()
       programs.value = data.programs
+      developers.value = data.developers ?? []
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load library'
       console.error('Failed to load library:', e)
@@ -203,6 +224,50 @@ export const useLibraryStore = defineStore('library', () => {
       return false
     } finally {
       isLoading.value = false
+    }
+  }
+
+  // Developer (circle) master-list actions
+  const addDeveloper = async (data: CreateDeveloperData): Promise<Developer | null> => {
+    try {
+      const developer = await window.electron.addDeveloper(data)
+      developers.value.push(developer)
+      return developer
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to add developer'
+      console.error('Failed to add developer:', e)
+      return null
+    }
+  }
+
+  const updateDeveloper = async (data: UpdateDeveloperData): Promise<Developer | null> => {
+    try {
+      const updated = await window.electron.updateDeveloper(data)
+      const index = developers.value.findIndex(d => d.id === data.id)
+      if (index !== -1) developers.value[index] = updated
+      return updated
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to update developer'
+      console.error('Failed to update developer:', e)
+      return null
+    }
+  }
+
+  const deleteDeveloper = async (id: string): Promise<boolean> => {
+    try {
+      await window.electron.deleteDeveloper(id)
+      const index = developers.value.findIndex(d => d.id === id)
+      if (index !== -1) developers.value.splice(index, 1)
+      // Mirror the main-process cleanup: drop the reference from any program
+      // in memory so the UI updates without a reload.
+      for (const program of programs.value) {
+        if (program.developerId === id) program.developerId = null
+      }
+      return true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to delete developer'
+      console.error('Failed to delete developer:', e)
+      return false
     }
   }
 
@@ -446,6 +511,10 @@ export const useLibraryStore = defineStore('library', () => {
     selectedCategory.value = category
   }
 
+  const setSelectedDeveloper = (developerId: string | null): void => {
+    selectedDeveloper.value = developerId
+  }
+
   const setSelectedTags = (tags: string[]): void => {
     selectedTags.value = tags
   }
@@ -454,6 +523,7 @@ export const useLibraryStore = defineStore('library', () => {
     searchQuery.value = ''
     searchQueryLive.value = ''
     selectedCategory.value = null
+    selectedDeveloper.value = null
     selectedTags.value = []
   }
 
@@ -515,11 +585,14 @@ export const useLibraryStore = defineStore('library', () => {
   return {
     // State
     programs,
+    developers,
+    developerMap,
     isLoading,
     error,
     searchQuery,
     searchQueryLive,
     selectedCategory,
+    selectedDeveloper,
     selectedTags,
     sortBy,
     sortOrder,
@@ -537,6 +610,9 @@ export const useLibraryStore = defineStore('library', () => {
     addProgram,
     updateProgram,
     deleteProgram,
+    addDeveloper,
+    updateDeveloper,
+    deleteDeveloper,
     launchProgram,
     revealProgram,
     openMarketUrl,
@@ -556,6 +632,7 @@ export const useLibraryStore = defineStore('library', () => {
     setSearchQuery,
     setSearchQueryLive,
     setSelectedCategory,
+    setSelectedDeveloper,
     setSelectedTags,
     clearFilters,
     setSortBy,

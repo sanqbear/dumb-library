@@ -28,6 +28,7 @@ import { useThemeClass } from '../../composables/useThemeClass'
 import { MAX_PREVIEW_IMAGES } from '../../types'
 import ImageCropDialog from './ImageCropDialog.vue'
 import TagInput from '../TagInput.vue'
+import DeveloperSelect from '../DeveloperSelect.vue'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ (e: 'update:show', value: boolean): void }>()
@@ -47,6 +48,7 @@ const LAST_STEP = 3
 // Form data
 const title = ref('')
 const executablePath = ref('')
+const developerId = ref<string | null>(null)
 const tags = ref<string[]>([])
 const keywords = ref<string[]>([])
 const memo = ref('')
@@ -78,6 +80,7 @@ const resetForm = () => {
   step.value = 0
   title.value = ''
   executablePath.value = ''
+  developerId.value = null
   tags.value = []
   keywords.value = []
   memo.value = ''
@@ -179,6 +182,7 @@ const handleSubmit = async () => {
     const newProgram = await libraryStore.addProgram({
       title: title.value.trim(),
       executablePath: executablePath.value,
+      developerId: developerId.value,
       tags: [...tags.value],
       keywords: [...keywords.value],
       memo: memo.value.trim(),
@@ -237,11 +241,14 @@ const handleCancel = () => { emit('update:show', false) }
           </NButton>
         </template>
 
-        <!-- Step 1: Title -->
+        <!-- Step 1: Title + developer/circle -->
         <template v-else-if="step === 1">
           <NFormItem :label="t('addDialog.titleLabel')" required>
             <NInput v-model:value="title" :placeholder="t('addDialog.titlePlaceholder')" clearable
               @keydown.enter.prevent="goNext" />
+          </NFormItem>
+          <NFormItem :label="t('addDialog.developerLabel')">
+            <DeveloperSelect v-model:value="developerId" />
           </NFormItem>
         </template>
 

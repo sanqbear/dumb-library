@@ -33,6 +33,7 @@ import { useThemeClass } from '../composables/useThemeClass'
 import ImageCropDialog from '../components/dialogs/ImageCropDialog.vue'
 import SteamArtworkDialog from '../components/dialogs/SteamArtworkDialog.vue'
 import TagInput from '../components/TagInput.vue'
+import DeveloperSelect from '../components/DeveloperSelect.vue'
 
 const props = defineProps<{ id: string }>()
 
@@ -53,6 +54,7 @@ const previewInput = useImageInput()
 // Form data
 const title = ref('')
 const executablePath = ref('')
+const developerId = ref<string | null>(null)
 const tags = ref<string[]>([])
 const keywords = ref<string[]>([])
 const memo = ref('')
@@ -122,6 +124,7 @@ watch(
     if (p) {
       title.value = p.title
       executablePath.value = p.executablePath
+      developerId.value = p.developerId ?? null
       tags.value = [...p.tags]
       keywords.value = [...(p.keywords ?? [])]
       memo.value = p.memo ?? ''
@@ -323,6 +326,7 @@ const handleSubmit = async () => {
       id: programId,
       title: title.value.trim(),
       executablePath: executablePath.value,
+      developerId: developerId.value,
       tags: [...tags.value],
       keywords: [...keywords.value],
       memo: memo.value.trim(),
@@ -430,6 +434,11 @@ const handleDelete = () => {
             <!-- Title -->
             <NFormItem :label="t('addDialog.titleLabel')" required>
               <NInput v-model:value="title" :placeholder="t('addDialog.titlePlaceholder')" clearable />
+            </NFormItem>
+
+            <!-- Developer / circle — mapped to a master entry (included in search) -->
+            <NFormItem :label="t('addDialog.developerLabel')">
+              <DeveloperSelect v-model:value="developerId" />
             </NFormItem>
 
             <!-- Executable Path -->

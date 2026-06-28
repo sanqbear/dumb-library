@@ -24,23 +24,28 @@ import {
   DesktopOutline as DesktopIcon,
   LogoSteam as SteamIcon,
   LanguageOutline as LanguageIcon,
-  ShuffleOutline as ShuffleIcon
+  ShuffleOutline as ShuffleIcon,
+  PeopleOutline as DeveloperIcon
 } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import AddProgramDialog from '../dialogs/AddProgramDialog.vue'
 import AddSteamProgramDialog from '../dialogs/AddSteamProgramDialog.vue'
+import DeveloperManagerDialog from '../dialogs/DeveloperManagerDialog.vue'
 import { PROVIDERS, PROVIDER_IDS, type ProviderId } from '../../types'
 import { SUPPORTED_LOCALES, LOCALE_META, type LocaleCode } from '../../i18n'
+import { useDeveloperName } from '../../composables/useDeveloperName'
 
 const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const settingsStore = useSettingsStore()
 const message = useMessage()
+const { resolveDeveloperName } = useDeveloperName()
 
 const showAddDialog = ref(false)
 const showAddSteamDialog = ref(false)
+const showDeveloperManager = ref(false)
 const showFilters = ref(false)
 
 const addMenuOptions = computed(() => [
@@ -88,6 +93,13 @@ const categoryOptions = computed(() =>
   }))
 )
 
+// Developer filter options, resolved to the active UI language and sorted by name.
+const developerOptions = computed(() =>
+  libraryStore.developers
+    .map(d => ({ label: resolveDeveloperName(d.id), value: d.id }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+)
+
 const tagOptions = computed(() =>
   libraryStore.allTags.map(tag => ({
     label: tag,
@@ -111,7 +123,9 @@ const handleSortChange = (value: string) => {
 }
 
 const hasActiveFilters = computed(() =>
-  libraryStore.selectedCategory !== null || libraryStore.selectedTags.length > 0
+  libraryStore.selectedCategory !== null ||
+  libraryStore.selectedDeveloper !== null ||
+  libraryStore.selectedTags.length > 0
 )
 
 // Count of currently shown items. Matches filtered/total pattern so users
@@ -119,6 +133,7 @@ const hasActiveFilters = computed(() =>
 const isCountFiltered = computed(() =>
   libraryStore.effectiveSearch.trim() !== '' ||
   libraryStore.selectedCategory !== null ||
+  libraryStore.selectedDeveloper !== null ||
   libraryStore.selectedTags.length > 0
 )
 
@@ -139,6 +154,10 @@ const handleSearch = (value: string) => {
 
 const handleCategoryChange = (value: ProviderId | null) => {
   libraryStore.setSelectedCategory(value)
+}
+
+const handleDeveloperChange = (value: string | null) => {
+  libraryStore.setSelectedDeveloper(value)
 }
 
 const handleTagsChange = (values: string[]) => {
@@ -196,6 +215,17 @@ const handleRandomPick = () => {
                 :placeholder="t('header.allProviders')"
                 clearable
                 @update:value="handleCategoryChange"
+              />
+            </div>
+            <div class="filter-section" v-if="developerOptions.length > 0">
+              <label>{{ t('header.developer') }}</label>
+              <NSelect
+                :value="libraryStore.selectedDeveloper"
+                :options="developerOptions"
+                :placeholder="t('header.allDevelopers')"
+                filterable
+                clearable
+                @update:value="handleDeveloperChange"
               />
             </div>
             <div class="filter-section" v-if="tagOptions.length > 0">
@@ -300,6 +330,18 @@ const handleRandomPick = () => {
           {{ settingsStore.theme === 'dark' ? t('header.lightMode') : t('header.darkMode') }}
         </NTooltip>
 
+        <!-- Developer (circle) manager -->
+        <NTooltip>
+          <template #trigger>
+            <NButton quaternary circle @click="showDeveloperManager = true">
+              <template #icon>
+                <NIcon :component="DeveloperIcon" />
+              </template>
+            </NButton>
+          </template>
+          {{ t('developer.manage') }}
+        </NTooltip>
+
         <!-- Language switcher -->
         <NDropdown
           trigger="click"
@@ -333,6 +375,7 @@ const handleRandomPick = () => {
     <!-- Add Program Dialogs -->
     <AddProgramDialog v-model:show="showAddDialog" />
     <AddSteamProgramDialog v-model:show="showAddSteamDialog" />
+    <DeveloperManagerDialog v-model:show="showDeveloperManager" />
   </header>
 </template>
 

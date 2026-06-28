@@ -12,10 +12,12 @@ import {
   EllipsisHorizontal as MoreIcon,
   FolderOpenOutline as FolderIcon,
   TrashOutline as TrashIcon,
-  ImageOutline as ImageIcon
+  ImageOutline as ImageIcon,
+  PeopleOutline as DeveloperIcon
 } from '@vicons/ionicons5'
 import { useLibraryStore } from '../stores/libraryStore'
 import { useThemeClass } from '../composables/useThemeClass'
+import { useDeveloperName } from '../composables/useDeveloperName'
 import { PROVIDERS, libImageUrl } from '../types'
 
 const props = defineProps<{ id: string }>()
@@ -26,8 +28,11 @@ const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
 const themeClass = useThemeClass()
+const { resolveDeveloperName } = useDeveloperName()
 
 const program = computed(() => libraryStore.programs.find(p => p.id === props.id) ?? null)
+
+const developerName = computed(() => resolveDeveloperName(program.value?.developerId))
 
 // Deep-links / stale ids: if the program isn't in the store, bounce home.
 watch(
@@ -185,6 +190,14 @@ const handleMenuSelect = (key: string) => {
         <div class="detail-path" :title="program.executablePath">
           <NIcon :component="FolderIcon" :size="15" class="path-icon" />
           <span class="path-text">{{ program.executablePath }}</span>
+        </div>
+      </section>
+
+      <section v-if="developerName" class="detail-section">
+        <div class="section-label">{{ t('detailView.developerLabel') }}</div>
+        <div class="detail-developer">
+          <NIcon :component="DeveloperIcon" :size="15" class="developer-icon" />
+          <span>{{ developerName }}</span>
         </div>
       </section>
 
@@ -367,6 +380,23 @@ const handleMenuSelect = (key: string) => {
 
 .path-text {
   min-width: 0;
+}
+
+.detail-developer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: #d4d4d8;
+}
+
+.light-theme .detail-developer {
+  color: #3f3f46;
+}
+
+.developer-icon {
+  flex-shrink: 0;
+  opacity: 0.8;
 }
 
 .detail-tags {

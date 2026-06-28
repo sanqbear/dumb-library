@@ -26,6 +26,8 @@ export default {
     filter: 'Filter',
     provider: 'Provider',
     allProviders: 'All providers',
+    developer: 'Developer',
+    allDevelopers: 'All developers',
     tags: 'Tags',
     selectTags: 'Select tags',
     clearFilters: 'Clear filters',
@@ -47,6 +49,7 @@ export default {
   listView: {
     columnTitle: 'Title',
     columnProvider: 'Provider',
+    columnDeveloper: 'Developer',
     columnTags: 'Tags',
     columnActions: 'Actions'
   },
@@ -67,6 +70,7 @@ export default {
     previews: 'Previews',
     noPreviews: 'No preview images',
     pathLabel: 'Executable path',
+    developerLabel: 'Developer / Circle',
     tagsLabel: 'Tags',
     memoLabel: 'Memo'
   },
@@ -74,6 +78,8 @@ export default {
     title: 'Add Program',
     titleLabel: 'Title',
     titlePlaceholder: 'Enter program title',
+    developerLabel: 'Developer / Circle',
+    developerPlaceholder: 'Developer or circle name',
     executablePath: 'Executable Path',
     executablePathPlaceholder: 'Select executable file',
     tagsLabel: 'Tags',
@@ -175,6 +181,24 @@ export default {
   providers: {
     local: 'Local Download',
     steam: 'Steam'
+  },
+  developer: {
+    manageTitle: 'Manage Developers / Circles',
+    listLabel: 'Registered developers',
+    empty: 'No developers registered yet',
+    addNew: 'New developer',
+    koRequired: 'The Korean name is required. It is used as a fallback when a language is left blank.',
+    namePlaceholder: 'Enter name',
+    selectPlaceholder: 'Select or search a developer',
+    manage: 'Manage developers',
+    createNamed: "Create '{name}'",
+    none: 'None',
+    deleteConfirmTitle: 'Delete developer',
+    deleteConfirmMessage: 'Delete "{name}"? It will be unlinked from any program using it.',
+    added: 'Developer added',
+    updated: 'Developer updated',
+    deleted: 'Developer deleted',
+    saveFailed: 'Failed to save'
   },
   window: {
     minimize: 'Minimize',

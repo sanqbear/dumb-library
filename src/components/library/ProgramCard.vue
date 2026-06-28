@@ -2,7 +2,7 @@
 import { computed, h, nextTick, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { NCard, NIcon, NTag, NDropdown, useMessage, useDialog } from 'naive-ui'
+import { NCard, NIcon, NTag, NDropdown, NPopover, useMessage, useDialog } from 'naive-ui'
 import type { DropdownMixedOption } from 'naive-ui/es/dropdown/src/interface'
 import {
   Play as PlayIcon,
@@ -10,11 +10,15 @@ import {
   FolderOpenOutline as FolderIcon,
   InformationCircleOutline as InfoIcon,
   CreateOutline as EditIcon,
-  TrashOutline as TrashIcon
+  TrashOutline as TrashIcon,
+  LogoSteam as SteamIcon,
+  DesktopOutline as LocalIcon,
+  PeopleOutline as DeveloperIcon
 } from '@vicons/ionicons5'
-import type { Program } from '../../types'
+import type { Program, ProviderId } from '../../types'
 import { PROVIDERS, libImageUrl } from '../../types'
 import { useLibraryStore } from '../../stores/libraryStore'
+import { useDeveloperName } from '../../composables/useDeveloperName'
 
 const props = defineProps<{
   program: Program
@@ -25,6 +29,9 @@ const router = useRouter()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
+const { resolveDeveloperName } = useDeveloperName()
+
+const developerName = computed(() => resolveDeveloperName(props.program.developerId))
 
 const isHovered = ref(false)
 
@@ -38,6 +45,20 @@ const displayImage = computed(() => {
 const hasImage = computed(() => !!displayImage.value)
 
 const isHighlighted = computed(() => libraryStore.highlightedProgramId === props.program.id)
+
+// Provider badge shown over the top-left of the cover art.
+const PROVIDER_ICONS: Record<ProviderId, Component> = {
+  local: LocalIcon,
+  steam: SteamIcon
+}
+const providerIcon = computed(() => PROVIDER_ICONS[props.program.category])
+const providerLabel = computed(() => t(PROVIDERS[props.program.category].labelKey))
+
+// Landscape preview images shown in the info-icon hover popover.
+const previewUrls = computed(() =>
+  props.program.previewImages.map(rel => libImageUrl(rel, props.program.updatedAt))
+)
+const hasPreviews = computed(() => previewUrls.value.length > 0)
 
 // Last folder segment of the executable's location (e.g. "C:\Games\MyGame\game.exe" → "MyGame").
 // Protocol-based programs (e.g. steam://run/<appId>) have no meaningful folder, so we skip them.
@@ -168,6 +189,42 @@ const handleDelete = () => {
         <NIcon :component="ImageIcon" :size="48" />
       </div>
 
+      <!-- Provider badge (top-left, over the cover) -->
+      <div class="provider-badge" :title="providerLabel" :aria-label="providerLabel">
+        <NIcon :component="providerIcon" :size="16" />
+      </div>
+
+      <!-- Info badge (top-right): hover reveals the preview images -->
+      <NPopover
+        v-if="hasPreviews"
+        trigger="hover"
+        placement="bottom-end"
+        :show-arrow="false"
+        raw
+        class="preview-popover"
+      >
+        <template #trigger>
+          <div
+            class="info-badge"
+            :aria-label="t('detailView.previews')"
+            @click.stop
+          >
+            <NIcon :component="InfoIcon" :size="18" />
+          </div>
+        </template>
+        <div class="preview-popover-inner">
+          <img
+            v-for="(url, i) in previewUrls"
+            :key="i"
+            :src="url"
+            class="preview-popover-img"
+            loading="lazy"
+            decoding="async"
+            alt=""
+          />
+        </div>
+      </NPopover>
+
       <!-- Overlay on hover -->
       <div v-show="isHovered" class="card-overlay" @click.stop="handleCardClick">
         <button class="launch-btn" @click.stop="handleLaunch" aria-label="실행">
@@ -179,24 +236,26 @@ const handleDelete = () => {
     <!-- Info area -->
     <div class="card-info">
       <div class="card-title truncate">{{ program.title }}</div>
+      <div v-if="developerName" class="card-developer truncate" :title="developerName">
+        <NIcon :component="DeveloperIcon" :size="13" class="card-developer-icon" />
+        <span class="truncate">{{ developerName }}</span>
+      </div>
       <div v-if="folderName" class="card-folder truncate" :title="program.executablePath">
         <NIcon :component="FolderIcon" :size="13" class="card-folder-icon" />
         <span class="truncate">{{ folderName }}</span>
       </div>
       <div class="card-meta">
-        <NTag size="small" type="info">
-          {{ t(PROVIDERS[program.category].labelKey) }}
-        </NTag>
         <NTag
-          v-for="tag in program.tags.slice(0, 2)"
+          v-for="tag in program.tags.slice(0, 3)"
           :key="tag"
           size="small"
         >
           {{ tag }}
         </NTag>
-        <NTag v-if="program.tags.length > 2" size="small" :bordered="false">
-          +{{ program.tags.length - 2 }}
+        <NTag v-if="program.tags.length > 3" size="small" :bordered="false">
+          +{{ program.tags.length - 3 }}
         </NTag>
+        <span v-if="program.tags.length === 0" class="card-meta-empty">—</span>
       </div>
     </div>
 
@@ -296,9 +355,76 @@ const handleDelete = () => {
   color: #71717a;
 }
 
+/* Provider / info badges float above the cover and stay above the hover
+   overlay so the info icon remains hoverable while the launch button shows. */
+.provider-badge,
+.info-badge {
+  position: absolute;
+  top: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: #fff;
+  background-color: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.provider-badge {
+  left: 8px;
+}
+
+.info-badge {
+  right: 8px;
+  cursor: help;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.info-badge:hover {
+  background-color: rgba(0, 0, 0, 0.78);
+  transform: scale(1.08);
+}
+
+/* Floating preview gallery rendered by the info-badge popover.
+   A fixed width (not max-width) is intentional: with a definite width the
+   images' `aspect-ratio` resolves a definite height at first layout — before
+   the lazy images load — so naive-ui measures the popover's true size on the
+   first hover and can flip it above the badge when there's no room below.
+   Without it the box starts near-zero-height, opens downward, and only
+   repositions on a second hover once the images are cached. */
+.preview-popover-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  width: 280px;
+  border-radius: 10px;
+  background-color: #1f1f23;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.light-theme .preview-popover-inner {
+  background-color: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.preview-popover-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
 .card-overlay {
   position: absolute;
   inset: 0;
+  z-index: 2;
   background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
@@ -360,6 +486,24 @@ const handleDelete = () => {
   margin-bottom: 4px;
 }
 
+.card-developer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+  color: #c4b5d4;
+  margin-bottom: 4px;
+}
+
+.light-theme .card-developer {
+  color: #7c5e96;
+}
+
+.card-developer-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
 .card-folder {
   display: flex;
   align-items: center;
@@ -382,5 +526,12 @@ const handleDelete = () => {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  min-height: 22px;
+  align-items: center;
+}
+
+.card-meta-empty {
+  font-size: 0.8rem;
+  color: #52525b;
 }
 </style>

@@ -26,6 +26,8 @@ export default {
     filter: 'フィルター',
     provider: 'プロバイダー',
     allProviders: 'すべて',
+    developer: '開発元',
+    allDevelopers: 'すべての開発元',
     tags: 'タグ',
     selectTags: 'タグを選択',
     clearFilters: 'フィルターをクリア',
@@ -47,6 +49,7 @@ export default {
   listView: {
     columnTitle: 'タイトル',
     columnProvider: 'プロバイダー',
+    columnDeveloper: 'サークル',
     columnTags: 'タグ',
     columnActions: '操作'
   },
@@ -67,6 +70,7 @@ export default {
     previews: 'プレビュー',
     noPreviews: 'プレビュー画像がありません',
     pathLabel: '実行パス',
+    developerLabel: '開発元（サークル）',
     tagsLabel: 'タグ',
     memoLabel: 'メモ'
   },
@@ -74,6 +78,8 @@ export default {
     title: 'プログラム追加',
     titleLabel: 'タイトル',
     titlePlaceholder: 'プログラム名を入力',
+    developerLabel: '開発元（サークル）',
+    developerPlaceholder: '開発元またはサークル名',
     executablePath: '実行ファイルパス',
     executablePathPlaceholder: '実行ファイルを選択',
     tagsLabel: 'タグ',
@@ -171,6 +177,24 @@ export default {
     launchFailed: 'プログラムの起動に失敗しました',
     thumbnailUpdated: 'サムネイルを更新しました',
     thumbnailUpdateFailed: 'サムネイル更新に失敗しました'
+  },
+  developer: {
+    manageTitle: '開発元（サークル）管理',
+    listLabel: '登録済みの開発元',
+    empty: '登録された開発元がありません',
+    addNew: '新規開発元',
+    koRequired: '韓国語名は必須です。他の言語が未入力の場合は韓国語で表示されます。',
+    namePlaceholder: '名前を入力',
+    selectPlaceholder: '開発元を選択または検索',
+    manage: '開発元を管理',
+    createNamed: '「{name}」を新規作成',
+    none: 'なし',
+    deleteConfirmTitle: '開発元を削除',
+    deleteConfirmMessage: '「{name}」を削除しますか？この開発元を使用している項目との関連付けが解除されます。',
+    added: '開発元を追加しました',
+    updated: '開発元を更新しました',
+    deleted: '開発元を削除しました',
+    saveFailed: '保存に失敗しました'
   },
   providers: {
     local: 'ローカル',

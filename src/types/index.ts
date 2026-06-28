@@ -30,6 +30,44 @@ export const libImageUrl = (
   return version !== undefined ? `${base}?v=${encodeURIComponent(String(version))}` : base
 }
 
+// Supported UI locales. Kept here (not in i18n) so the Electron main process can
+// import it from this shared module without pulling in the renderer's i18n stack.
+export type LocaleCode = 'ko' | 'en' | 'ja' | 'zh-CN'
+
+// A display name in each supported language. `ko` is the canonical value and the
+// fallback used whenever a locale-specific name is absent.
+export interface LocalizedName {
+  ko: string
+  en?: string
+  ja?: string
+  'zh-CN'?: string
+}
+
+// Developer / doujin circle master entry. Programs reference one by `id` rather
+// than storing the name inline, so a single edit updates every program at once.
+export interface Developer {
+  id: string
+  names: LocalizedName
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateDeveloperData {
+  names: LocalizedName
+}
+
+export interface UpdateDeveloperData {
+  id: string
+  names: LocalizedName
+}
+
+// Resolve a localized name for `locale`, falling back to Korean when the
+// requested language is empty/unset.
+export const localizedName = (names: LocalizedName, locale: LocaleCode): string => {
+  const value = names[locale]
+  return value && value.trim() ? value : names.ko
+}
+
 // Program item in the library
 export interface Program {
   id: string
@@ -43,6 +81,10 @@ export interface Program {
   // Optional market/store page (http/https) opened in the system browser.
   marketUrl: string | null
   category: ProviderId
+  // Reference to a Developer master entry (doujin circle / studio). Null when
+  // unset. The localized name is resolved from the Developer registry, not
+  // stored here. Included in search via its names.
+  developerId: string | null
   tags: string[]
   // Free-form search-index keywords. Unlike `tags` they are not used for
   // categorization/filtering chips — they only widen what the search box matches.
@@ -62,6 +104,7 @@ export const MAX_PREVIEW_IMAGES = 3
 export interface CreateProgramData {
   title: string
   executablePath: string
+  developerId?: string | null
   tags?: string[]
   keywords?: string[]
   memo?: string
@@ -73,6 +116,7 @@ export interface UpdateProgramData {
   id: string
   title?: string
   executablePath?: string
+  developerId?: string | null
   tags?: string[]
   keywords?: string[]
   memo?: string
@@ -95,6 +139,9 @@ export interface CreateSteamProgramData {
 export interface LibraryData {
   version: string
   programs: Program[]
+  // Developer / circle master list. Optional on disk for backward compatibility;
+  // always present after load (migration backfills it from legacy data).
+  developers: Developer[]
 }
 
 // User settings
@@ -120,6 +167,11 @@ export interface ElectronAPI {
   addProgram: (data: CreateProgramData) => Promise<Program>
   updateProgram: (data: UpdateProgramData) => Promise<Program>
   deleteProgram: (id: string) => Promise<void>
+
+  // Developer (circle) master-list operations
+  addDeveloper: (data: CreateDeveloperData) => Promise<Developer>
+  updateDeveloper: (data: UpdateDeveloperData) => Promise<Developer>
+  deleteDeveloper: (id: string) => Promise<void>
   // Background single-program patch pushed from main (e.g. async thumbnail).
   // Returns an unsubscribe function.
   onProgramPatched: (

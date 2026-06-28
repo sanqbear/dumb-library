@@ -26,6 +26,8 @@ export default {
     filter: '筛选',
     provider: '来源',
     allProviders: '所有来源',
+    developer: '开发商',
+    allDevelopers: '所有开发商',
     tags: '标签',
     selectTags: '选择标签',
     clearFilters: '清除筛选',
@@ -47,6 +49,7 @@ export default {
   listView: {
     columnTitle: '标题',
     columnProvider: '来源',
+    columnDeveloper: '开发商',
     columnTags: '标签',
     columnActions: '操作'
   },
@@ -67,6 +70,7 @@ export default {
     previews: '预览',
     noPreviews: '没有预览图片',
     pathLabel: '可执行路径',
+    developerLabel: '开发商（社团）',
     tagsLabel: '标签',
     memoLabel: '备注'
   },
@@ -74,6 +78,8 @@ export default {
     title: '添加程序',
     titleLabel: '标题',
     titlePlaceholder: '输入程序名称',
+    developerLabel: '开发商（社团）',
+    developerPlaceholder: '开发商或社团名称',
     executablePath: '可执行文件路径',
     executablePathPlaceholder: '选择可执行文件',
     tagsLabel: '标签',
@@ -175,6 +181,24 @@ export default {
   providers: {
     local: '本地',
     steam: 'Steam'
+  },
+  developer: {
+    manageTitle: '开发商（社团）管理',
+    listLabel: '已注册的开发商',
+    empty: '尚未注册任何开发商',
+    addNew: '新建开发商',
+    koRequired: '韩语名称为必填项。未填写其他语言时将以韩语显示。',
+    namePlaceholder: '输入名称',
+    selectPlaceholder: '选择或搜索开发商',
+    manage: '管理开发商',
+    createNamed: '新建“{name}”',
+    none: '无',
+    deleteConfirmTitle: '删除开发商',
+    deleteConfirmMessage: '确定删除“{name}”吗？使用该开发商的项目将解除关联。',
+    added: '已添加开发商',
+    updated: '已更新开发商',
+    deleted: '已删除开发商',
+    saveFailed: '保存失败'
   },
   window: {
     minimize: '最小化',
