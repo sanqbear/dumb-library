@@ -311,15 +311,15 @@ const handleDelete = () => {
 
 .program-card.is-highlighted {
   box-shadow:
-    0 0 0 3px #e87ea1,
-    0 0 24px rgba(232, 126, 161, 0.55);
+    0 0 0 3px #ab4aba,
+    0 0 24px rgba(171, 74, 186, 0.55);
   animation: highlight-pulse 1.4s ease-in-out infinite;
 }
 
 .light-theme .program-card.is-highlighted {
   box-shadow:
-    0 0 0 3px #db2777,
-    0 0 24px rgba(219, 39, 119, 0.45);
+    0 0 0 3px #ab4aba,
+    0 0 24px rgba(171, 74, 186, 0.45);
 }
 
 @keyframes highlight-pulse {
@@ -437,7 +437,7 @@ const handleDelete = () => {
   height: 72px;
   border-radius: 50%;
   border: none;
-  background-color: #e87ea1;
+  background-color: #ab4aba;
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -449,26 +449,26 @@ const handleDelete = () => {
 }
 
 .light-theme .launch-btn {
-  background-color: #db2777;
+  background-color: #ab4aba;
 }
 
 .launch-btn:hover {
   transform: scale(1.06);
-  background-color: #f093b0;
+  background-color: #b658c4;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
 .light-theme .launch-btn:hover {
-  background-color: #ec4899;
+  background-color: #a144af;
 }
 
 .launch-btn:active {
   transform: scale(0.98);
-  background-color: #c96081;
+  background-color: #8e3a9c;
 }
 
 .light-theme .launch-btn:active {
-  background-color: #be185d;
+  background-color: #953ea3;
 }
 
 .card-info {
@@ -491,12 +491,12 @@ const handleDelete = () => {
   align-items: center;
   gap: 4px;
   font-size: 0.74rem;
-  color: #c4b5d4;
+  color: #d6a9dd;
   margin-bottom: 4px;
 }
 
 .light-theme .card-developer {
-  color: #7c5e96;
+  color: #953ea3;
 }
 
 .card-developer-icon {

@@ -72,7 +72,8 @@ export default {
     pathLabel: 'Executable path',
     developerLabel: 'Developer / Circle',
     tagsLabel: 'Tags',
-    memoLabel: 'Memo'
+    memoLabel: 'Memo',
+    filterByThis: 'Filter the library by this'
   },
   addDialog: {
     title: 'Add Program',

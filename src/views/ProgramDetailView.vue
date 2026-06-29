@@ -89,6 +89,26 @@ const handleBack = () => {
   router.push({ name: 'library' })
 }
 
+// Tag / developer click → jump to the library filtered by just that criterion.
+// Replace existing filters so the result is exactly "everything with this
+// tag / by this developer", and reset the saved scroll so the list opens at the
+// top rather than restoring the previous position.
+const handleFilterByTag = (tag: string) => {
+  libraryStore.clearFilters()
+  libraryStore.setSelectedTags([tag])
+  libraryStore.setLibraryScrollTop(0)
+  router.push({ name: 'library' })
+}
+
+const handleFilterByDeveloper = () => {
+  const id = program.value?.developerId
+  if (!id) return
+  libraryStore.clearFilters()
+  libraryStore.setSelectedDeveloper(id)
+  libraryStore.setLibraryScrollTop(0)
+  router.push({ name: 'library' })
+}
+
 const handleReveal = async () => {
   if (program.value) await libraryStore.revealProgram(program.value)
 }
@@ -195,17 +215,29 @@ const handleMenuSelect = (key: string) => {
 
       <section v-if="developerName" class="detail-section">
         <div class="section-label">{{ t('detailView.developerLabel') }}</div>
-        <div class="detail-developer">
+        <button
+          type="button"
+          class="detail-developer detail-developer-btn"
+          :title="t('detailView.filterByThis')"
+          @click="handleFilterByDeveloper"
+        >
           <NIcon :component="DeveloperIcon" :size="15" class="developer-icon" />
           <span>{{ developerName }}</span>
-        </div>
+        </button>
       </section>
 
       <section class="detail-section">
         <div class="section-label">{{ t('detailView.tagsLabel') }}</div>
         <div class="detail-tags">
           <NTag type="info" :bordered="false">{{ t(PROVIDERS[program.category].labelKey) }}</NTag>
-          <NTag v-for="tag in program.tags" :key="tag" :bordered="false">{{ tag }}</NTag>
+          <NTag
+            v-for="tag in program.tags"
+            :key="tag"
+            :bordered="false"
+            class="detail-tag-clickable"
+            :title="t('detailView.filterByThis')"
+            @click="handleFilterByTag(tag)"
+          >{{ tag }}</NTag>
           <span v-if="program.tags.length === 0" class="tags-empty">—</span>
         </div>
       </section>
@@ -392,6 +424,43 @@ const handleMenuSelect = (key: string) => {
 
 .light-theme .detail-developer {
   color: #3f3f46;
+}
+
+/* Developer name acts as a filter trigger — render as an inline, button-reset
+   pill that hints at interactivity on hover. */
+.detail-developer-btn {
+  border: none;
+  background: none;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.detail-developer-btn:hover {
+  background-color: rgba(171, 74, 186, 0.16);
+  color: #d6a9dd;
+}
+
+.light-theme .detail-developer-btn:hover {
+  background-color: rgba(171, 74, 186, 0.1);
+  color: #953ea3;
+}
+
+.detail-tag-clickable {
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.detail-tag-clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px rgba(171, 74, 186, 0.55);
+}
+
+.light-theme .detail-tag-clickable:hover {
+  box-shadow: 0 0 0 1px rgba(171, 74, 186, 0.5);
 }
 
 .developer-icon {

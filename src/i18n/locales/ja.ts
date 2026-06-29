@@ -72,7 +72,8 @@ export default {
     pathLabel: '実行パス',
     developerLabel: '開発元（サークル）',
     tagsLabel: 'タグ',
-    memoLabel: 'メモ'
+    memoLabel: 'メモ',
+    filterByThis: 'この項目で一覧を絞り込む'
   },
   addDialog: {
     title: 'プログラム追加',

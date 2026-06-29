@@ -100,6 +100,17 @@ const developerOptions = computed(() =>
     .sort((a, b) => a.label.localeCompare(b.label))
 )
 
+// Custom dropdown search: match the typed text against every localized name of
+// the developer (ko/en/ja/zh-CN), not just the label shown in the active UI
+// language — so a circle can be found by any of its translated names regardless
+// of the current language.
+const developerFilter = (pattern: string, option: { value?: string | number }): boolean => {
+  const dev = typeof option.value === 'string' ? libraryStore.developerMap.get(option.value) : undefined
+  if (!dev) return false
+  const haystack = Object.values(dev.names).filter(Boolean).join('\n').toLowerCase()
+  return haystack.includes(pattern.toLowerCase())
+}
+
 const tagOptions = computed(() =>
   libraryStore.allTags.map(tag => ({
     label: tag,
@@ -224,6 +235,7 @@ const handleRandomPick = () => {
                 :options="developerOptions"
                 :placeholder="t('header.allDevelopers')"
                 filterable
+                :filter="developerFilter"
                 clearable
                 @update:value="handleDeveloperChange"
               />

@@ -675,11 +675,11 @@ const handleDelete = () => {
 }
 
 .media-section.is-drag-over {
-  box-shadow: 0 0 0 2px #e87ea1;
+  box-shadow: 0 0 0 2px #ab4aba;
 }
 
 .light-theme .media-section.is-drag-over {
-  box-shadow: 0 0 0 2px #db2777;
+  box-shadow: 0 0 0 2px #ab4aba;
 }
 
 .media-label {
@@ -797,8 +797,8 @@ const handleDelete = () => {
 }
 
 .preview-add:hover {
-  border-color: #e87ea1;
-  color: #e87ea1;
+  border-color: #ab4aba;
+  color: #d6a9dd;
 }
 
 .light-theme .preview-add {
@@ -807,8 +807,8 @@ const handleDelete = () => {
 }
 
 .light-theme .preview-add:hover {
-  border-color: #db2777;
-  color: #db2777;
+  border-color: #ab4aba;
+  color: #953ea3;
 }
 
 .preview-url {

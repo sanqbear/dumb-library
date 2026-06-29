@@ -72,7 +72,8 @@ export default {
     pathLabel: '可执行路径',
     developerLabel: '开发商（社团）',
     tagsLabel: '标签',
-    memoLabel: '备注'
+    memoLabel: '备注',
+    filterByThis: '按此项筛选列表'
   },
   addDialog: {
     title: '添加程序',

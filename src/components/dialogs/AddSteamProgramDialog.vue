@@ -416,12 +416,12 @@ const handleCancel = () => {
 }
 
 :global(.clickable-name:hover) {
-  color: #f093b0;
+  color: #d6a9dd;
   border-bottom-color: currentColor;
 }
 
 :global(.light-theme .clickable-name:hover) {
-  color: #db2777;
+  color: #953ea3;
 }
 
 .preview-body {

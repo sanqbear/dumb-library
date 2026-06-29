@@ -126,12 +126,12 @@ const handleClose = () => window.electron.windowClose()
 }
 
 .close-btn:hover {
-  background-color: #e81123;
+  background-color: #e54d2e;
   color: #ffffff;
 }
 
 .close-btn:active {
-  background-color: #c40e1d;
+  background-color: #d13c1c;
   color: #ffffff;
 }
 </style>

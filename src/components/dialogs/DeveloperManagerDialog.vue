@@ -246,11 +246,11 @@ const otherLocales = computed(() => SUPPORTED_LOCALES.filter(c => c !== 'ko'))
 }
 
 .dev-item.is-active {
-  border-color: #e87ea1;
+  border-color: #ab4aba;
 }
 
 .light-theme .dev-item.is-active {
-  border-color: #db2777;
+  border-color: #ab4aba;
 }
 
 .dev-item-name {
@@ -291,11 +291,11 @@ const otherLocales = computed(() => SUPPORTED_LOCALES.filter(c => c !== 'ko'))
 }
 
 .req {
-  color: #e87ea1;
+  color: #d6a9dd;
 }
 
 .light-theme .req {
-  color: #db2777;
+  color: #953ea3;
 }
 
 .field-hint {

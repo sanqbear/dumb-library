@@ -212,11 +212,11 @@ const columns = computed<DataTableColumns<Program>>(() => [
 /* Background tint on highlighted row cells — no border/padding change,
    so the table layout stays identical when the highlight toggles. */
 .library-list :deep(tr.is-highlighted td) {
-  background-color: rgba(232, 126, 161, 0.18) !important;
+  background-color: rgba(171, 74, 186, 0.18) !important;
   transition: background-color 0.25s ease;
 }
 
 .light-theme .library-list :deep(tr.is-highlighted td) {
-  background-color: rgba(219, 39, 119, 0.14) !important;
+  background-color: rgba(171, 74, 186, 0.14) !important;
 }
 </style>

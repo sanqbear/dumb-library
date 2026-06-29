@@ -71,6 +71,13 @@ export const useLibraryStore = defineStore('library', () => {
   const sortBy = ref<'createdAt' | 'title'>('title')
   const sortOrder = ref<'asc' | 'desc'>('asc')
 
+  // Saved scroll position (in px) of the library scroll container. Persisted in
+  // the store — not local component state — so it survives the LibraryView being
+  // detached by <keep-alive> when navigating to the detail/edit pages, and can be
+  // reset to 0 when a fresh filter is applied from elsewhere (e.g. tag/developer
+  // click on the detail screen).
+  const libraryScrollTop = ref(0)
+
   // Random-pick highlight: ID of the program currently highlighted by
   // pickRandom(). Components watch this to scroll into view and apply a
   // non-layout-shifting visual ring. Auto-clears via a timer.
@@ -535,6 +542,10 @@ export const useLibraryStore = defineStore('library', () => {
     sortOrder.value = value
   }
 
+  const setLibraryScrollTop = (value: number): void => {
+    libraryScrollTop.value = value
+  }
+
   const clearHighlight = (): void => {
     if (highlightTimer !== null) {
       window.clearTimeout(highlightTimer)
@@ -596,6 +607,7 @@ export const useLibraryStore = defineStore('library', () => {
     selectedTags,
     sortBy,
     sortOrder,
+    libraryScrollTop,
     highlightedProgramId,
 
     // Getters
@@ -637,6 +649,7 @@ export const useLibraryStore = defineStore('library', () => {
     clearFilters,
     setSortBy,
     setSortOrder,
+    setLibraryScrollTop,
     pickRandom,
     clearHighlight
   }

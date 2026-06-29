@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, watch } from 'vue'
+import { computed, nextTick, ref, watch, onMounted, onActivated, onBeforeUnmount } from 'vue'
 import { NSpin } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -7,8 +7,64 @@ import LibraryGrid from './LibraryGrid.vue'
 import LibraryList from './LibraryList.vue'
 import EmptyState from './EmptyState.vue'
 
+// Named so <keep-alive include="['LibraryView']"> in App.vue can target it —
+// keep-alive keeps the grid's incremental-render window mounted so a deep scroll
+// position is actually reachable when we restore it.
+defineOptions({ name: 'LibraryView' })
+
 const libraryStore = useLibraryStore()
 const settingsStore = useSettingsStore()
+
+// Scroll-position persistence. The element that actually scrolls differs by
+// view mode and isn't always .library-view itself: the grid scrolls inside
+// NSpin's wrapper, the list inside the data table's scrollbar container. Rather
+// than guess per mode, we remember whichever element inside the view last fired
+// a scroll event and restore that same node (keep-alive preserves it).
+const rootEl = ref<HTMLElement | null>(null)
+let scrollerEl: HTMLElement | null = null
+
+// Capture-phase listener on the root catches scrolls from the root *and* any
+// descendant (scroll doesn't bubble, but it fires during capture). Naive's
+// popovers/dropdowns teleport to <body>, so they're not contained here and
+// can't clobber the saved value. This keeps the stored position current on
+// every movement — we intentionally do NOT re-read scrollTop at deactivate
+// time, because keep-alive has by then detached the node and it reports 0.
+const handleScroll = (e: Event): void => {
+  const target = e.target as HTMLElement | null
+  if (!target || !rootEl.value || !rootEl.value.contains(target)) return
+  scrollerEl = target
+  libraryStore.setLibraryScrollTop(target.scrollTop)
+}
+
+// Restore can race the DOM: right after <keep-alive> re-attaches, the scroll
+// container's height may not be settled, so a single assignment can get clamped
+// back to 0. Re-apply across a few animation frames until it sticks.
+const restoreScroll = (): void => {
+  const target = libraryStore.libraryScrollTop
+  if (target <= 0 || !scrollerEl) return
+  let tries = 0
+  const apply = (): void => {
+    const el = scrollerEl
+    if (el) {
+      el.scrollTop = target
+      if (Math.abs(el.scrollTop - target) <= 1) return
+    }
+    if (tries++ < 30) requestAnimationFrame(apply)
+  }
+  requestAnimationFrame(apply)
+}
+
+onMounted(() => {
+  rootEl.value?.addEventListener('scroll', handleScroll, { capture: true, passive: true })
+})
+
+onActivated(() => {
+  restoreScroll()
+})
+
+onBeforeUnmount(() => {
+  rootEl.value?.removeEventListener('scroll', handleScroll, { capture: true })
+})
 
 const isEmpty = computed(() => libraryStore.filteredPrograms.length === 0)
 const isFiltered = computed(() =>
@@ -33,7 +89,7 @@ watch(
 </script>
 
 <template>
-  <div class="library-view">
+  <div class="library-view" ref="rootEl">
     <NSpin :show="libraryStore.isLoading" description="Loading...">
       <template v-if="isEmpty">
         <EmptyState :is-filtered="isFiltered" />

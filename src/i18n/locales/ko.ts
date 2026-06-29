@@ -72,7 +72,8 @@ export default {
     pathLabel: '실행 경로',
     developerLabel: '개발사(서클)',
     tagsLabel: '태그',
-    memoLabel: '메모'
+    memoLabel: '메모',
+    filterByThis: '이 항목으로 목록 필터링'
   },
   addDialog: {
     title: '프로그램 추가',
