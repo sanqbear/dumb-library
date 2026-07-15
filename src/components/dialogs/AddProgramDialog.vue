@@ -328,11 +328,19 @@ const handleCancel = () => { emit('update:show', false) }
             </NInput>
           </NFormItem>
           <NFormItem :label="t('addDialog.tagsLabel')">
-            <TagInput v-model:value="tags" />
+            <TagInput
+              v-model:value="tags"
+              :suggestions="libraryStore.allTags"
+              :placeholder="t('addDialog.tagInputPlaceholder')"
+            />
           </NFormItem>
           <NFormItem :label="t('addDialog.keywordsLabel')">
             <div class="field-stack">
-              <TagInput v-model:value="keywords" />
+              <TagInput
+                v-model:value="keywords"
+                :suggestions="libraryStore.allKeywords"
+                :placeholder="t('addDialog.tagInputPlaceholder')"
+              />
               <span class="field-hint">{{ t('addDialog.keywordsHint') }}</span>
             </div>
           </NFormItem>

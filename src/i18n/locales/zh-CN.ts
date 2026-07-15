@@ -73,7 +73,8 @@ export default {
     developerLabel: '开发商（社团）',
     tagsLabel: '标签',
     memoLabel: '备注',
-    filterByThis: '按此项筛选列表'
+    filterByThis: '按此项筛选列表',
+    recommended: '推荐'
   },
   addDialog: {
     title: '添加程序',
@@ -84,6 +85,8 @@ export default {
     executablePath: '可执行文件路径',
     executablePathPlaceholder: '选择可执行文件',
     tagsLabel: '标签',
+    tagInputPlaceholder: '输入后回车，或选择已有项 · 用 ; 或 , 一次输入多个',
+    tagAddLabel: '添加“{name}”',
     keywordsLabel: '搜索关键词',
     keywordsHint: '仅用于搜索，不用于分类',
     memoLabel: '备注',

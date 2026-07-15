@@ -461,13 +461,21 @@ const handleDelete = () => {
 
             <!-- Tags -->
             <NFormItem :label="t('addDialog.tagsLabel')">
-              <TagInput v-model:value="tags" />
+              <TagInput
+                v-model:value="tags"
+                :suggestions="libraryStore.allTags"
+                :placeholder="t('addDialog.tagInputPlaceholder')"
+              />
             </NFormItem>
 
             <!-- Search keywords (indexing only, not categorization) -->
             <NFormItem :label="t('addDialog.keywordsLabel')">
               <div class="field-stack">
-                <TagInput v-model:value="keywords" />
+                <TagInput
+                  v-model:value="keywords"
+                  :suggestions="libraryStore.allKeywords"
+                  :placeholder="t('addDialog.tagInputPlaceholder')"
+                />
                 <span class="field-hint">{{ t('addDialog.keywordsHint') }}</span>
               </div>
             </NFormItem>

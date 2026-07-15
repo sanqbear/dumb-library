@@ -68,8 +68,8 @@ function createWindow(): void {
     : join(process.resourcesPath, 'icon.png')
 
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: 1360,
+    height: 1010,
     minWidth: 800,
     minHeight: 600,
     show: false,

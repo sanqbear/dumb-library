@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, nextTick, ref, type Component } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { NCard, NIcon, NTag, NDropdown, NPopover, useMessage, useDialog } from 'naive-ui'
@@ -34,6 +34,71 @@ const { resolveDeveloperName } = useDeveloperName()
 const developerName = computed(() => resolveDeveloperName(props.program.developerId))
 
 const isHovered = ref(false)
+
+// Tags render on a single line. We measure how many actually fit and collapse
+// the remainder into a "+n" badge, so a program with many/long tags never grows
+// the card taller than its neighbours in the grid.
+const metaRef = ref<HTMLElement | null>(null)
+const visibleTagCount = ref(props.program.tags.length)
+
+const visibleTags = computed(() => props.program.tags.slice(0, visibleTagCount.value))
+const hiddenTagCount = computed(() => props.program.tags.length - visibleTagCount.value)
+
+// Approx. footprint reserved for the "+n" badge (badge width + preceding gap)
+// so the last visible tag never sits where the badge needs to go.
+const OVERFLOW_RESERVE = 40
+
+const computeVisibleTags = () => {
+  const el = metaRef.value
+  if (!el) return
+  const total = props.program.tags.length
+  if (total === 0) return
+  const tagEls = Array.from(el.querySelectorAll<HTMLElement>('.card-tag'))
+  if (tagEls.length < total) return // not all tags in the DOM yet
+  const containerRight = el.getBoundingClientRect().right
+  let count = total
+  for (let i = 0; i < total; i++) {
+    const tagEl = tagEls[i]
+    if (!tagEl) break
+    const right = tagEl.getBoundingClientRect().right
+    const isLast = i === total - 1
+    const limit = isLast ? containerRight : containerRight - OVERFLOW_RESERVE
+    if (right > limit + 0.5) {
+      count = i
+      break
+    }
+  }
+  visibleTagCount.value = count
+}
+
+// Two-phase: render every tag first so their natural widths are measurable,
+// then trim to what fits. Re-runs on resize and whenever the tag list changes.
+const measureTags = () => {
+  const total = props.program.tags.length
+  if (visibleTagCount.value !== total) {
+    visibleTagCount.value = total
+    nextTick(computeVisibleTags)
+  } else {
+    computeVisibleTags()
+  }
+}
+
+let resizeObserver: ResizeObserver | null = null
+
+onMounted(() => {
+  if (metaRef.value) {
+    resizeObserver = new ResizeObserver(measureTags)
+    resizeObserver.observe(metaRef.value)
+  }
+  nextTick(measureTags)
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+})
+
+watch(() => props.program.tags, () => nextTick(measureTags), { deep: true })
 
 const displayImage = computed(() => {
   const v = props.program.updatedAt
@@ -244,16 +309,22 @@ const handleDelete = () => {
         <NIcon :component="FolderIcon" :size="13" class="card-folder-icon" />
         <span class="truncate">{{ folderName }}</span>
       </div>
-      <div class="card-meta">
+      <div ref="metaRef" class="card-meta">
         <NTag
-          v-for="tag in program.tags.slice(0, 3)"
+          v-for="tag in visibleTags"
           :key="tag"
           size="small"
+          class="card-tag"
         >
           {{ tag }}
         </NTag>
-        <NTag v-if="program.tags.length > 3" size="small" :bordered="false">
-          +{{ program.tags.length - 3 }}
+        <NTag
+          v-if="hiddenTagCount > 0"
+          size="small"
+          :bordered="false"
+          class="card-tag card-tag-more"
+        >
+          +{{ hiddenTagCount }}
         </NTag>
         <span v-if="program.tags.length === 0" class="card-meta-empty">—</span>
       </div>
@@ -524,10 +595,21 @@ const handleDelete = () => {
 
 .card-meta {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
   min-height: 22px;
   align-items: center;
+  overflow: hidden;
+}
+
+/* Tags stay on one line: never shrink, never wrap their own text. */
+.card-tag {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.card-tag-more {
+  flex-shrink: 0;
 }
 
 .card-meta-empty {

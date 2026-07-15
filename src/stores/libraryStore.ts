@@ -136,6 +136,16 @@ export const useLibraryStore = defineStore('library', () => {
     return Array.from(tagSet).sort()
   })
 
+  // Distinct search-index keywords across the whole library, for autocomplete
+  // suggestions when editing a program's keywords.
+  const allKeywords = computed(() => {
+    const set = new Set<string>()
+    programs.value.forEach(p => {
+      p.keywords?.forEach(kw => set.add(kw))
+    })
+    return Array.from(set).sort()
+  })
+
   const programCount = computed(() => programs.value.length)
   const filteredCount = computed(() => filteredPrograms.value.length)
 
@@ -614,6 +624,7 @@ export const useLibraryStore = defineStore('library', () => {
     filteredPrograms,
     effectiveSearch,
     allTags,
+    allKeywords,
     programCount,
     filteredCount,
 

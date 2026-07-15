@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, nextTick, watch, type Component } from 'vue'
+import { computed, h, nextTick, ref, watch, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { NImage, NImageGroup, NButton, NIcon, NTag, NDropdown, useMessage, useDialog } from 'naive-ui'
@@ -18,7 +18,7 @@ import {
 import { useLibraryStore } from '../stores/libraryStore'
 import { useThemeClass } from '../composables/useThemeClass'
 import { useDeveloperName } from '../composables/useDeveloperName'
-import { PROVIDERS, libImageUrl } from '../types'
+import { libImageUrl, type Program } from '../types'
 
 const props = defineProps<{ id: string }>()
 
@@ -46,9 +46,77 @@ watch(
   { immediate: true }
 )
 
+// Scroll the view back to the top when navigating between programs (e.g. via
+// the recommendations strip), since Vue reuses this component for the route.
+const detailViewRef = ref<HTMLElement | null>(null)
+watch(
+  () => props.id,
+  () => nextTick(() => { if (detailViewRef.value) detailViewRef.value.scrollTop = 0 })
+)
+
 const previewUrls = computed(() =>
   program.value ? program.value.previewImages.map(rel => libImageUrl(rel, program.value!.updatedAt)) : []
 )
+
+// Memo may contain http(s) URLs — split it into plain-text and link segments so
+// the links become clickable while the rest renders as-is (newlines preserved).
+type MemoSegment = { type: 'text' | 'link'; text: string; href?: string }
+const URL_RE = /https?:\/\/[^\s<>]+/g
+const memoSegments = computed<MemoSegment[]>(() => {
+  const memo = program.value?.memo ?? ''
+  if (!memo) return []
+  const segments: MemoSegment[] = []
+  let last = 0
+  for (const match of memo.matchAll(URL_RE)) {
+    const full = match[0] ?? ''
+    const start = match.index ?? 0
+    let url = full
+    // Trailing punctuation is usually sentence syntax, not part of the URL.
+    const trail = url.match(/[),.;:!?'"\]]+$/)?.[0] ?? ''
+    if (trail) url = url.slice(0, url.length - trail.length)
+    if (start > last) segments.push({ type: 'text', text: memo.slice(last, start) })
+    segments.push({ type: 'link', text: url, href: url })
+    if (trail) segments.push({ type: 'text', text: trail })
+    last = start + full.length
+  }
+  if (last < memo.length) segments.push({ type: 'text', text: memo.slice(last) })
+  return segments
+})
+
+const openExternalLink = async (url: string) => {
+  const ok = await window.electron.openExternal(url)
+  if (!ok) message.error(t('detailView.marketOpenFailed'))
+}
+
+// "Recommended" = other programs that share this one's developer and/or tags.
+// Same developer is weighted above any single shared tag; ties break by title.
+const RECOMMENDATION_LIMIT = 8
+const recImage = (p: Program): string => {
+  if (p.thumbnailPath) return libImageUrl(p.thumbnailPath, p.updatedAt)
+  if (p.iconPath) return libImageUrl(p.iconPath, p.updatedAt)
+  return ''
+}
+const recommendations = computed<Program[]>(() => {
+  const cur = program.value
+  if (!cur) return []
+  const curTags = new Set(cur.tags)
+  return libraryStore.programs
+    .filter(p => p.id !== cur.id)
+    .map(p => {
+      let score = 0
+      if (cur.developerId && p.developerId === cur.developerId) score += 5
+      for (const tag of p.tags) if (curTags.has(tag)) score += 1
+      return { program: p, score }
+    })
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score || a.program.title.localeCompare(b.program.title, 'ko'))
+    .slice(0, RECOMMENDATION_LIMIT)
+    .map(x => x.program)
+})
+
+const handleOpenRecommendation = (id: string) => {
+  router.push({ name: 'detail', params: { id } })
+}
 
 // Background art behind the title: first preview, else the thumbnail.
 const backdropUrl = computed(() => {
@@ -149,7 +217,7 @@ const handleMenuSelect = (key: string) => {
 </script>
 
 <template>
-  <div v-if="program" class="detail-view" :class="themeClass">
+  <div v-if="program" ref="detailViewRef" class="detail-view" :class="themeClass">
     <!-- Header with blurred backdrop art -->
     <header class="detail-header">
       <div
@@ -169,21 +237,35 @@ const handleMenuSelect = (key: string) => {
         </NDropdown>
       </div>
       <div class="detail-header-content">
-        <h1 class="detail-title">{{ program.title }}</h1>
-        <div class="detail-actions">
-          <NButton type="primary" size="large" @click="handleLaunch">
-            <template #icon><NIcon :component="PlayIcon" /></template>
-            {{ t('detailView.launch') }}
-          </NButton>
-          <NButton size="large" @click="handleEdit">
-            <template #icon><NIcon :component="EditIcon" /></template>
-            {{ t('detailView.edit') }}
-          </NButton>
-          <NButton v-if="program.marketUrl" size="large" @click="handleOpenMarket">
-            <template #icon><NIcon :component="MarketIcon" /></template>
-            {{ t('detailView.openMarket') }}
-          </NButton>
+        <div class="detail-header-main">
+          <h1 class="detail-title">{{ program.title }}</h1>
+          <div class="detail-actions">
+            <NButton type="primary" size="large" @click="handleLaunch">
+              <template #icon><NIcon :component="PlayIcon" /></template>
+              {{ t('detailView.launch') }}
+            </NButton>
+            <NButton size="large" @click="handleEdit">
+              <template #icon><NIcon :component="EditIcon" /></template>
+              {{ t('detailView.edit') }}
+            </NButton>
+            <NButton v-if="program.marketUrl" size="large" @click="handleOpenMarket">
+              <template #icon><NIcon :component="MarketIcon" /></template>
+              {{ t('detailView.openMarket') }}
+            </NButton>
+          </div>
         </div>
+        <!-- Developer / circle — no field title; sits at the header's bottom-right
+             (below the "more" button) and filters the library when clicked. -->
+        <button
+          v-if="developerName"
+          type="button"
+          class="detail-developer detail-developer-btn header-developer"
+          :title="t('detailView.filterByThis')"
+          @click="handleFilterByDeveloper"
+        >
+          <NIcon :component="DeveloperIcon" :size="15" class="developer-icon" />
+          <span>{{ developerName }}</span>
+        </button>
       </div>
     </header>
 
@@ -204,32 +286,44 @@ const handleMenuSelect = (key: string) => {
         </div>
       </section>
 
-      <!-- Path + tags (kept as-is per requirements) -->
-      <section class="detail-section">
-        <div class="section-label">{{ t('detailView.pathLabel') }}</div>
-        <div class="detail-path" :title="program.executablePath">
-          <NIcon :component="FolderIcon" :size="15" class="path-icon" />
-          <span class="path-text">{{ program.executablePath }}</span>
-        </div>
+      <!-- Reference memo — display only, never part of search/filtering.
+           URLs are rendered as clickable links opened in the system browser. -->
+      <section v-if="program.memo" class="detail-section">
+        <div class="section-label">{{ t('detailView.memoLabel') }}</div>
+        <p class="detail-memo"><template
+            v-for="(seg, i) in memoSegments"
+            :key="i"
+          ><a
+              v-if="seg.type === 'link'"
+              class="memo-link"
+              :href="seg.href"
+              @click.prevent="openExternalLink(seg.href ?? seg.text)"
+            >{{ seg.text }}</a><template v-else>{{ seg.text }}</template></template></p>
       </section>
 
-      <section v-if="developerName" class="detail-section">
-        <div class="section-label">{{ t('detailView.developerLabel') }}</div>
-        <button
-          type="button"
-          class="detail-developer detail-developer-btn"
-          :title="t('detailView.filterByThis')"
-          @click="handleFilterByDeveloper"
-        >
-          <NIcon :component="DeveloperIcon" :size="15" class="developer-icon" />
-          <span>{{ developerName }}</span>
-        </button>
+      <!-- Executable path, with a "reveal in explorer" button on the right. -->
+      <section class="detail-section">
+        <div class="section-label">{{ t('detailView.pathLabel') }}</div>
+        <div class="detail-path-row">
+          <div class="detail-path" :title="program.executablePath">
+            <NIcon :component="FolderIcon" :size="15" class="path-icon" />
+            <span class="path-text">{{ program.executablePath }}</span>
+          </div>
+          <NButton
+            v-if="canReveal"
+            quaternary
+            class="path-reveal-btn"
+            :title="t('cardMenu.revealInExplorer')"
+            @click="handleReveal"
+          >
+            <template #icon><NIcon :component="FolderIcon" /></template>
+          </NButton>
+        </div>
       </section>
 
       <section class="detail-section">
         <div class="section-label">{{ t('detailView.tagsLabel') }}</div>
         <div class="detail-tags">
-          <NTag type="info" :bordered="false">{{ t(PROVIDERS[program.category].labelKey) }}</NTag>
           <NTag
             v-for="tag in program.tags"
             :key="tag"
@@ -242,10 +336,33 @@ const handleMenuSelect = (key: string) => {
         </div>
       </section>
 
-      <!-- Reference memo — display only, never part of search/filtering. -->
-      <section v-if="program.memo" class="detail-section">
-        <div class="section-label">{{ t('detailView.memoLabel') }}</div>
-        <p class="detail-memo">{{ program.memo }}</p>
+      <!-- Recommendations based on shared developer / tags. -->
+      <section v-if="recommendations.length > 0" class="detail-section">
+        <div class="section-label">{{ t('detailView.recommended') }}</div>
+        <div class="rec-strip">
+          <button
+            v-for="rec in recommendations"
+            :key="rec.id"
+            type="button"
+            class="rec-card"
+            @click="handleOpenRecommendation(rec.id)"
+          >
+            <div class="rec-thumb">
+              <img
+                v-if="recImage(rec)"
+                :src="recImage(rec)"
+                class="rec-thumb-img"
+                loading="lazy"
+                decoding="async"
+                alt=""
+              />
+              <div v-else class="rec-thumb-empty">
+                <NIcon :component="ImageIcon" :size="28" />
+              </div>
+            </div>
+            <div class="rec-title">{{ rec.title }}</div>
+          </button>
+        </div>
       </section>
     </div>
   </div>
@@ -308,6 +425,35 @@ const handleMenuSelect = (key: string) => {
 .detail-header-content {
   position: relative;
   margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.detail-header-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Developer pill lives in the header's bottom-right corner. */
+.header-developer {
+  flex: 0 0 auto;
+  margin-left: 0;
+  margin-bottom: 4px;
+  max-width: 45%;
+  color: #e4d3e8;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+.header-developer span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.light-theme .header-developer {
+  text-shadow: none;
 }
 
 .detail-title {
@@ -388,7 +534,15 @@ const handleMenuSelect = (key: string) => {
   border-color: #d4d4d8;
 }
 
+.detail-path-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
 .detail-path {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -398,6 +552,18 @@ const handleMenuSelect = (key: string) => {
   padding: 10px 14px;
   border-radius: 8px;
   word-break: break-all;
+}
+
+.path-reveal-btn {
+  flex: 0 0 auto;
+  height: auto;
+  background-color: #27272a;
+  color: #d4d4d8;
+}
+
+.light-theme .path-reveal-btn {
+  background-color: #ffffff;
+  color: #3f3f46;
 }
 
 .light-theme .detail-path {
@@ -494,5 +660,98 @@ const handleMenuSelect = (key: string) => {
 .light-theme .detail-memo {
   color: #3f3f46;
   background-color: #ffffff;
+}
+
+.memo-link {
+  color: #d6a9dd;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.memo-link:hover {
+  color: #e8c4ee;
+}
+
+.light-theme .memo-link {
+  color: #953ea3;
+}
+
+.light-theme .memo-link:hover {
+  color: #7d3389;
+}
+
+/* Recommendations — horizontal strip of compact program cards. */
+.rec-strip {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.rec-card {
+  flex: 0 0 auto;
+  width: 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.rec-thumb {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background-color: #27272a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.light-theme .rec-thumb {
+  background-color: #e4e4e7;
+}
+
+.rec-card:hover .rec-thumb {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.34);
+}
+
+.rec-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rec-thumb-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #71717a;
+}
+
+.rec-title {
+  font-size: 0.82rem;
+  line-height: 1.3;
+  color: #d4d4d8;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.light-theme .rec-title {
+  color: #3f3f46;
 }
 </style>

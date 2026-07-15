@@ -73,7 +73,8 @@ export default {
     developerLabel: 'Developer / Circle',
     tagsLabel: 'Tags',
     memoLabel: 'Memo',
-    filterByThis: 'Filter the library by this'
+    filterByThis: 'Filter the library by this',
+    recommended: 'Recommended'
   },
   addDialog: {
     title: 'Add Program',
@@ -84,6 +85,8 @@ export default {
     executablePath: 'Executable Path',
     executablePathPlaceholder: 'Select executable file',
     tagsLabel: 'Tags',
+    tagInputPlaceholder: 'Type and press Enter, or pick an existing one · use ; or , for several',
+    tagAddLabel: "Add '{name}'",
     keywordsLabel: 'Search keywords',
     keywordsHint: 'Used only for search, not for categorization',
     memoLabel: 'Memo',

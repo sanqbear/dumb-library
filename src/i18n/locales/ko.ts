@@ -73,7 +73,8 @@ export default {
     developerLabel: '개발사(서클)',
     tagsLabel: '태그',
     memoLabel: '메모',
-    filterByThis: '이 항목으로 목록 필터링'
+    filterByThis: '이 항목으로 목록 필터링',
+    recommended: '추천'
   },
   addDialog: {
     title: '프로그램 추가',
@@ -84,6 +85,8 @@ export default {
     executablePath: '실행 파일 경로',
     executablePathPlaceholder: '실행 파일 선택',
     tagsLabel: '태그',
+    tagInputPlaceholder: '입력 후 Enter, 기존 항목 선택 · ; 또는 , 로 여러 개',
+    tagAddLabel: "'{name}' 추가",
     keywordsLabel: '검색 키워드',
     keywordsHint: '분류에는 쓰이지 않고 검색에만 사용됩니다',
     memoLabel: '메모',

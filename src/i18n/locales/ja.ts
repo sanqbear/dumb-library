@@ -73,7 +73,8 @@ export default {
     developerLabel: '開発元（サークル）',
     tagsLabel: 'タグ',
     memoLabel: 'メモ',
-    filterByThis: 'この項目で一覧を絞り込む'
+    filterByThis: 'この項目で一覧を絞り込む',
+    recommended: 'おすすめ'
   },
   addDialog: {
     title: 'プログラム追加',
@@ -84,6 +85,8 @@ export default {
     executablePath: '実行ファイルパス',
     executablePathPlaceholder: '実行ファイルを選択',
     tagsLabel: 'タグ',
+    tagInputPlaceholder: '入力して Enter、既存の項目を選択 · ; または , で複数入力',
+    tagAddLabel: '「{name}」を追加',
     keywordsLabel: '検索キーワード',
     keywordsHint: '分類には使われず、検索のみに使用されます',
     memoLabel: 'メモ',
