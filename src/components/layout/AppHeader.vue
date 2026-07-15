@@ -9,8 +9,10 @@ import {
   NSpace,
   NIcon,
   NTooltip,
-  NPopover,
-  NDropdown
+  NDropdown,
+  NDrawer,
+  NDrawerContent,
+  NDivider
 } from 'naive-ui'
 import {
   Search as SearchIcon,
@@ -19,13 +21,14 @@ import {
   Add as AddIcon,
   Moon as MoonIcon,
   Sunny as SunnyIcon,
-  FunnelOutline as FilterIcon,
+  MenuOutline as MenuIcon,
   SwapVerticalOutline as SortIcon,
   DesktopOutline as DesktopIcon,
   LogoSteam as SteamIcon,
   LanguageOutline as LanguageIcon,
   ShuffleOutline as ShuffleIcon,
-  PeopleOutline as DeveloperIcon
+  PeopleOutline as DeveloperIcon,
+  PricetagsOutline as TagIcon
 } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
@@ -46,7 +49,8 @@ const { resolveDeveloperName } = useDeveloperName()
 const showAddDialog = ref(false)
 const showAddSteamDialog = ref(false)
 const showDeveloperManager = ref(false)
-const showFilters = ref(false)
+// Left overlay sidebar holding filters, tags, sort and utility actions.
+const showDrawer = ref(false)
 
 const addMenuOptions = computed(() => [
   {
@@ -111,13 +115,6 @@ const developerFilter = (pattern: string, option: { value?: string | number }): 
   return haystack.includes(pattern.toLowerCase())
 }
 
-const tagOptions = computed(() =>
-  libraryStore.allTags.map(tag => ({
-    label: tag,
-    value: tag
-  }))
-)
-
 const sortOptions = computed(() => [
   { label: t('header.sortRecent'), value: 'createdAt-desc' },
   { label: t('header.sortOldest'), value: 'createdAt-asc' },
@@ -137,6 +134,14 @@ const hasActiveFilters = computed(() =>
   libraryStore.selectedCategory !== null ||
   libraryStore.selectedDeveloper !== null ||
   libraryStore.selectedTags.length > 0
+)
+
+// Badge on the menu button: how many filter facets are currently narrowing the
+// list (each active tag counts once). 0 hides the badge.
+const activeFilterCount = computed(() =>
+  (libraryStore.selectedCategory !== null ? 1 : 0) +
+  (libraryStore.selectedDeveloper !== null ? 1 : 0) +
+  libraryStore.selectedTags.length
 )
 
 // Count of currently shown items. Matches filtered/total pattern so users
@@ -171,105 +176,97 @@ const handleDeveloperChange = (value: string | null) => {
   libraryStore.setSelectedDeveloper(value)
 }
 
-const handleTagsChange = (values: string[]) => {
-  libraryStore.setSelectedTags(values)
+// Tag search — filters the chip cloud when the library has many tags. Committed
+// ref stays bound to the field; the live ref is updated from the native `input`
+// event so Hangul composition filters per visible character (IME guideline).
+const tagQuery = ref('')
+const tagQueryLive = ref('')
+const effectiveTagQuery = computed(() => tagQueryLive.value || tagQuery.value)
+
+const handleTagSearchInput = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  if (target) tagQueryLive.value = target.value
 }
+const handleTagSearch = (value: string) => {
+  tagQuery.value = value
+  tagQueryLive.value = value
+}
+
+const filteredTags = computed(() => {
+  const q = effectiveTagQuery.value.trim().toLowerCase()
+  if (!q) return libraryStore.allTags
+  return libraryStore.allTags.filter(tag => tag.toLowerCase().includes(q))
+})
+
+// Tags are toggled individually from the prominent chip cloud rather than a
+// multi-select, so picking/removing a tag is a single click.
+const isTagSelected = (tag: string) => libraryStore.selectedTags.includes(tag)
+
+const toggleTag = (tag: string) => {
+  const current = libraryStore.selectedTags
+  if (current.includes(tag)) {
+    libraryStore.setSelectedTags(current.filter(x => x !== tag))
+  } else {
+    libraryStore.setSelectedTags([...current, tag])
+  }
+}
+
+const clearTags = () => libraryStore.setSelectedTags([])
 
 const handleClearFilters = () => {
   libraryStore.clearFilters()
-  showFilters.value = false
 }
 
 const handleRandomPick = () => {
   const picked = libraryStore.pickRandom()
   if (!picked) {
     message.info(t('header.randomEmpty'))
+    return
   }
+  // Close the sidebar so the highlighted pick is visible in the list.
+  showDrawer.value = false
 }
 </script>
 
 <template>
   <header class="app-header">
     <div class="header-left">
-      <div class="search-cluster">
-        <!-- Native @input on the wrapper catches the inner <input>'s DOM event
-             (it bubbles), giving a live, IME-aware read of what the user sees.
-             v-model stays on NInput for composition-safe committed state. -->
-        <div class="search-input-wrap" @input="handleSearchInput">
-          <NInput
-            :value="libraryStore.searchQuery"
-            :placeholder="t('header.searchPlaceholder')"
-            clearable
-            @update:value="handleSearch"
-            class="search-input"
-          >
-            <template #prefix>
-              <NIcon :component="SearchIcon" />
-            </template>
-          </NInput>
-        </div>
-
-        <NPopover trigger="click" placement="bottom" v-model:show="showFilters">
+      <!-- Opens the left sidebar Drawer holding all filters/sort/actions.
+           Turns primary + shows a badge while any filter is active. -->
+      <div class="menu-btn-wrap">
+        <NTooltip>
           <template #trigger>
-            <NButton quaternary circle :type="hasActiveFilters ? 'primary' : 'default'">
+            <NButton
+              quaternary
+              circle
+              :type="hasActiveFilters ? 'primary' : 'default'"
+              @click="showDrawer = true"
+            >
               <template #icon>
-                <NIcon :component="FilterIcon" />
+                <NIcon :component="MenuIcon" />
               </template>
             </NButton>
           </template>
-          <div class="filter-popover">
-            <div class="filter-section">
-              <label>{{ t('header.provider') }}</label>
-              <NSelect
-                :value="libraryStore.selectedCategory"
-                :options="categoryOptions"
-                :placeholder="t('header.allProviders')"
-                clearable
-                @update:value="handleCategoryChange"
-              />
-            </div>
-            <div class="filter-section" v-if="developerOptions.length > 0">
-              <label>{{ t('header.developer') }}</label>
-              <NSelect
-                :value="libraryStore.selectedDeveloper"
-                :options="developerOptions"
-                :placeholder="t('header.allDevelopers')"
-                filterable
-                :filter="developerFilter"
-                clearable
-                @update:value="handleDeveloperChange"
-              />
-            </div>
-            <div class="filter-section" v-if="tagOptions.length > 0">
-              <label>{{ t('header.tags') }}</label>
-              <NSelect
-                :value="libraryStore.selectedTags"
-                :options="tagOptions"
-                :placeholder="t('header.selectTags')"
-                multiple
-                clearable
-                @update:value="handleTagsChange"
-              />
-            </div>
-            <div class="filter-actions" v-if="hasActiveFilters">
-              <NButton size="small" quaternary @click="handleClearFilters">
-                {{ t('header.clearFilters') }}
-              </NButton>
-            </div>
-          </div>
-        </NPopover>
+          {{ t('header.menu') }}
+        </NTooltip>
+        <span v-if="activeFilterCount > 0" class="menu-badge">{{ activeFilterCount }}</span>
+      </div>
 
-        <NSelect
-          :value="currentSort"
-          :options="sortOptions"
-          :consistent-menu-width="false"
-          class="sort-select"
-          @update:value="handleSortChange"
+      <!-- Native @input on the wrapper catches the inner <input>'s DOM event
+           (it bubbles), giving a live, IME-aware read of what the user sees.
+           v-model stays on NInput for composition-safe committed state. -->
+      <div class="search-input-wrap" @input="handleSearchInput">
+        <NInput
+          :value="libraryStore.searchQuery"
+          :placeholder="t('header.searchPlaceholder')"
+          clearable
+          @update:value="handleSearch"
+          class="search-input"
         >
-          <template #arrow>
-            <NIcon :component="SortIcon" />
+          <template #prefix>
+            <NIcon :component="SearchIcon" />
           </template>
-        </NSelect>
+        </NInput>
       </div>
 
       <div class="header-count" aria-live="polite">
@@ -313,65 +310,6 @@ const handleRandomPick = () => {
           </NTooltip>
         </NButtonGroup>
 
-        <!-- Random pick -->
-        <NTooltip>
-          <template #trigger>
-            <NButton
-              quaternary
-              circle
-              :disabled="libraryStore.programCount === 0"
-              @click="handleRandomPick"
-            >
-              <template #icon>
-                <NIcon :component="ShuffleIcon" />
-              </template>
-            </NButton>
-          </template>
-          {{ t('header.randomPick') }}
-        </NTooltip>
-
-        <!-- Theme toggle -->
-        <NTooltip>
-          <template #trigger>
-            <NButton quaternary circle @click="settingsStore.toggleTheme">
-              <template #icon>
-                <NIcon :component="settingsStore.theme === 'dark' ? SunnyIcon : MoonIcon" />
-              </template>
-            </NButton>
-          </template>
-          {{ settingsStore.theme === 'dark' ? t('header.lightMode') : t('header.darkMode') }}
-        </NTooltip>
-
-        <!-- Developer (circle) manager -->
-        <NTooltip>
-          <template #trigger>
-            <NButton quaternary circle @click="showDeveloperManager = true">
-              <template #icon>
-                <NIcon :component="DeveloperIcon" />
-              </template>
-            </NButton>
-          </template>
-          {{ t('developer.manage') }}
-        </NTooltip>
-
-        <!-- Language switcher -->
-        <NDropdown
-          trigger="click"
-          :options="languageMenuOptions"
-          @select="handleLanguageSelect"
-        >
-          <NTooltip>
-            <template #trigger>
-              <NButton quaternary circle>
-                <template #icon>
-                  <NIcon :component="LanguageIcon" />
-                </template>
-              </NButton>
-            </template>
-            {{ t('header.language') }}
-          </NTooltip>
-        </NDropdown>
-
         <!-- Add button (dropdown) -->
         <NDropdown trigger="click" :options="addMenuOptions" @select="handleAddMenuSelect">
           <NButton type="primary">
@@ -383,6 +321,158 @@ const handleRandomPick = () => {
         </NDropdown>
       </NSpace>
     </div>
+
+    <!-- Left overlay sidebar: scoped to .app-body so it covers the header +
+         content as an absolute layer without pushing them or hiding the OS
+         window controls. -->
+    <NDrawer
+      v-model:show="showDrawer"
+      :width="340"
+      placement="left"
+      to=".app-body"
+      :trap-focus="false"
+    >
+      <NDrawerContent :title="t('header.menuTitle')" closable :native-scrollbar="false">
+        <!-- Tags — front and centre: a searchable, self-scrolling chip cloud,
+             kept separate from the other filters so the tag-centric library is
+             quick to slice. The cloud scrolls on its own so a long tag list
+             never pushes the rest of the drawer out of view. -->
+        <section class="drawer-section drawer-section-tags">
+          <div class="drawer-section-head">
+            <span class="drawer-section-title">
+              <NIcon :component="TagIcon" :size="15" class="section-icon" />
+              {{ t('header.tags') }}
+            </span>
+            <NButton
+              v-if="libraryStore.selectedTags.length > 0"
+              text
+              size="tiny"
+              @click="clearTags"
+            >
+              {{ t('header.clearTags') }}
+            </NButton>
+          </div>
+          <template v-if="libraryStore.allTags.length > 0">
+            <!-- IME-aware live read via native @input on the wrapper. -->
+            <div class="tag-search-wrap" @input="handleTagSearchInput">
+              <NInput
+                :value="tagQuery"
+                :placeholder="t('header.tagSearchPlaceholder')"
+                size="small"
+                clearable
+                @update:value="handleTagSearch"
+              >
+                <template #prefix>
+                  <NIcon :component="SearchIcon" />
+                </template>
+              </NInput>
+            </div>
+            <div class="tag-cloud">
+              <button
+                v-for="tag in filteredTags"
+                :key="tag"
+                type="button"
+                class="tag-chip"
+                :class="{ 'is-active': isTagSelected(tag) }"
+                @click="toggleTag(tag)"
+              >
+                {{ tag }}
+              </button>
+              <p v-if="filteredTags.length === 0" class="drawer-empty">
+                {{ t('header.noMatchingTags') }}
+              </p>
+            </div>
+          </template>
+          <p v-else class="drawer-empty">{{ t('header.noTags') }}</p>
+        </section>
+
+        <NDivider />
+
+        <!-- Other filters -->
+        <section class="drawer-section">
+          <div class="drawer-section-title">{{ t('header.filters') }}</div>
+          <div class="drawer-field">
+            <label>{{ t('header.provider') }}</label>
+            <NSelect
+              :value="libraryStore.selectedCategory"
+              :options="categoryOptions"
+              :placeholder="t('header.allProviders')"
+              clearable
+              @update:value="handleCategoryChange"
+            />
+          </div>
+          <div class="drawer-field" v-if="developerOptions.length > 0">
+            <label>{{ t('header.developer') }}</label>
+            <NSelect
+              :value="libraryStore.selectedDeveloper"
+              :options="developerOptions"
+              :placeholder="t('header.allDevelopers')"
+              filterable
+              :filter="developerFilter"
+              clearable
+              @update:value="handleDeveloperChange"
+            />
+          </div>
+          <div class="drawer-field">
+            <label>{{ t('header.sort') }}</label>
+            <NSelect
+              :value="currentSort"
+              :options="sortOptions"
+              @update:value="handleSortChange"
+            >
+              <template #arrow>
+                <NIcon :component="SortIcon" />
+              </template>
+            </NSelect>
+          </div>
+          <NButton
+            v-if="hasActiveFilters"
+            secondary
+            block
+            @click="handleClearFilters"
+          >
+            {{ t('header.clearFilters') }}
+          </NButton>
+        </section>
+
+        <NDivider />
+
+        <!-- Utility actions moved out of the header -->
+        <section class="drawer-section">
+          <div class="drawer-section-title">{{ t('header.actions') }}</div>
+          <div class="drawer-action-list">
+            <NButton
+              block
+              :disabled="libraryStore.programCount === 0"
+              @click="handleRandomPick"
+            >
+              <template #icon><NIcon :component="ShuffleIcon" /></template>
+              {{ t('header.randomPick') }}
+            </NButton>
+            <NButton block @click="showDeveloperManager = true">
+              <template #icon><NIcon :component="DeveloperIcon" /></template>
+              {{ t('developer.manage') }}
+            </NButton>
+            <NButton block @click="settingsStore.toggleTheme">
+              <template #icon>
+                <NIcon :component="settingsStore.theme === 'dark' ? SunnyIcon : MoonIcon" />
+              </template>
+              {{ settingsStore.theme === 'dark' ? t('header.lightMode') : t('header.darkMode') }}
+            </NButton>
+            <NDropdown
+              trigger="click"
+              :options="languageMenuOptions"
+              @select="handleLanguageSelect"
+            >
+              <NButton block>
+                <template #icon><NIcon :component="LanguageIcon" /></template>
+                {{ t('header.language') }}
+              </NButton>
+            </NDropdown>
+          </div>
+        </section>
+      </NDrawerContent>
+    </NDrawer>
 
     <!-- Add Program Dialogs -->
     <AddProgramDialog v-model:show="showAddDialog" />
@@ -406,28 +496,44 @@ const handleRandomPick = () => {
   border-bottom-color: #e4e4e7;
 }
 
-/* Left cluster grows to fill free space, pushing .header-right to the edge.
-   Its children (search-cluster + count) stay left-aligned so the count
-   docks right next to the sort select instead of drifting to center. */
+/* Left cluster grows to fill free space, pushing .header-right to the edge. */
 .header-left {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
-.search-cluster {
-  flex: 1;
-  max-width: 600px;
-  display: flex;
+.menu-btn-wrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+/* Small count badge over the menu button's top-right corner. */
+.menu-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
+  justify-content: center;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #ffffff;
+  background-color: #ab4aba;
+  border-radius: 999px;
+  pointer-events: none;
 }
 
 .search-input-wrap {
   flex: 1;
+  max-width: 560px;
   min-width: 0;
   display: flex;
 }
@@ -456,41 +562,120 @@ const handleRandomPick = () => {
   flex-shrink: 0;
 }
 
-.sort-select {
-  width: 150px;
-  flex-shrink: 0;
-}
-
-.filter-popover {
-  padding: 8px;
-  min-width: 200px;
-}
-
-.filter-section {
+/* ---- Drawer ---- */
+.drawer-section {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+
+.drawer-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  margin-bottom: 12px;
 }
 
-.filter-section:last-of-type {
-  margin-bottom: 0;
-}
-
-.filter-section label {
-  font-size: 0.875rem;
-  font-weight: 500;
+.drawer-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   color: #a1a1aa;
 }
 
-.filter-actions {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid #3f3f46;
-  text-align: right;
+.light-theme .drawer-section-title {
+  color: #71717a;
 }
 
-.light-theme .filter-actions {
-  border-top-color: #e4e4e7;
+.section-icon {
+  opacity: 0.9;
+}
+
+.tag-search-wrap {
+  display: flex;
+}
+
+/* The chip cloud scrolls within its own bounded box so a large tag list keeps
+   the search input, other filters, and actions reachable without scrolling the
+   whole drawer. */
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 2px 4px 2px 0;
+}
+
+/* Toggleable tag chip. Selected chips fill with the brand colour. */
+.tag-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid #3f3f46;
+  background-color: transparent;
+  color: #d4d4d8;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.tag-chip:hover {
+  border-color: #ab4aba;
+  color: #e8c4ee;
+}
+
+.tag-chip.is-active {
+  background-color: #ab4aba;
+  border-color: #ab4aba;
+  color: #ffffff;
+}
+
+.light-theme .tag-chip {
+  border-color: #e4e4e7;
+  color: #3f3f46;
+}
+
+.light-theme .tag-chip:hover {
+  border-color: #ab4aba;
+  color: #953ea3;
+}
+
+.light-theme .tag-chip.is-active {
+  color: #ffffff;
+}
+
+.drawer-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #71717a;
+}
+
+.drawer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drawer-field label {
+  font-size: 0.8rem;
+  color: #a1a1aa;
+}
+
+.light-theme .drawer-field label {
+  color: #71717a;
+}
+
+.drawer-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-action-list :deep(.n-button) {
+  justify-content: flex-start;
 }
 </style>

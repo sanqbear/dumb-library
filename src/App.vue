@@ -103,18 +103,24 @@ onMounted(async () => {
           :class="{ 'light-theme': settingsStore.theme === 'light' }"
         >
           <TitleBar />
-          <AppHeader v-if="showLibraryHeader" />
-          <main class="main-content">
-            <!-- Keep the library list alive across navigation so its filters,
-                 incremental-render window, and scroll position survive a trip to
-                 the detail/edit pages and back. Only LibraryView is cached; the
-                 detail/edit views remount fresh each time. -->
-            <RouterView v-slot="{ Component }">
-              <KeepAlive :include="['LibraryView']">
-                <component :is="Component" />
-              </KeepAlive>
-            </RouterView>
-          </main>
+          <!-- Positioned wrapper below the OS title bar. The library sidebar
+               Drawer mounts here (via :to) so it overlays the header + content
+               as an absolute layer — leaving the window controls reachable —
+               rather than covering the whole viewport or pushing layout. -->
+          <div class="app-body">
+            <AppHeader v-if="showLibraryHeader" />
+            <main class="main-content">
+              <!-- Keep the library list alive across navigation so its filters,
+                   incremental-render window, and scroll position survive a trip to
+                   the detail/edit pages and back. Only LibraryView is cached; the
+                   detail/edit views remount fresh each time. -->
+              <RouterView v-slot="{ Component }">
+                <KeepAlive :include="['LibraryView']">
+                  <component :is="Component" />
+                </KeepAlive>
+              </RouterView>
+            </main>
+          </div>
         </div>
       </NDialogProvider>
     </NMessageProvider>
@@ -133,6 +139,16 @@ onMounted(async () => {
 .light-theme.app-container {
   background-color: #f4f4f5;
   color: #18181b;
+}
+
+/* Relative so the sidebar Drawer (mounted here via :to) is scoped to this
+   region and rendered as an absolute overlay within it. */
+.app-body {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .main-content {
