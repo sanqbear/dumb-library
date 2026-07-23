@@ -75,9 +75,10 @@ const handleClose = () => window.electron.windowClose()
 }
 
 .app-name {
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .window-controls {

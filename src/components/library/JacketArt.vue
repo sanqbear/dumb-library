@@ -130,10 +130,11 @@ const titleSize = computed(() => {
 }
 
 .jacket-title {
+  font-family: var(--font-display);
   font-size: var(--jacket-size);
   font-weight: 700;
-  line-height: 1.3;
-  letter-spacing: -0.02em;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
   word-break: keep-all;
   overflow: hidden;
 }

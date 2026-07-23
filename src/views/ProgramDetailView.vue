@@ -412,10 +412,13 @@ const handleMenuSelect = (key: string) => {
 
 .detail-title {
   margin: 0;
-  font-size: 2rem;
+  font-family: var(--font-display);
+  font-size: 2.15rem;
   font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  line-height: 1.25;
+  /* The serif already has its own fit; the sans needed tightening, this does
+     not. */
+  letter-spacing: -0.005em;
   word-break: break-word;
 }
 
