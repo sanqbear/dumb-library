@@ -105,10 +105,13 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Tight gutters and no card chrome: the grid should read as a wall of jackets,
+   not a page of widgets. The lift on hover needs a little room, so the gutter
+   is small rather than absent. */
 .library-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
   padding: 4px;
 }
 

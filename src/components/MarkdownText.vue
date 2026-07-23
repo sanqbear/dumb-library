@@ -138,15 +138,15 @@ const MarkdownBody: FunctionalComponent = () => renderBlocks(blocks.value)
 .markdown-body blockquote {
   margin: 0 0 0.6em;
   padding: 0.1em 0 0.1em 0.9em;
-  border-left: 3px solid #52525b;
-  color: #a1a1aa;
+  border-left: 3px solid var(--border);
+  color: var(--text-2);
 }
 
 .markdown-body code {
   padding: 0.1em 0.35em;
-  border-radius: 4px;
-  background-color: #3f3f46;
-  font-family: 'Consolas', 'D2Coding', monospace;
+  border-radius: var(--r-sm);
+  background-color: var(--surface-2);
+  font-family: var(--font-mono);
   font-size: 0.9em;
   word-break: break-all;
 }
@@ -154,8 +154,8 @@ const MarkdownBody: FunctionalComponent = () => renderBlocks(blocks.value)
 .markdown-body pre {
   margin: 0 0 0.6em;
   padding: 10px 12px;
-  border-radius: 6px;
-  background-color: #18181b;
+  border-radius: var(--r-md);
+  background-color: var(--surface-2);
   overflow-x: auto;
 }
 
@@ -169,11 +169,11 @@ const MarkdownBody: FunctionalComponent = () => renderBlocks(blocks.value)
 .markdown-body hr {
   margin: 0.9em 0;
   border: none;
-  border-top: 1px solid #52525b;
+  border-top: 1px solid var(--line);
 }
 
 .markdown-body a {
-  color: #d6a9dd;
+  color: var(--plum-soft);
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
@@ -181,31 +181,7 @@ const MarkdownBody: FunctionalComponent = () => renderBlocks(blocks.value)
 }
 
 .markdown-body a:hover {
-  color: #e8c4ee;
+  color: var(--plum-soft-hover);
 }
 
-.light-theme .markdown-body blockquote {
-  border-left-color: #d4d4d8;
-  color: #71717a;
-}
-
-.light-theme .markdown-body code {
-  background-color: #f4f4f5;
-}
-
-.light-theme .markdown-body pre {
-  background-color: #f4f4f5;
-}
-
-.light-theme .markdown-body hr {
-  border-top-color: #e4e4e7;
-}
-
-.light-theme .markdown-body a {
-  color: #953ea3;
-}
-
-.light-theme .markdown-body a:hover {
-  color: #7d3389;
-}
 </style>

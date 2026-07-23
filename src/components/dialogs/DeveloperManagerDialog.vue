@@ -191,16 +191,11 @@ const otherLocales = computed(() => SUPPORTED_LOCALES.filter(c => c !== 'ko'))
   margin-bottom: 10px;
 }
 
+/* Section label token: no uppercase, no tracking — see global.css. */
 .pane-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: #a1a1aa;
-}
-
-.light-theme .pane-label {
-  color: #71717a;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  color: var(--plum-soft);
 }
 
 .dev-list {
@@ -224,8 +219,8 @@ const otherLocales = computed(() => SUPPORTED_LOCALES.filter(c => c !== 'ko'))
   width: 100%;
   padding: 8px 10px;
   border: 1px solid transparent;
-  border-radius: 8px;
-  background-color: #3f3f46;
+  border-radius: var(--r-md);
+  background-color: var(--surface-2);
   color: inherit;
   font-size: 0.85rem;
   cursor: pointer;
@@ -233,24 +228,12 @@ const otherLocales = computed(() => SUPPORTED_LOCALES.filter(c => c !== 'ko'))
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.light-theme .dev-item {
-  background-color: #f4f4f5;
-}
-
 .dev-item:hover {
-  background-color: #52525b;
-}
-
-.light-theme .dev-item:hover {
-  background-color: #e4e4e7;
+  background-color: var(--plum-wash);
 }
 
 .dev-item.is-active {
-  border-color: #ab4aba;
-}
-
-.light-theme .dev-item.is-active {
-  border-color: #ab4aba;
+  border-color: var(--plum);
 }
 
 .dev-item-name {
@@ -283,29 +266,17 @@ const otherLocales = computed(() => SUPPORTED_LOCALES.filter(c => c !== 'ko'))
 .field-label {
   font-size: 0.8rem;
   font-weight: 500;
-  color: #a1a1aa;
-}
-
-.light-theme .field-label {
-  color: #52525b;
+  color: var(--text-2);
 }
 
 .req {
-  color: #d6a9dd;
-}
-
-.light-theme .req {
-  color: #953ea3;
+  color: var(--plum-soft);
 }
 
 .field-hint {
   margin: 0;
   font-size: 0.72rem;
-  color: #a1a1aa;
-}
-
-.light-theme .field-hint {
-  color: #71717a;
+  color: var(--text-2);
 }
 
 .editor-actions {

@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useSettingsStore } from '../../stores/settingsStore'
 
 const { t } = useI18n()
-
-const settingsStore = useSettingsStore()
 
 const isMaximized = ref(false)
 let unsubscribe: (() => void) | undefined
@@ -27,7 +24,7 @@ const handleClose = () => window.electron.windowClose()
 </script>
 
 <template>
-  <div class="title-bar" :class="{ 'light-theme': settingsStore.theme === 'light' }">
+  <div class="title-bar">
     <div class="drag-region">
       <span class="app-name">Waifu Library</span>
     </div>
@@ -61,17 +58,11 @@ const handleClose = () => window.electron.windowClose()
   align-items: center;
   justify-content: space-between;
   height: 32px;
-  background-color: #18181b;
-  color: #a1a1aa;
-  border-bottom: 1px solid #27272a;
+  background-color: var(--bg);
+  color: var(--text-2);
+  border-bottom: 1px solid var(--line);
   user-select: none;
   flex-shrink: 0;
-}
-
-.title-bar.light-theme {
-  background-color: #fafafa;
-  color: #52525b;
-  border-bottom-color: #e4e4e7;
 }
 
 .drag-region {
@@ -110,28 +101,20 @@ const handleClose = () => window.electron.windowClose()
 }
 
 .control-btn:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-}
-
-.title-bar.light-theme .control-btn:hover {
-  background-color: rgba(0, 0, 0, 0.06);
+  background-color: var(--surface-2);
 }
 
 .control-btn:active {
-  background-color: rgba(255, 255, 255, 0.04);
-}
-
-.title-bar.light-theme .control-btn:active {
-  background-color: rgba(0, 0, 0, 0.03);
+  background-color: var(--surface);
 }
 
 .close-btn:hover {
-  background-color: #e54d2e;
-  color: #ffffff;
+  background-color: var(--danger);
+  color: var(--on-plum);
 }
 
 .close-btn:active {
-  background-color: #d13c1c;
-  color: #ffffff;
+  background-color: var(--danger-press);
+  color: var(--on-plum);
 }
 </style>

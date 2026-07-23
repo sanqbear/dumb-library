@@ -9,12 +9,27 @@ export const PROVIDERS: Record<ProviderId, { labelKey: string }> = {
 
 export const PROVIDER_IDS = Object.keys(PROVIDERS) as ProviderId[]
 
+// The provider a program gets when nothing else applies: a plain local file.
+// Because it's the norm, the UI leaves it unmarked and only badges the
+// providers that actually distinguish an entry.
+export const DEFAULT_PROVIDER: ProviderId = 'local'
+
 export const isProviderId = (value: unknown): value is ProviderId => {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(PROVIDERS, value)
 }
 
+// Where library images are served from. The Electron main process registers the
+// `wl-image` scheme; the browser testbed cannot, so it swaps in an http base via
+// setLibImageBase(). Production never calls the setter.
+let libImageBase = 'wl-image://lib/'
+
+/** Testbed seam — point library image URLs at a base the browser can fetch. */
+export const setLibImageBase = (base: string): void => {
+  libImageBase = base
+}
+
 /**
- * Build a wl-image://lib URL from a userData-relative path stored in a Program.
+ * Build a library image URL from a userData-relative path stored in a Program.
  * Returns an empty string when the input is null/empty so `<img src="">` stays silent.
  * Pass `version` (e.g., program.updatedAt) to bust the HTTP cache when the file
  * is replaced without its path changing.
@@ -26,7 +41,7 @@ export const libImageUrl = (
   if (!relPath) return ''
   const clean = relPath.replace(/\\/g, '/').replace(/^\/+/, '')
   const encoded = clean.split('/').map(encodeURIComponent).join('/')
-  const base = `wl-image://lib/${encoded}`
+  const base = `${libImageBase}${encoded}`
   return version !== undefined ? `${base}?v=${encodeURIComponent(String(version))}` : base
 }
 

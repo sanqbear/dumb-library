@@ -105,8 +105,8 @@ const columns = computed<DataTableColumns<Program>>(() => [
         style: {
           width: '32px',
           height: '32px',
-          backgroundColor: '#3f3f46',
-          borderRadius: '4px'
+          backgroundColor: 'var(--surface-2)',
+          borderRadius: 'var(--r-sm)'
         }
       })
     }
@@ -212,11 +212,7 @@ const columns = computed<DataTableColumns<Program>>(() => [
 /* Background tint on highlighted row cells — no border/padding change,
    so the table layout stays identical when the highlight toggles. */
 .library-list :deep(tr.is-highlighted td) {
-  background-color: rgba(171, 74, 186, 0.18) !important;
+  background-color: var(--plum-wash) !important;
   transition: background-color 0.25s ease;
-}
-
-.light-theme .library-list :deep(tr.is-highlighted td) {
-  background-color: rgba(171, 74, 186, 0.14) !important;
 }
 </style>

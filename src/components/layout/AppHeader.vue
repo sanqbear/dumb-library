@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, h } from 'vue'
+import { ref, computed, h, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   NInput,
@@ -11,8 +11,7 @@ import {
   NTooltip,
   NDropdown,
   NDrawer,
-  NDrawerContent,
-  NDivider
+  NDrawerContent
 } from 'naive-ui'
 import {
   Search as SearchIcon,
@@ -28,7 +27,8 @@ import {
   LanguageOutline as LanguageIcon,
   ShuffleOutline as ShuffleIcon,
   PeopleOutline as DeveloperIcon,
-  PricetagsOutline as TagIcon
+  PricetagsOutline as TagIcon,
+  Close as CloseIcon
 } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
@@ -136,14 +136,6 @@ const hasActiveFilters = computed(() =>
   libraryStore.selectedTags.length > 0
 )
 
-// Badge on the menu button: how many filter facets are currently narrowing the
-// list (each active tag counts once). 0 hides the badge.
-const activeFilterCount = computed(() =>
-  (libraryStore.selectedCategory !== null ? 1 : 0) +
-  (libraryStore.selectedDeveloper !== null ? 1 : 0) +
-  libraryStore.selectedTags.length
-)
-
 // Count of currently shown items. Matches filtered/total pattern so users
 // see at a glance how much the current search/filter narrowed the library.
 const isCountFiltered = computed(() =>
@@ -192,6 +184,17 @@ const handleTagSearch = (value: string) => {
   tagQueryLive.value = value
 }
 
+// How many programs carry each tag. Counting the whole library rather than the
+// current result keeps the number stable while you build up a filter, so it
+// reads as "how big is this slice" instead of flickering with every click.
+const tagCounts = computed(() => {
+  const counts = new Map<string, number>()
+  for (const program of libraryStore.programs) {
+    for (const tag of program.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+  }
+  return counts
+})
+
 const filteredTags = computed(() => {
   const q = effectiveTagQuery.value.trim().toLowerCase()
   if (!q) return libraryStore.allTags
@@ -217,6 +220,38 @@ const handleClearFilters = () => {
   libraryStore.clearFilters()
 }
 
+// Every filter currently narrowing the view, as one removable chip each.
+// Previously the header only carried a count badge, so the answer to "why am I
+// seeing 8 of 24?" lived behind opening the sidebar. Each chip names one reason
+// and takes it back off.
+type FilterChip = { key: string; icon: Component; label: string; clear: () => void }
+
+const activeFilterChips = computed<FilterChip[]>(() => {
+  const chips: FilterChip[] = []
+  const provider = libraryStore.selectedCategory
+  if (provider) {
+    chips.push({
+      key: `provider:${provider}`,
+      icon: provider === 'steam' ? SteamIcon : DesktopIcon,
+      label: t(PROVIDERS[provider].labelKey),
+      clear: () => libraryStore.setSelectedCategory(null)
+    })
+  }
+  const developerId = libraryStore.selectedDeveloper
+  if (developerId) {
+    chips.push({
+      key: `developer:${developerId}`,
+      icon: DeveloperIcon,
+      label: resolveDeveloperName(developerId),
+      clear: () => libraryStore.setSelectedDeveloper(null)
+    })
+  }
+  for (const tag of libraryStore.selectedTags) {
+    chips.push({ key: `tag:${tag}`, icon: TagIcon, label: tag, clear: () => toggleTag(tag) })
+  }
+  return chips
+})
+
 const handleRandomPick = () => {
   const picked = libraryStore.pickRandom()
   if (!picked) {
@@ -230,27 +265,19 @@ const handleRandomPick = () => {
 
 <template>
   <header class="app-header">
+    <div class="header-bar">
     <div class="header-left">
-      <!-- Opens the left sidebar Drawer holding all filters/sort/actions.
-           Turns primary + shows a badge while any filter is active. -->
-      <div class="menu-btn-wrap">
-        <NTooltip>
-          <template #trigger>
-            <NButton
-              quaternary
-              circle
-              :type="hasActiveFilters ? 'primary' : 'default'"
-              @click="showDrawer = true"
-            >
-              <template #icon>
-                <NIcon :component="MenuIcon" />
-              </template>
-            </NButton>
-          </template>
-          {{ t('header.menu') }}
-        </NTooltip>
-        <span v-if="activeFilterCount > 0" class="menu-badge">{{ activeFilterCount }}</span>
-      </div>
+      <!-- Opens the left sidebar Drawer holding all filters/sort/actions. -->
+      <NTooltip>
+        <template #trigger>
+          <NButton quaternary circle @click="showDrawer = true">
+            <template #icon>
+              <NIcon :component="MenuIcon" />
+            </template>
+          </NButton>
+        </template>
+        {{ t('header.menu') }}
+      </NTooltip>
 
       <!-- Native @input on the wrapper catches the inner <input>'s DOM event
            (it bubbles), giving a live, IME-aware read of what the user sees.
@@ -321,6 +348,28 @@ const handleRandomPick = () => {
         </NDropdown>
       </NSpace>
     </div>
+    </div>
+
+    <!-- What is narrowing the view right now, and how to undo each part of it.
+         Only present while something is filtered, so the resting header stays
+         a single quiet row. -->
+    <div v-if="activeFilterChips.length > 0" class="filter-bar">
+      <button
+        v-for="chip in activeFilterChips"
+        :key="chip.key"
+        type="button"
+        class="filter-chip"
+        :aria-label="`${chip.label} — ${t('header.removeFilter')}`"
+        @click="chip.clear()"
+      >
+        <NIcon :component="chip.icon" :size="12" class="filter-chip-icon" />
+        <span class="filter-chip-label">{{ chip.label }}</span>
+        <NIcon :component="CloseIcon" :size="13" class="filter-chip-x" />
+      </button>
+      <NButton text size="tiny" class="filter-clear" @click="handleClearFilters">
+        {{ t('header.clearFilters') }}
+      </NButton>
+    </div>
 
     <!-- Left overlay sidebar: scoped to .app-body so it covers the header +
          content as an absolute layer without pushing them or hiding the OS
@@ -377,6 +426,7 @@ const handleRandomPick = () => {
                 @click="toggleTag(tag)"
               >
                 {{ tag }}
+                <span class="tag-chip-count">{{ tagCounts.get(tag) ?? 0 }}</span>
               </button>
               <p v-if="filteredTags.length === 0" class="drawer-empty">
                 {{ t('header.noMatchingTags') }}
@@ -385,8 +435,6 @@ const handleRandomPick = () => {
           </template>
           <p v-else class="drawer-empty">{{ t('header.noTags') }}</p>
         </section>
-
-        <NDivider />
 
         <!-- Other filters -->
         <section class="drawer-section">
@@ -413,18 +461,6 @@ const handleRandomPick = () => {
               @update:value="handleDeveloperChange"
             />
           </div>
-          <div class="drawer-field">
-            <label>{{ t('header.sort') }}</label>
-            <NSelect
-              :value="currentSort"
-              :options="sortOptions"
-              @update:value="handleSortChange"
-            >
-              <template #arrow>
-                <NIcon :component="SortIcon" />
-              </template>
-            </NSelect>
-          </div>
           <NButton
             v-if="hasActiveFilters"
             secondary
@@ -435,7 +471,20 @@ const handleRandomPick = () => {
           </NButton>
         </section>
 
-        <NDivider />
+        <!-- Ordering, kept apart from the filters: it changes the sequence of
+             the results, not which results there are. -->
+        <section class="drawer-section">
+          <div class="drawer-section-title">{{ t('header.sort') }}</div>
+          <NSelect
+            :value="currentSort"
+            :options="sortOptions"
+            @update:value="handleSortChange"
+          >
+            <template #arrow>
+              <NIcon :component="SortIcon" />
+            </template>
+          </NSelect>
+        </section>
 
         <!-- Utility actions moved out of the header -->
         <section class="drawer-section">
@@ -482,18 +531,17 @@ const handleRandomPick = () => {
 </template>
 
 <style scoped>
+/* No filled surface: the header sits on the same ink as the wall and is
+   separated by a hairline, so the covers own every bit of colour on screen. */
 .app-header {
-  display: flex;
-  align-items: center;
   padding: 12px 20px;
-  background-color: #27272a;
-  border-bottom: 1px solid #3f3f46;
-  gap: 20px;
+  border-bottom: 1px solid var(--line);
 }
 
-.light-theme .app-header {
-  background-color: #ffffff;
-  border-bottom-color: #e4e4e7;
+.header-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 /* Left cluster grows to fill free space, pushing .header-right to the edge. */
@@ -503,32 +551,6 @@ const handleRandomPick = () => {
   align-items: center;
   gap: 10px;
   min-width: 0;
-}
-
-.menu-btn-wrap {
-  position: relative;
-  flex-shrink: 0;
-  display: inline-flex;
-}
-
-/* Small count badge over the menu button's top-right corner. */
-.menu-badge {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.66rem;
-  font-weight: 600;
-  line-height: 1;
-  color: #ffffff;
-  background-color: #ab4aba;
-  border-radius: 999px;
-  pointer-events: none;
 }
 
 .search-input-wrap {
@@ -546,16 +568,70 @@ const handleRandomPick = () => {
 .header-count {
   flex-shrink: 0;
   font-size: 0.8rem;
-  color: #a1a1aa;
-  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
   white-space: nowrap;
-  padding-left: 12px;
-  border-left: 1px solid #3f3f46;
 }
 
-.light-theme .header-count {
-  color: #52525b;
-  border-left-color: #e4e4e7;
+/* ---- Active filters ---- */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+/* Tinted rather than filled: these echo the drawer's selected tag chips without
+   putting several solid plum blocks in a row. */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px 3px 9px;
+  border: none;
+  border-radius: var(--r-pill);
+  background-color: var(--plum-wash);
+  color: var(--plum-soft);
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.filter-chip:hover {
+  background-color: var(--plum);
+  color: var(--on-plum);
+}
+
+.filter-chip:focus-visible {
+  outline: 2px solid var(--plum);
+  outline-offset: 1px;
+}
+
+.filter-chip-icon {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.filter-chip-label {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-chip-x {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.filter-chip:hover .filter-chip-x {
+  opacity: 1;
+}
+
+.filter-clear {
+  margin-left: 4px;
 }
 
 .header-right {
@@ -569,6 +645,10 @@ const handleRandomPick = () => {
   gap: 12px;
 }
 
+.drawer-section + .drawer-section {
+  margin-top: 26px;
+}
+
 .drawer-section-head {
   display: flex;
   align-items: center;
@@ -576,19 +656,14 @@ const handleRandomPick = () => {
   gap: 8px;
 }
 
+/* Section label token: no uppercase, no tracking — see global.css. */
 .drawer-section-title {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: #a1a1aa;
-}
-
-.light-theme .drawer-section-title {
-  color: #71717a;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  color: var(--plum-soft);
 }
 
 .section-icon {
@@ -606,52 +681,58 @@ const handleRandomPick = () => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  max-height: 220px;
+  max-height: 42vh;
   overflow-y: auto;
   padding: 2px 4px 2px 0;
 }
 
 /* Toggleable tag chip. Selected chips fill with the brand colour. */
 .tag-chip {
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid #3f3f46;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 10px 5px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
   background-color: transparent;
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 0.82rem;
   cursor: pointer;
   transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .tag-chip:hover {
-  border-color: #ab4aba;
-  color: #e8c4ee;
+  border-color: var(--plum);
+  color: var(--plum-soft-hover);
 }
 
 .tag-chip.is-active {
-  background-color: #ab4aba;
-  border-color: #ab4aba;
-  color: #ffffff;
+  background-color: var(--plum);
+  border-color: var(--plum);
+  color: var(--on-plum);
 }
 
-.light-theme .tag-chip {
-  border-color: #e4e4e7;
-  color: #3f3f46;
+/* Frequency, set quieter than the tag itself — it qualifies the name, it isn't
+   part of it. */
+.tag-chip-count {
+  font-size: 0.72rem;
+  color: var(--text-3);
 }
 
-.light-theme .tag-chip:hover {
-  border-color: #ab4aba;
-  color: #953ea3;
+.tag-chip:hover .tag-chip-count {
+  color: inherit;
+  opacity: 0.75;
 }
 
-.light-theme .tag-chip.is-active {
-  color: #ffffff;
+.tag-chip.is-active .tag-chip-count {
+  color: var(--on-plum);
+  opacity: 0.7;
 }
 
 .drawer-empty {
   margin: 0;
   font-size: 0.85rem;
-  color: #71717a;
+  color: var(--text-3);
 }
 
 .drawer-field {
@@ -662,11 +743,7 @@ const handleRandomPick = () => {
 
 .drawer-field label {
   font-size: 0.8rem;
-  color: #a1a1aa;
-}
-
-.light-theme .drawer-field label {
-  color: #71717a;
+  color: var(--text-2);
 }
 
 .drawer-action-list {

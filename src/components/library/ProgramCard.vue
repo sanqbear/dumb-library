@@ -2,11 +2,10 @@
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { NCard, NIcon, NTag, NDropdown, NPopover, useMessage, useDialog } from 'naive-ui'
+import { NIcon, NTag, NDropdown, NPopover, useMessage, useDialog } from 'naive-ui'
 import type { DropdownMixedOption } from 'naive-ui/es/dropdown/src/interface'
 import {
   Play as PlayIcon,
-  Image as ImageIcon,
   FolderOpenOutline as FolderIcon,
   InformationCircleOutline as InfoIcon,
   CreateOutline as EditIcon,
@@ -16,9 +15,11 @@ import {
   PeopleOutline as DeveloperIcon
 } from '@vicons/ionicons5'
 import type { Program, ProviderId } from '../../types'
-import { PROVIDERS, libImageUrl } from '../../types'
+import { DEFAULT_PROVIDER, PROVIDERS, libImageUrl } from '../../types'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useDeveloperName } from '../../composables/useDeveloperName'
+import { useThemeClass } from '../../composables/useThemeClass'
+import JacketArt from './JacketArt.vue'
 
 const props = defineProps<{
   program: Program
@@ -30,10 +31,9 @@ const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
 const { resolveDeveloperName } = useDeveloperName()
+const themeClass = useThemeClass()
 
 const developerName = computed(() => resolveDeveloperName(props.program.developerId))
-
-const isHovered = ref(false)
 
 // Tags render on a single line. We measure how many actually fit and collapse
 // the remainder into a "+n" badge, so a program with many/long tags never grows
@@ -73,6 +73,8 @@ const computeVisibleTags = () => {
 
 // Two-phase: render every tag first so their natural widths are measurable,
 // then trim to what fits. Re-runs on resize and whenever the tag list changes.
+// The reveal is only translated out of sight, never unmounted or collapsed, so
+// these measurements stay valid while the card is idle.
 const measureTags = () => {
   const total = props.program.tags.length
   if (visibleTagCount.value !== total) {
@@ -107,15 +109,32 @@ const displayImage = computed(() => {
   return ''
 })
 
-const hasImage = computed(() => !!displayImage.value)
-
 const isHighlighted = computed(() => libraryStore.highlightedProgramId === props.program.id)
 
-// Provider badge shown over the top-left of the cover art.
+// With no cover art the jacket sets the title itself, so repeating it in the
+// caption would print the same words twice on one card — and the crowding is
+// what pushed long titles into an awkward stub column. The caption keeps only
+// the rows that appear on hover.
+const hasArt = computed(() => !!displayImage.value)
+
+// How far the caption sits below the card edge while idle: exactly the height
+// of the rows that only appear on hover, so nothing shifts for a program that
+// has neither a circle nor tags.
+const revealHeight = computed(() => {
+  let h = 0
+  if (developerName.value) h += 20
+  if (props.program.tags.length > 0) h += 27
+  return h
+})
+
+// Provider badge over the top-left of the cover art. A local file is the
+// default, so it carries no mark — badging every jacket with the norm would
+// repeat the same glyph across the whole wall and say nothing.
 const PROVIDER_ICONS: Record<ProviderId, Component> = {
   local: LocalIcon,
   steam: SteamIcon
 }
+const showProviderBadge = computed(() => props.program.category !== DEFAULT_PROVIDER)
 const providerIcon = computed(() => PROVIDER_ICONS[props.program.category])
 const providerLabel = computed(() => t(PROVIDERS[props.program.category].labelKey))
 
@@ -134,6 +153,14 @@ const folderName = computed(() => {
   const parts = exe.replace(/\\/g, '/').replace(/\/+$/, '').split('/')
   parts.pop() // drop the filename
   return parts.length ? parts[parts.length - 1] : ''
+})
+
+// The install folder disambiguates two entries of the same game, but it is
+// filesystem trivia rather than something to spend a line of the jacket on —
+// it rides along in the title's native tooltip instead.
+const titleTooltip = computed(() => {
+  const exe = props.program.executablePath
+  return folderName.value ? `${props.program.title}\n${exe}` : props.program.title
 })
 
 const handleLaunch = async () => {
@@ -226,109 +253,84 @@ const handleDelete = () => {
 </script>
 
 <template>
-  <NCard
-    class="program-card card-hover no-select"
+  <article
+    class="jacket no-select"
     :class="{ 'is-highlighted': isHighlighted }"
+    :style="{ '--reveal-h': `${revealHeight}px`, '--veil-base': hasArt ? '46%' : '0px' }"
     :data-program-id="program.id"
-    :bordered="false"
-    content-style="padding: 0"
+    role="link"
+    tabindex="0"
+    :aria-label="program.title"
     @click="handleCardClick"
+    @keydown.enter.prevent="handleCardClick"
+    @keydown.space.prevent="handleCardClick"
     @contextmenu="handleContextMenu"
-    @mouseenter="isHovered = true"
-    @mouseleave="isHovered = false"
   >
-    <!-- Image area -->
-    <div class="card-image">
-      <!-- Native lazy <img>: the browser only fetches the cover when the card
-           scrolls near the viewport, and it's far lighter than a per-card
-           NImage component instance when the grid holds many programs. -->
-      <img
-        v-if="hasImage"
-        :src="displayImage"
-        class="card-img"
-        loading="lazy"
-        decoding="async"
-        alt=""
-      />
-      <div v-else class="placeholder-image">
-        <NIcon :component="ImageIcon" :size="48" />
-      </div>
+    <JacketArt :title="program.title" :src="displayImage" />
 
-      <!-- Provider badge (top-left, over the cover) -->
-      <div class="provider-badge" :title="providerLabel" :aria-label="providerLabel">
-        <NIcon :component="providerIcon" :size="16" />
-      </div>
+    <!-- Provider badge (top-left, over the cover) -->
+    <div
+      v-if="showProviderBadge"
+      class="badge provider-badge"
+      :title="providerLabel"
+      :aria-label="providerLabel"
+    >
+      <NIcon :component="providerIcon" :size="13" />
+    </div>
 
-      <!-- Info badge (top-right): hover reveals the preview images -->
-      <NPopover
-        v-if="hasPreviews"
-        trigger="hover"
-        placement="bottom-end"
-        :show-arrow="false"
-        raw
-        class="preview-popover"
-      >
-        <template #trigger>
-          <div
-            class="info-badge"
-            :aria-label="t('detailView.previews')"
-            @click.stop
-          >
-            <NIcon :component="InfoIcon" :size="18" />
-          </div>
-        </template>
-        <div class="preview-popover-inner">
-          <img
-            v-for="(url, i) in previewUrls"
-            :key="i"
-            :src="url"
-            class="preview-popover-img"
-            loading="lazy"
-            decoding="async"
-            alt=""
-          />
+    <!-- Info badge (top-right): hover reveals the preview images -->
+    <NPopover
+      v-if="hasPreviews"
+      trigger="hover"
+      placement="bottom-end"
+      :show-arrow="false"
+      raw
+      class="preview-popover"
+    >
+      <template #trigger>
+        <div class="badge info-badge" :aria-label="t('detailView.previews')" @click.stop>
+          <NIcon :component="InfoIcon" :size="15" />
         </div>
-      </NPopover>
+      </template>
+      <!-- NPopover teleports this to <body>, outside `.app-container`, so it
+           needs its own theme class to pick up the light token overrides. -->
+      <div class="preview-popover-inner" :class="themeClass">
+        <img
+          v-for="(url, i) in previewUrls"
+          :key="i"
+          :src="url"
+          class="preview-popover-img"
+          loading="lazy"
+          decoding="async"
+          alt=""
+        />
+      </div>
+    </NPopover>
 
-      <!-- Overlay on hover -->
-      <div v-show="isHovered" class="card-overlay" @click.stop="handleCardClick">
-        <button class="launch-btn" @click.stop="handleLaunch" aria-label="실행">
-          <NIcon :component="PlayIcon" :size="32" />
-        </button>
+    <!-- Veil + caption sit on the jacket rather than under it, so the grid is a
+         wall of covers instead of a grid of cards. -->
+    <div class="jacket-veil" />
+    <div class="jacket-caption">
+      <div v-if="hasArt" class="card-title" :title="titleTooltip">{{ program.title }}</div>
+      <div class="card-reveal">
+        <div v-if="developerName" class="card-developer truncate" :title="developerName">
+          <NIcon :component="DeveloperIcon" :size="13" class="card-developer-icon" />
+          <span class="truncate">{{ developerName }}</span>
+        </div>
+        <div v-if="program.tags.length > 0" ref="metaRef" class="card-meta">
+          <NTag v-for="tag in visibleTags" :key="tag" size="small" class="card-tag">
+            {{ tag }}
+          </NTag>
+          <NTag v-if="hiddenTagCount > 0" size="small" :bordered="false" class="card-tag card-tag-more">
+            +{{ hiddenTagCount }}
+          </NTag>
+        </div>
       </div>
     </div>
 
-    <!-- Info area -->
-    <div class="card-info">
-      <div class="card-title truncate">{{ program.title }}</div>
-      <div v-if="developerName" class="card-developer truncate" :title="developerName">
-        <NIcon :component="DeveloperIcon" :size="13" class="card-developer-icon" />
-        <span class="truncate">{{ developerName }}</span>
-      </div>
-      <div v-if="folderName" class="card-folder truncate" :title="program.executablePath">
-        <NIcon :component="FolderIcon" :size="13" class="card-folder-icon" />
-        <span class="truncate">{{ folderName }}</span>
-      </div>
-      <div ref="metaRef" class="card-meta">
-        <NTag
-          v-for="tag in visibleTags"
-          :key="tag"
-          size="small"
-          class="card-tag"
-        >
-          {{ tag }}
-        </NTag>
-        <NTag
-          v-if="hiddenTagCount > 0"
-          size="small"
-          :bordered="false"
-          class="card-tag card-tag-more"
-        >
-          +{{ hiddenTagCount }}
-        </NTag>
-        <span v-if="program.tags.length === 0" class="card-meta-empty">—</span>
-      </div>
-    </div>
+    <button class="launch-btn" :title="t('cardMenu.launch')" @click.stop="handleLaunch">
+      <NIcon :component="PlayIcon" :size="18" />
+    </button>
 
     <!-- Right-click context menu -->
     <NDropdown
@@ -341,56 +343,36 @@ const handleDelete = () => {
       :on-clickoutside="closeMenu"
       @select="handleMenuSelect"
     />
-  </NCard>
+  </article>
 </template>
 
 <style scoped>
-.program-card {
-  background-color: #27272a;
-  border-radius: 10px;
+.jacket {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--r-sm);
   overflow: hidden;
   cursor: pointer;
-  /* Subtle top highlight + layered drop shadow give the card depth without
-     touching layout, so the grid never shifts on hover/highlight. */
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.35),
-    0 4px 10px rgba(0, 0, 0, 0.28);
+  /* No surface, no border, no resting shadow: the artwork is the card. */
   transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
 
-.program-card:hover {
-  transform: translateY(-4px);
-  box-shadow:
-    0 6px 14px rgba(0, 0, 0, 0.38),
-    0 16px 32px rgba(0, 0, 0, 0.34);
+.jacket:hover,
+.jacket:focus-visible {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-2);
 }
 
-.light-theme .program-card {
-  background-color: #ffffff;
-  border-color: rgba(0, 0, 0, 0.05);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 4px 12px rgba(0, 0, 0, 0.1);
+.jacket:focus-visible {
+  outline: 2px solid var(--plum);
+  outline-offset: 2px;
 }
 
-.light-theme .program-card:hover {
+.jacket.is-highlighted {
   box-shadow:
-    0 6px 16px rgba(0, 0, 0, 0.12),
-    0 18px 36px rgba(0, 0, 0, 0.16);
-}
-
-.program-card.is-highlighted {
-  box-shadow:
-    0 0 0 3px #ab4aba,
-    0 0 24px rgba(171, 74, 186, 0.55);
+    0 0 0 3px var(--plum),
+    0 0 24px var(--plum-ring);
   animation: highlight-pulse 1.4s ease-in-out infinite;
-}
-
-.light-theme .program-card.is-highlighted {
-  box-shadow:
-    0 0 0 3px #ab4aba,
-    0 0 24px rgba(171, 74, 186, 0.45);
 }
 
 @keyframes highlight-pulse {
@@ -398,66 +380,46 @@ const handleDelete = () => {
   50% { filter: brightness(1.08); }
 }
 
-.card-image {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 2 / 3;
-  background-color: #3f3f46;
-  overflow: hidden;
-}
-
-.light-theme .card-image {
-  background-color: #e4e4e7;
-}
-
-.card-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.placeholder-image {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #71717a;
-}
-
-/* Provider / info badges float above the cover and stay above the hover
-   overlay so the info icon remains hoverable while the launch button shows. */
-.provider-badge,
-.info-badge {
+/* Badges float above the cover and stay above the veil so the info icon
+   remains hoverable while the caption is expanded. Both are chrome on top of
+   artwork, so they are kept as small and as quiet as legibility allows. */
+.badge {
   position: absolute;
-  top: 8px;
+  top: 7px;
   z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   color: #fff;
-  background-color: rgba(0, 0, 0, 0.55);
+  background-color: var(--scrim-chip);
   backdrop-filter: blur(2px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
 .provider-badge {
-  left: 8px;
+  left: 7px;
 }
 
+/* The screenshot peek is a hover affordance by definition — showing it on every
+   idle jacket would put a second floating mark on all 24 covers for nothing. */
 .info-badge {
-  right: 8px;
+  right: 7px;
   cursor: help;
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease, background-color 0.15s ease;
+}
+
+.jacket:hover .info-badge,
+.jacket:focus-within .info-badge {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .info-badge:hover {
-  background-color: rgba(0, 0, 0, 0.78);
-  transform: scale(1.08);
+  background-color: var(--scrim-chip-hover);
 }
 
 /* Floating preview gallery rendered by the info-badge popover.
@@ -473,15 +435,10 @@ const handleDelete = () => {
   gap: 6px;
   padding: 6px;
   width: 280px;
-  border-radius: 10px;
-  background-color: #1f1f23;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-}
-
-.light-theme .preview-popover-inner {
-  background-color: #ffffff;
-  border-color: rgba(0, 0, 0, 0.08);
+  border-radius: var(--r-lg);
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
 }
 
 .preview-popover-img {
@@ -489,85 +446,83 @@ const handleDelete = () => {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--r-md);
 }
 
-.card-overlay {
+/* Legibility for caption text sitting directly on artwork. Grows on hover to
+   cover the rows that slide in. */
+.jacket-veil {
   position: absolute;
-  inset: 0;
+  inset: auto 0 0 0;
+  z-index: 1;
+  height: calc(var(--veil-base) + var(--reveal-h));
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.72) 38%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  opacity: 0.82;
+  transform: translateY(var(--reveal-h));
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.jacket:hover .jacket-veil,
+.jacket:focus-visible .jacket-veil {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.jacket-caption {
+  position: absolute;
+  inset: auto 0 0 0;
   z-index: 2;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  /* Keeps text clear of the launch button's corner. */
+  padding: 0 46px 9px 10px;
+  color: #fff;
+  transform: translateY(var(--reveal-h));
+  transition: transform 0.2s ease;
 }
 
-.launch-btn {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  border: none;
-  background-color: #ab4aba;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-  padding-left: 4px; /* optical-center the play triangle */
-}
-
-.light-theme .launch-btn {
-  background-color: #ab4aba;
-}
-
-.launch-btn:hover {
-  transform: scale(1.06);
-  background-color: #b658c4;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-}
-
-.light-theme .launch-btn:hover {
-  background-color: #a144af;
-}
-
-.launch-btn:active {
-  transform: scale(0.98);
-  background-color: #8e3a9c;
-}
-
-.light-theme .launch-btn:active {
-  background-color: #953ea3;
-}
-
-.card-info {
-  padding: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.light-theme .card-info {
-  border-top-color: rgba(0, 0, 0, 0.04);
+.jacket:hover .jacket-caption,
+.jacket:focus-visible .jacket-caption {
+  transform: translateY(0);
 }
 
 .card-title {
-  font-weight: 500;
-  font-size: 0.9rem;
-  margin-bottom: 4px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.32;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Always laid out — only translated out of sight — so the tag-overflow
+   measurement below stays correct while the card is idle. */
+.card-reveal {
+  height: var(--reveal-h);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.jacket:hover .card-reveal,
+.jacket:focus-visible .card-reveal {
+  opacity: 1;
 }
 
 .card-developer {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.74rem;
-  color: #d6a9dd;
-  margin-bottom: 4px;
-}
-
-.light-theme .card-developer {
-  color: #953ea3;
+  height: 20px;
+  font-size: 0.72rem;
+  color: var(--plum-soft);
 }
 
 .card-developer-icon {
@@ -575,29 +530,12 @@ const handleDelete = () => {
   opacity: 0.85;
 }
 
-.card-folder {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
-  color: #a1a1aa;
-  margin-bottom: 8px;
-}
-
-.light-theme .card-folder {
-  color: #71717a;
-}
-
-.card-folder-icon {
-  flex-shrink: 0;
-  opacity: 0.8;
-}
-
 .card-meta {
   display: flex;
   flex-wrap: nowrap;
   gap: 4px;
-  min-height: 22px;
+  height: 27px;
+  padding-top: 5px;
   align-items: center;
   overflow: hidden;
 }
@@ -612,8 +550,60 @@ const handleDelete = () => {
   flex-shrink: 0;
 }
 
-.card-meta-empty {
-  font-size: 0.8rem;
-  color: #52525b;
+.launch-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  padding-left: 2px; /* optical-center the play triangle */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--plum);
+  color: var(--on-plum);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.16s ease, transform 0.16s ease, background-color 0.15s ease;
+}
+
+.jacket:hover .launch-btn,
+.jacket:focus-visible .launch-btn,
+.launch-btn:focus-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.launch-btn:hover {
+  background-color: var(--plum-hover);
+}
+
+.launch-btn:active {
+  background-color: var(--plum-press);
+  transform: scale(0.95);
+}
+
+.launch-btn:focus-visible {
+  outline: 2px solid var(--on-plum);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jacket,
+  .jacket-veil,
+  .jacket-caption,
+  .card-reveal,
+  .info-badge,
+  .launch-btn {
+    transition: none;
+  }
+
+  .jacket.is-highlighted {
+    animation: none;
+  }
 }
 </style>

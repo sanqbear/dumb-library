@@ -40,6 +40,7 @@ export default {
     noMatchingTags: '일치하는 태그가 없습니다',
     actions: '작업',
     clearFilters: '필터 초기화',
+    removeFilter: '필터 제거',
     sortRecent: '최신순',
     sortOldest: '오래된순',
     sortNameAsc: '이름순 (ㄱ-ㅎ)',
@@ -56,11 +57,11 @@ export default {
     emptyFilteredAction: '필터를 조정해 보세요'
   },
   listView: {
-    columnTitle: 'Title',
-    columnProvider: 'Provider',
-    columnDeveloper: 'Developer',
-    columnTags: 'Tags',
-    columnActions: 'Actions'
+    columnTitle: '제목',
+    columnProvider: '제공자',
+    columnDeveloper: '개발사',
+    columnTags: '태그',
+    columnActions: '작업'
   },
   cardMenu: {
     launch: '실행',
@@ -100,7 +101,7 @@ export default {
     keywordsHint: '분류에는 쓰이지 않고 검색에만 사용됩니다',
     memoLabel: '메모',
     memoPlaceholder: '참고용 메모를 입력하세요',
-    memoHint: '검색에는 포함되지 않는 참고용 메모입니다',
+    memoHint: '검색에는 포함되지 않는 참고용 메모입니다 · 마크다운 지원',
     selectImage: '파일에서 선택',
     imageUrl: '이미지 URL',
     fetchUrl: '가져오기',
@@ -123,7 +124,7 @@ export default {
     iconLabel: '아이콘 (256×256)',
     thumbnailCropTitle: '썸네일 크롭 (2:3)',
     iconCropTitle: '아이콘 크롭 (1:1)',
-    previewLabel: '미리보기 (16:9, 최대 3개)',
+    previewLabel: '미리보기 (16:9)',
     previewCropTitle: '미리보기 크롭 (16:9)',
     setAsThumbnail: '썸네일로 지정',
     previewSaveFailed: '미리보기 저장에 실패했습니다',

@@ -46,7 +46,7 @@ const handleClearFilters = () => {
 }
 
 .empty-hint {
-  color: #71717a;
+  color: var(--text-3);
   margin-top: 8px;
 }
 </style>

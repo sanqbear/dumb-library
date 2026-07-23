@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Waifu Library — 테스트베드</title>
+    <style>
+      /* Shell chrome only. Deliberately a plain slate — never the app's violet
+         ink — so nothing here can be mistaken for part of the design under
+         review. The app renders inside the iframe, which owns its own document
+         (and therefore its own <body>, where naive-ui teleports modals). */
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: #0e0e11;
+        color: #9aa0aa;
+        font: 13px/1.4 'Segoe UI', system-ui, sans-serif;
+        overflow: hidden;
+      }
+
+      #bar {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding: 8px 14px;
+        background: #16161a;
+        border-bottom: 1px solid #26262c;
+      }
+
+      .group { display: flex; align-items: center; gap: 6px; }
+
+      .group-label {
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #5f646e;
+      }
+
+      button {
+        font: inherit;
+        color: #c8ccd3;
+        background: #22222a;
+        border: 1px solid #303039;
+        border-radius: 5px;
+        padding: 4px 10px;
+        cursor: pointer;
+      }
+      button:hover { background: #2b2b35; border-color: #3d3d49; }
+      button[aria-pressed='true'] { background: #3a3a48; border-color: #4d4d5d; color: #fff; }
+      button:focus-visible { outline: 2px solid #7c8cf8; outline-offset: 1px; }
+
+      #readout {
+        margin-left: auto;
+        font-variant-numeric: tabular-nums;
+        color: #6d727c;
+      }
+      #readout b { color: #c8ccd3; font-weight: 600; }
+
+      #stage {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+      }
+
+      #holder { position: relative; }
+
+      iframe {
+        display: block;
+        border: 0;
+        transform-origin: top left;
+        background: #141018;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+      }
+
+      #closed {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        color: #6d727c;
+      }
+      #closed.on { display: flex; }
+      #stage.closed #holder { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="bar">
+      <div class="group">
+        <span class="group-label">창 크기</span>
+        <button data-size="1360x1010">1360 × 1010</button>
+        <button data-size="1280x800">1280 × 800</button>
+        <button data-size="800x600">800 × 600</button>
+        <button data-size="1920x1080">1920 × 1080</button>
+        <button id="maximize-preset">최대화</button>
+      </div>
+      <div class="group">
+        <span class="group-label">배율</span>
+        <button id="zoom-fit">맞춤</button>
+        <button id="zoom-100">100%</button>
+      </div>
+      <div class="group">
+        <button id="reload">새로고침</button>
+        <button id="reset">데이터 초기화</button>
+      </div>
+      <div id="readout"></div>
+    </div>
+
+    <div id="stage">
+      <div id="holder"><iframe id="frame" src="/app.testbed.html" title="Waifu Library"></iframe></div>
+      <div id="closed">
+        <span>창이 닫혔습니다.</span>
+        <button id="reopen">다시 열기</button>
+      </div>
+    </div>
+
+    <script type="module">
+      const SHELL = 'waifu-testbed-shell'
+      const DEFAULT = { w: 1360, h: 1010 } // matches BrowserWindow in electron/main.ts
+
+      const stage = document.getElementById('stage')
+      const holder = document.getElementById('holder')
+      const frame = document.getElementById('frame')
+      const readout = document.getElementById('readout')
+      const closed = document.getElementById('closed')
+
+      let size = { ...DEFAULT }
+      let fit = true
+      let maximized = false
+
+      const send = (message) => frame.contentWindow?.postMessage({ source: SHELL, ...message }, '*')
+
+      const layout = () => {
+        const availW = stage.clientWidth - 32
+        const availH = stage.clientHeight - 32
+        if (maximized) size = { w: Math.max(800, availW), h: Math.max(600, availH) }
+
+        const scale = fit ? Math.min(1, availW / size.w, availH / size.h) : 1
+        frame.style.width = size.w + 'px'
+        frame.style.height = size.h + 'px'
+        frame.style.transform = `scale(${scale})`
+        holder.style.width = size.w * scale + 'px'
+        holder.style.height = size.h * scale + 'px'
+
+        readout.innerHTML =
+          `<b>${size.w} × ${size.h}</b> · ${Math.round(scale * 100)}%` +
+          (maximized ? ' · 최대화' : '')
+
+        document.querySelectorAll('[data-size]').forEach(btn => {
+          btn.setAttribute('aria-pressed', String(!maximized && btn.dataset.size === `${size.w}x${size.h}`))
+        })
+        document.getElementById('maximize-preset').setAttribute('aria-pressed', String(maximized))
+        document.getElementById('zoom-fit').setAttribute('aria-pressed', String(fit))
+        document.getElementById('zoom-100').setAttribute('aria-pressed', String(!fit))
+      }
+
+      const setMaximized = (value) => {
+        maximized = value
+        if (!maximized) size = { ...DEFAULT }
+        layout()
+        send({ type: 'maximized', value: maximized })
+      }
+
+      document.querySelectorAll('[data-size]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const [w, h] = btn.dataset.size.split('x').map(Number)
+          maximized = false
+          size = { w, h }
+          layout()
+          send({ type: 'maximized', value: false })
+        })
+      })
+
+      document.getElementById('maximize-preset').addEventListener('click', () => setMaximized(!maximized))
+      document.getElementById('zoom-fit').addEventListener('click', () => { fit = true; layout() })
+      document.getElementById('zoom-100').addEventListener('click', () => { fit = false; layout() })
+      document.getElementById('reload').addEventListener('click', () => frame.contentWindow?.location.reload())
+      document.getElementById('reset').addEventListener('click', () => send({ type: 'reset' }))
+
+      const openFrame = () => {
+        stage.classList.remove('closed')
+        closed.classList.remove('on')
+        frame.contentWindow?.location.reload()
+        layout()
+      }
+      document.getElementById('reopen').addEventListener('click', openFrame)
+
+      // Window-control clicks come from the app's custom title bar inside the iframe.
+      window.addEventListener('message', (event) => {
+        const data = event.data
+        if (!data || data.source !== 'waifu-testbed') return
+        if (data.action === 'maximize') setMaximized(!maximized)
+        else if (data.action === 'close') {
+          stage.classList.add('closed')
+          closed.classList.add('on')
+        } else if (data.action === 'minimize') {
+          readout.innerHTML = '<b>최소화</b> · 브라우저에서는 표시만 됩니다'
+          setTimeout(layout, 1200)
+        }
+      })
+
+      window.addEventListener('resize', layout)
+      frame.addEventListener('load', () => send({ type: 'maximized', value: maximized }))
+      layout()
+    </script>
+  </body>
+</html>

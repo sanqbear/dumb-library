@@ -115,8 +115,12 @@ const handleUpdate = async (val: string | null) => {
 </template>
 
 <style scoped>
+/* Same reason as TagInput: inside NFormItem's flex content row a wrapper with
+   no width shrinks to its contents, leaving the field far narrower than its
+   siblings and the dropdown too narrow to read. */
 .dev-select {
   display: flex;
+  width: 100%;
 }
 
 .dev-select :deep(.n-input-group) {

@@ -116,3 +116,14 @@ function handleUpdate(values: string[]) {
     />
   </div>
 </template>
+
+<style scoped>
+/* Fill the container. NFormItem lays its content out as a flex row, so without
+   an explicit width this wrapper shrinks to fit its chips — and with no tags at
+   all it collapsed to barely wider than the caret, taking the suggestion menu
+   (which naive-ui sizes to the trigger) down with it. */
+.tag-input {
+  width: 100%;
+  min-width: 0;
+}
+</style>

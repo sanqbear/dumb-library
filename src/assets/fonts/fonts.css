@@ -1,46 +1,18 @@
 /* ============================================================
    FONTS — bundled locally so the app (incl. the portable build)
-   renders Inter + Pretendard fully offline. No CDN at runtime.
+   renders fully offline. No CDN at runtime.
 
-   Inter carries Latin UI text; Pretendard covers Hangul and CJK
-   for the KO / JA / ZH locales. Only the four weights the UI uses
-   (400/500/600/700, normal) are shipped — no italics or extra
-   variations. The woff2 files sit next to this stylesheet and are
-   processed/hashed by Vite, so the relative URLs resolve under the
-   file:// renderer in production.
+   Pretendard alone carries the UI: its Latin is Inter-derived, so
+   it covers Latin and Hangul in one voice and a mixed string like
+   "Steam 라이브러리" no longer draws from two families. JA/ZH text
+   falls back to the platform face, as it always has.
+
+   Only the four weights the UI uses (400/500/600/700, normal) are
+   shipped — no italics or extra variations. The woff2 files sit
+   next to this stylesheet and are processed/hashed by Vite, so the
+   relative URLs resolve under the file:// renderer in production.
    ============================================================ */
 
-/* ---------- Inter (Latin) ---------- */
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("./inter-400.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("./inter-500.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("./inter-600.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("./inter-700.woff2") format("woff2");
-}
-
-/* ---------- Pretendard (Korean / CJK) ---------- */
 @font-face {
   font-family: "Pretendard";
   font-style: normal;

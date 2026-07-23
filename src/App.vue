@@ -36,14 +36,34 @@ const onPrimaryText = {
   textColorFocusError: '#ffffff'
 }
 
-// Match naive-ui components to the bundled Inter + Pretendard stack so buttons,
-// inputs, tables, etc. render with the same fonts as the rest of the app.
+// Match naive-ui components to the bundled Pretendard stack so buttons,
+// inputs, tables, etc. render with the same font as the rest of the app.
 const fontFamily =
-  "'Inter', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+  "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
 
+// Naive-ui reads its surfaces from JS, not CSS, so the ink ramp defined in
+// global.css has to be restated here — otherwise selects, tables, drawers and
+// dialogs would keep naive's blue-grey defaults while everything we style
+// ourselves turns violet. Values are kept in step with the CSS tokens by hand;
+// they are the only place hexes still belong.
 const darkThemeOverrides: GlobalThemeOverrides = {
   common: {
     fontFamily,
+    bodyColor: '#141018',
+    cardColor: '#1d1824',
+    modalColor: '#221c2b',
+    popoverColor: '#262030',
+    tableColor: '#1d1824',
+    tableHeaderColor: '#171320',
+    inputColor: 'rgba(255, 255, 255, 0.05)',
+    actionColor: '#262030',
+    borderColor: '#453b51',
+    dividerColor: '#342c3e',
+    textColorBase: '#f0ebf4',
+    textColor1: '#f0ebf4',
+    textColor2: '#c9c2d2',
+    textColor3: '#a79eb2',
+    hoverColor: 'rgba(171, 74, 186, 0.12)',
     primaryColor: '#ab4aba',
     primaryColorHover: '#b658c4',
     primaryColorPressed: '#8e3a9c',
@@ -63,6 +83,21 @@ const darkThemeOverrides: GlobalThemeOverrides = {
 const lightThemeOverrides: GlobalThemeOverrides = {
   common: {
     fontFamily,
+    bodyColor: '#f6f3f8',
+    cardColor: '#ffffff',
+    modalColor: '#ffffff',
+    popoverColor: '#ffffff',
+    tableColor: '#ffffff',
+    tableHeaderColor: '#f6f3f8',
+    inputColor: '#ffffff',
+    actionColor: '#efeaf2',
+    borderColor: '#d8cfe0',
+    dividerColor: '#e5deea',
+    textColorBase: '#17121d',
+    textColor1: '#17121d',
+    textColor2: '#3e3747',
+    textColor3: '#6b6376',
+    hoverColor: 'rgba(171, 74, 186, 0.08)',
     primaryColor: '#ab4aba',
     primaryColorHover: '#a144af',
     primaryColorPressed: '#953ea3',
@@ -132,13 +167,8 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: #18181b;
-  color: #fafafa;
-}
-
-.light-theme.app-container {
-  background-color: #f4f4f5;
-  color: #18181b;
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 /* Relative so the sidebar Drawer (mounted here via :to) is scoped to this

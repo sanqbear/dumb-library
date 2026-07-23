@@ -65,6 +65,28 @@ npm run dev
 
 electron-vite 가 renderer HMR 과 함께 Electron 을 실행합니다.
 
+### 브라우저 테스트베드 (UI 검토용)
+
+```bash
+npm run testbed
+```
+
+Electron 없이 브라우저에서 렌더러만 띄웁니다. `http://localhost:5180/index.testbed.html`
+에서 실제 창 크기(1360 × 1010)를 그대로 재현한 프레임 안에 앱이 뜹니다.
+
+- **창 크기** 프리셋과 **배율(맞춤 / 100%)** 로 좁은 창까지 확인 가능
+- `window.electron` 은 `src/testbed/mockElectron.ts` 의 모의 구현으로 대체되며,
+  라이브러리·설정은 localStorage 에 저장됩니다 (**데이터 초기화** 버튼으로 리셋)
+- 표지·스크린샷은 `testbed-assets/lib/` 의 생성된 플레이스홀더 SVG 입니다.
+  `public/` 밖에 있으므로 Electron 빌드에는 포함되지 않습니다
+- 시드 데이터(`src/testbed/fixtures.ts`)는 표지 없는 항목, 긴 제목, 태그 0~5개,
+  다국어 제목 등 UI 가 견뎌야 하는 경우를 일부러 섞어 둔 것입니다
+- 앱은 iframe 안에서 실행되므로 naive-ui 가 body 로 텔레포트하는 모달·드로어도
+  시뮬레이션된 창 안에 정상적으로 표시됩니다
+
+프로그램 실행·탐색기 열기·아이콘 추출처럼 OS 가 필요한 기능은 동작하지 않고
+콘솔에 로그만 남깁니다.
+
 ### 프로덕션 빌드
 
 ```bash
