@@ -124,9 +124,9 @@ const titleSize = computed(() => {
   gap: 4cqw;
   overflow: hidden;
   background: linear-gradient(155deg, var(--jacket-from), var(--jacket-to));
-  /* Fixed light, not var(--text): the field is dark in both themes because it
-     stands in for cover art, so theme-following text would vanish in light. */
-  color: rgba(255, 255, 255, 0.94);
+  /* Not var(--text): the field is dark in both themes because it stands in for
+     cover art, so theme-following text would vanish in light. */
+  color: var(--on-art);
 }
 
 .jacket-title {

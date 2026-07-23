@@ -436,7 +436,7 @@ const handleDelete = () => {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  color: #fff;
+  color: var(--on-art);
   background-color: var(--scrim-chip);
   backdrop-filter: blur(2px);
 }
@@ -523,7 +523,7 @@ const handleDelete = () => {
   z-index: 2;
   /* Keeps text clear of the launch button's corner. */
   padding: 0 46px 9px 10px;
-  color: #fff;
+  color: var(--on-art);
   transform: translateY(var(--reveal-h));
   transition: transform 0.2s ease;
 }

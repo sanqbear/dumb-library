@@ -80,8 +80,8 @@ const columns = computed<DataTableColumns<Program>>(() => [
       if (!src) {
         return h('div', {
           style: {
-            width: '32px',
-            height: '32px',
+            width: '24px',
+            height: '36px',
             backgroundColor: 'var(--surface-2)',
             borderRadius: 'var(--r-sm)'
           }
@@ -92,7 +92,7 @@ const columns = computed<DataTableColumns<Program>>(() => [
       // actions (navigate + zoom) firing together.
       const thumb = h('img', {
         src,
-        style: 'width: 32px; height: 32px; object-fit: cover; border-radius: 4px; display: block;'
+        style: 'width: 24px; height: 36px; object-fit: cover; border-radius: 4px; display: block;'
       })
       return h(NPopover, { trigger: 'hover', placement: 'right', delay: 120 }, {
         trigger: () => thumb,
@@ -113,7 +113,7 @@ const columns = computed<DataTableColumns<Program>>(() => [
     key: 'category',
     width: 140,
     render(row) {
-      return h(NTag, { size: 'small', type: 'info' }, { default: () => t(PROVIDERS[row.category].labelKey) })
+      return t(PROVIDERS[row.category].labelKey)
     }
   },
   {
@@ -172,9 +172,9 @@ const columns = computed<DataTableColumns<Program>>(() => [
             icon: () => h(NIcon, { component: EditIcon })
           }),
           h(NButton, {
-            type: 'error',
             quaternary: true,
             circle: true,
+            class: 'row-delete',
             onClick: stop(() => handleDelete(row))
           }, {
             icon: () => h(NIcon, { component: DeleteIcon })
@@ -223,6 +223,11 @@ const columns = computed<DataTableColumns<Program>>(() => [
 .list-table :deep(.n-data-table-wrapper),
 .list-table :deep(.n-data-table) {
   border-radius: 0;
+}
+
+/* Danger colour at the moment of use rather than as a permanent mark. */
+.library-list :deep(.row-delete:hover) {
+  color: var(--danger);
 }
 
 /* Background tint on highlighted row cells — no border/padding change,

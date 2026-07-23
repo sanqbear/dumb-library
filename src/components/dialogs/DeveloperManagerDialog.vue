@@ -241,7 +241,7 @@ const incompleteTooltip = (names: LocalizedName): string => {
   gap: 8px;
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid transparent;
+  border: 1px solid var(--line);
   border-radius: var(--r-md);
   background-color: var(--surface-2);
   color: inherit;
@@ -276,13 +276,10 @@ const incompleteTooltip = (names: LocalizedName): string => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #eab308;
+  background-color: var(--warn);
   flex-shrink: 0;
 }
 
-.light-theme .incomplete-dot {
-  background-color: #ca8a04;
-}
 
 .dev-item-del {
   flex-shrink: 0;

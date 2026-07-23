@@ -44,6 +44,9 @@
   --danger-hover: #ec5e43;
   --danger-press: #d13c1c;
   --info: #7c8cf8;
+  /* Attention without alarm — e.g. a master entry whose translations are
+     still incomplete. Not an error, so it never borrows the danger colour. */
+  --warn: #eab308;
 
   /* Elevation */
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 10px rgba(0, 0, 0, 0.28);
@@ -52,6 +55,10 @@
 
   /* Scrims over cover art — identical in both themes, since they sit
      on the artwork rather than on a surface. */
+  /* Text and marks that sit on cover art rather than on a surface, so they
+     stay light in both themes. */
+  --on-art: rgba(255, 255, 255, 0.94);
+
   --scrim: rgba(0, 0, 0, 0.5);
   --scrim-chip: rgba(0, 0, 0, 0.42);
   --scrim-chip-hover: rgba(0, 0, 0, 0.78);
@@ -98,6 +105,7 @@
   --plum-ring: rgba(171, 74, 186, 0.5);
 
   --info: #3e63dd;
+  --warn: #ca8a04;
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.1);
   --shadow-2: 0 6px 16px rgba(0, 0, 0, 0.12), 0 18px 36px rgba(0, 0, 0, 0.16);
