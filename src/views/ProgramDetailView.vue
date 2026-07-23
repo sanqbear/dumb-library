@@ -18,6 +18,7 @@ import {
 import { useLibraryStore } from '../stores/libraryStore'
 import { useThemeClass } from '../composables/useThemeClass'
 import { useDeveloperName } from '../composables/useDeveloperName'
+import MarkdownText from '../components/MarkdownText.vue'
 import { libImageUrl, type Program } from '../types'
 
 const props = defineProps<{ id: string }>()
@@ -57,31 +58,6 @@ watch(
 const previewUrls = computed(() =>
   program.value ? program.value.previewImages.map(rel => libImageUrl(rel, program.value!.updatedAt)) : []
 )
-
-// Memo may contain http(s) URLs — split it into plain-text and link segments so
-// the links become clickable while the rest renders as-is (newlines preserved).
-type MemoSegment = { type: 'text' | 'link'; text: string; href?: string }
-const URL_RE = /https?:\/\/[^\s<>]+/g
-const memoSegments = computed<MemoSegment[]>(() => {
-  const memo = program.value?.memo ?? ''
-  if (!memo) return []
-  const segments: MemoSegment[] = []
-  let last = 0
-  for (const match of memo.matchAll(URL_RE)) {
-    const full = match[0] ?? ''
-    const start = match.index ?? 0
-    let url = full
-    // Trailing punctuation is usually sentence syntax, not part of the URL.
-    const trail = url.match(/[),.;:!?'"\]]+$/)?.[0] ?? ''
-    if (trail) url = url.slice(0, url.length - trail.length)
-    if (start > last) segments.push({ type: 'text', text: memo.slice(last, start) })
-    segments.push({ type: 'link', text: url, href: url })
-    if (trail) segments.push({ type: 'text', text: trail })
-    last = start + full.length
-  }
-  if (last < memo.length) segments.push({ type: 'text', text: memo.slice(last) })
-  return segments
-})
 
 const openExternalLink = async (url: string) => {
   const ok = await window.electron.openExternal(url)
@@ -287,18 +263,10 @@ const handleMenuSelect = (key: string) => {
       </section>
 
       <!-- Reference memo — display only, never part of search/filtering.
-           URLs are rendered as clickable links opened in the system browser. -->
+           Rendered as markdown; links open in the system browser. -->
       <section v-if="program.memo" class="detail-section">
         <div class="section-label">{{ t('detailView.memoLabel') }}</div>
-        <p class="detail-memo"><template
-            v-for="(seg, i) in memoSegments"
-            :key="i"
-          ><a
-              v-if="seg.type === 'link'"
-              class="memo-link"
-              :href="seg.href"
-              @click.prevent="openExternalLink(seg.href ?? seg.text)"
-            >{{ seg.text }}</a><template v-else>{{ seg.text }}</template></template></p>
+        <MarkdownText class="detail-memo" :source="program.memo" @link="openExternalLink" />
       </section>
 
       <!-- Executable path, with a "reveal in explorer" button on the right. -->
@@ -646,8 +614,6 @@ const handleMenuSelect = (key: string) => {
 }
 
 .detail-memo {
-  margin: 0;
-  white-space: pre-wrap;
   word-break: break-word;
   font-size: 0.9rem;
   line-height: 1.6;
@@ -660,26 +626,6 @@ const handleMenuSelect = (key: string) => {
 .light-theme .detail-memo {
   color: #3f3f46;
   background-color: #ffffff;
-}
-
-.memo-link {
-  color: #d6a9dd;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-  word-break: break-all;
-}
-
-.memo-link:hover {
-  color: #e8c4ee;
-}
-
-.light-theme .memo-link {
-  color: #953ea3;
-}
-
-.light-theme .memo-link:hover {
-  color: #7d3389;
 }
 
 /* Recommendations — horizontal strip of compact program cards. */
