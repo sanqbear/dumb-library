@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { NImage, NImageGroup, NButton, NIcon, NTag, NDropdown, useMessage, useDialog } from 'naive-ui'
 import type { DropdownMixedOption } from 'naive-ui/es/dropdown/src/interface'
-import MarkdownIt from 'markdown-it'
 import {
   Play as PlayIcon,
   CreateOutline as EditIcon,
@@ -20,6 +19,7 @@ import {
 import { useLibraryStore } from '../stores/libraryStore'
 import { useThemeClass } from '../composables/useThemeClass'
 import { useDeveloperName } from '../composables/useDeveloperName'
+import MarkdownText from '../components/MarkdownText.vue'
 import { useTagName } from '../composables/useTagName'
 import { libImageUrl, type Program } from '../types'
 
@@ -73,29 +73,9 @@ const previewUrls = computed(() =>
   program.value ? program.value.previewImages.map(rel => libImageUrl(rel, program.value!.updatedAt)) : []
 )
 
-// The memo is authored as Markdown and rendered for display only. Raw HTML is
-// disabled (html: false) so the field can never inject markup; linkify turns
-// bare URLs into links, matching the previous plain-text behaviour. Rendered
-// link clicks are intercepted below and opened in the system browser.
-const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
-const memoHtml = computed(() => {
-  const memo = program.value?.memo ?? ''
-  return memo ? md.render(memo) : ''
-})
-
 const openExternalLink = async (url: string) => {
   const ok = await window.electron.openExternal(url)
   if (!ok) message.error(t('detailView.marketOpenFailed'))
-}
-
-// Intercept clicks on links inside the rendered Markdown so http(s) URLs open
-// in the system browser instead of navigating the app window.
-const handleMemoClick = (e: MouseEvent) => {
-  const anchor = (e.target as HTMLElement | null)?.closest('a')
-  if (!anchor) return
-  e.preventDefault()
-  const href = anchor.getAttribute('href') ?? ''
-  if (/^https?:\/\//i.test(href)) openExternalLink(href)
 }
 
 // "Recommended" = other programs that share this one's circles (developer or
@@ -313,12 +293,10 @@ const handleMenuSelect = (key: string) => {
       </section>
 
       <!-- Reference memo — display only, never part of search/filtering.
-           Authored as Markdown; rendered here with links opened externally. -->
+           Rendered as markdown; links open in the system browser. -->
       <section v-if="program.memo" class="detail-section">
         <div class="section-label">{{ t('detailView.memoLabel') }}</div>
-        <!-- eslint-disable-next-line vue/no-v-html -- memo is rendered by
-             markdown-it with html:false, so no raw HTML can pass through. -->
-        <div class="detail-memo markdown-body" @click="handleMemoClick" v-html="memoHtml"></div>
+        <MarkdownText class="detail-memo" :source="program.memo" @link="openExternalLink" />
       </section>
 
       <!-- Executable path, with a "reveal in explorer" button on the right. -->
@@ -679,7 +657,6 @@ const handleMenuSelect = (key: string) => {
 }
 
 .detail-memo {
-  margin: 0;
   word-break: break-word;
   font-size: 0.9rem;
   line-height: 1.6;
@@ -692,157 +669,6 @@ const handleMenuSelect = (key: string) => {
 .light-theme .detail-memo {
   color: #3f3f46;
   background-color: #ffffff;
-}
-
-/* Rendered Markdown — spacing that collapses at the container's edges so the
-   memo box hugs its content regardless of the first/last block type. */
-.markdown-body > :first-child {
-  margin-top: 0;
-}
-
-.markdown-body > :last-child {
-  margin-bottom: 0;
-}
-
-.markdown-body p {
-  margin: 0 0 0.6em;
-}
-
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 {
-  margin: 1em 0 0.5em;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.markdown-body h1 { font-size: 1.35rem; }
-.markdown-body h2 { font-size: 1.2rem; }
-.markdown-body h3 { font-size: 1.05rem; }
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 { font-size: 0.95rem; }
-
-.markdown-body ul,
-.markdown-body ol {
-  margin: 0 0 0.6em;
-  padding-left: 1.4em;
-}
-
-.markdown-body li {
-  margin: 0.15em 0;
-}
-
-.markdown-body li > ul,
-.markdown-body li > ol {
-  margin: 0.15em 0;
-}
-
-.markdown-body a {
-  color: #d6a9dd;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-  word-break: break-all;
-}
-
-.markdown-body a:hover {
-  color: #e8c4ee;
-}
-
-.markdown-body code {
-  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
-  font-size: 0.85em;
-  background-color: #3f3f46;
-  border-radius: 4px;
-  padding: 0.1em 0.35em;
-}
-
-.markdown-body pre {
-  margin: 0 0 0.6em;
-  padding: 10px 12px;
-  background-color: #18181b;
-  border-radius: 6px;
-  overflow-x: auto;
-}
-
-.markdown-body pre code {
-  background: none;
-  padding: 0;
-  font-size: 0.85em;
-}
-
-.markdown-body blockquote {
-  margin: 0 0 0.6em;
-  padding: 0.2em 0.9em;
-  border-left: 3px solid #52525b;
-  color: #a1a1aa;
-}
-
-.markdown-body hr {
-  border: none;
-  border-top: 1px solid #3f3f46;
-  margin: 0.9em 0;
-}
-
-.markdown-body table {
-  border-collapse: collapse;
-  margin: 0 0 0.6em;
-  display: block;
-  overflow-x: auto;
-}
-
-.markdown-body th,
-.markdown-body td {
-  border: 1px solid #3f3f46;
-  padding: 0.35em 0.6em;
-  text-align: left;
-}
-
-.markdown-body th {
-  background-color: #3f3f46;
-}
-
-.markdown-body img {
-  max-width: 100%;
-  border-radius: 6px;
-}
-
-.light-theme .markdown-body a {
-  color: #953ea3;
-}
-
-.light-theme .markdown-body a:hover {
-  color: #7d3389;
-}
-
-.light-theme .markdown-body code {
-  background-color: #f4f4f5;
-}
-
-.light-theme .markdown-body pre {
-  background-color: #f4f4f5;
-}
-
-.light-theme .markdown-body blockquote {
-  border-left-color: #d4d4d8;
-  color: #71717a;
-}
-
-.light-theme .markdown-body hr {
-  border-top-color: #e4e4e7;
-}
-
-.light-theme .markdown-body th,
-.light-theme .markdown-body td {
-  border-color: #e4e4e7;
-}
-
-.light-theme .markdown-body th {
-  background-color: #f4f4f5;
 }
 
 /* Recommendations — horizontal strip of compact program cards. */
