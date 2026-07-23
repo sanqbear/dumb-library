@@ -256,15 +256,21 @@ const handleCancel = () => { emit('update:show', false) }
             <NInput v-model:value="title" :placeholder="t('addDialog.titlePlaceholder')" clearable
               @keydown.enter.prevent="goNext" />
           </NFormItem>
-          <NFormItem :label="t('addDialog.developerLabel')">
-            <DeveloperSelect v-model:value="developerId" />
-          </NFormItem>
-          <NFormItem :label="t('addDialog.publisherLabel')">
-            <div class="field-stack">
-              <DeveloperSelect v-model:value="publisherId" :placeholder="t('addDialog.publisherPlaceholder')" />
-              <span class="field-hint">{{ t('addDialog.publisherHint') }}</span>
-            </div>
-          </NFormItem>
+          <!-- Two roles from one master list — paired, with a single manager
+               button and one hint for the rule that binds them. -->
+          <div class="field-pair">
+            <NFormItem :label="t('addDialog.developerLabel')">
+              <DeveloperSelect v-model:value="developerId" />
+            </NFormItem>
+            <NFormItem :label="t('addDialog.publisherLabel')">
+              <DeveloperSelect
+                v-model:value="publisherId"
+                :placeholder="t('addDialog.publisherPlaceholder')"
+                hide-manage
+              />
+            </NFormItem>
+          </div>
+          <span class="field-hint field-pair-hint">{{ t('addDialog.publisherHint') }}</span>
         </template>
 
         <!-- Step 2: Images (thumbnail + previews) -->
@@ -503,6 +509,18 @@ const handleCancel = () => { emit('update:show', false) }
 
 .preview-url {
   margin-top: 10px;
+}
+
+/* Two roles from one list, side by side when there is room. */
+.field-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0 16px;
+}
+
+.field-pair-hint {
+  display: block;
+  margin: -14px 0 18px;
 }
 
 .field-stack {

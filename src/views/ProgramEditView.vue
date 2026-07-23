@@ -399,19 +399,24 @@ const handleDelete = () => {
               <NInput v-model:value="title" :placeholder="t('addDialog.titlePlaceholder')" clearable />
             </NFormItem>
 
-            <!-- Developer / circle — mapped to a master entry (included in search) -->
-            <NFormItem :label="t('addDialog.developerLabel')">
-              <DeveloperSelect v-model:value="developerId" />
-            </NFormItem>
-
-            <!-- Publisher — same master list as developer; left empty it is
-                 saved with the developer's value (and vice versa). -->
-            <NFormItem :label="t('addDialog.publisherLabel')">
-              <div class="field-stack">
-                <DeveloperSelect v-model:value="publisherId" :placeholder="t('addDialog.publisherPlaceholder')" />
-                <span class="field-hint">{{ t('addDialog.publisherHint') }}</span>
-              </div>
-            </NFormItem>
+            <!-- Two roles drawn from one master list, so they read as a pair.
+                 The manager button belongs to the pair, not to each field, and
+                 the hint describes the fill-in-either-direction rule that binds
+                 them — hence one of each for the row. Stacks on its own when the
+                 column gets narrow. -->
+            <div class="field-pair">
+              <NFormItem :label="t('addDialog.developerLabel')">
+                <DeveloperSelect v-model:value="developerId" />
+              </NFormItem>
+              <NFormItem :label="t('addDialog.publisherLabel')">
+                <DeveloperSelect
+                  v-model:value="publisherId"
+                  :placeholder="t('addDialog.publisherPlaceholder')"
+                  hide-manage
+                />
+              </NFormItem>
+            </div>
+            <span class="field-hint field-pair-hint">{{ t('addDialog.publisherHint') }}</span>
 
             <!-- Executable Path -->
             <NFormItem :label="t('addDialog.executablePath')" required>
@@ -821,6 +826,20 @@ const handleDelete = () => {
 
 .preview-url {
   margin-top: 12px;
+}
+
+/* Auto-fit rather than a fixed 50/50: the pair sits side by side when the
+   column has room and stacks when it doesn't, without a breakpoint to keep in
+   sync with the surrounding grid. */
+.field-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 16px;
+}
+
+.field-pair-hint {
+  display: block;
+  margin: -14px 0 18px;
 }
 
 .field-stack {

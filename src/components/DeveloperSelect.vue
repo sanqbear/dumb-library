@@ -10,7 +10,13 @@ import DeveloperManagerDialog from './dialogs/DeveloperManagerDialog.vue'
 
 // `placeholder` lets the publisher field reuse this component with its own
 // wording; the option list and manager are the shared developer master list.
-const props = defineProps<{ value: string | null; placeholder?: string }>()
+// `hideManage` drops the manager button when two of these sit side by side —
+// one list, one way in, so the button should appear once per pair.
+const props = defineProps<{
+  value: string | null
+  placeholder?: string
+  hideManage?: boolean
+}>()
 const emit = defineEmits<{ (e: 'update:value', value: string | null): void }>()
 
 const { t } = useI18n()
@@ -96,7 +102,7 @@ const handleUpdate = async (val: string | null) => {
         @update:value="handleUpdate"
         @search="onSearch"
       />
-      <NButton :title="t('developer.manage')" @click="showManager = true">
+      <NButton v-if="!hideManage" :title="t('developer.manage')" @click="showManager = true">
         <template #icon><NIcon :component="ManageIcon" /></template>
       </NButton>
     </NInputGroup>
