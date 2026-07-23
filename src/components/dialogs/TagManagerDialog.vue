@@ -2,8 +2,9 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NModal, NButton, NInput, NIcon, NEmpty, useMessage, useDialog } from 'naive-ui'
-import { AddOutline as AddIcon, TrashOutline as TrashIcon } from '@vicons/ionicons5'
+import { AddOutline as AddIcon, TrashOutline as TrashIcon, SearchOutline as SearchIcon } from '@vicons/ionicons5'
 import { useLibraryStore } from '../../stores/libraryStore'
+import { useTagName, tagSearchBlob } from '../../composables/useTagName'
 import { useThemeClass } from '../../composables/useThemeClass'
 import { SUPPORTED_LOCALES, LOCALE_META, missingLocaleNames } from '../../i18n'
 import type { LocalizedName, LocaleCode } from '../../types'
@@ -13,25 +14,37 @@ const emit = defineEmits<{ (e: 'update:show', value: boolean): void }>()
 
 const { t } = useI18n()
 const libraryStore = useLibraryStore()
+const { resolveTagName } = useTagName()
 const message = useMessage()
 const confirmDialog = useDialog()
 const themeClass = useThemeClass()
 
-// null selectedId = creating a new entry; otherwise editing that developer.
+// null selectedId = creating a new entry; otherwise editing that tag.
 const selectedId = ref<string | null>(null)
 const form = reactive<Record<LocaleCode, string>>({ ko: '', en: '', ja: '', 'zh-CN': '' })
+const keyword = ref('')
 const isSaving = ref(false)
 
-// Newest registration first — the store keeps developers in insertion order,
-// and this ordering is local to the manager (the select/filter lists elsewhere
-// keep the store's order). `reverse()` before the stable sort makes entries
-// sharing a createdAt timestamp fall newest-first too.
-const developers = computed(() =>
-  [...libraryStore.developers].reverse().sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-)
+// Search over the tag list. Matches across every language + keyword. `query` is
+// bound to the field AND updated from the native `input` event so Hangul
+// composition filters live without the re-render wiping the in-flight glyph
+// (see IME input guideline / AppHeader tag search).
+const query = ref('')
+const handleSearchInput = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  if (target) query.value = target.value
+}
+
+const tags = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  const all = libraryStore.allTags
+  if (!q) return all
+  return all.filter(tag => tagSearchBlob(tag).includes(q))
+})
 
 const clearForm = () => {
   for (const code of SUPPORTED_LOCALES) form[code] = ''
+  keyword.value = ''
 }
 
 const startNew = () => {
@@ -39,15 +52,21 @@ const startNew = () => {
   clearForm()
 }
 
-const selectDeveloper = (id: string) => {
-  const dev = libraryStore.developerMap.get(id)
-  if (!dev) return
+const selectTag = (id: string) => {
+  const tag = libraryStore.tagMap.get(id)
+  if (!tag) return
   selectedId.value = id
-  for (const code of SUPPORTED_LOCALES) form[code] = dev.names[code] ?? ''
+  for (const code of SUPPORTED_LOCALES) form[code] = tag.names[code] ?? ''
+  keyword.value = tag.keyword ?? ''
 }
 
-// Reset to "new" mode each time the dialog opens.
-watch(() => props.show, (open) => { if (open) startNew() })
+// Reset to "new" mode (and clear the search) each time the dialog opens.
+watch(() => props.show, (open) => {
+  if (open) {
+    query.value = ''
+    startNew()
+  }
+})
 
 const canSave = computed(() => form.ko.trim() !== '')
 
@@ -66,17 +85,18 @@ const handleSave = async () => {
   isSaving.value = true
   try {
     const names = buildNames()
+    const kw = keyword.value.trim()
     if (selectedId.value) {
-      const updated = await libraryStore.updateDeveloper({ id: selectedId.value, names })
-      if (updated) message.success(t('developer.updated'))
-      else message.error(t('developer.saveFailed'))
+      const updated = await libraryStore.updateTag({ id: selectedId.value, names, keyword: kw })
+      if (updated) message.success(t('tag.updated'))
+      else message.error(t('tag.saveFailed'))
     } else {
-      const created = await libraryStore.addDeveloper({ names })
+      const created = await libraryStore.addTag({ names, keyword: kw })
       if (created) {
-        message.success(t('developer.added'))
-        selectDeveloper(created.id)
+        message.success(t('tag.added'))
+        selectTag(created.id)
       } else {
-        message.error(t('developer.saveFailed'))
+        message.error(t('tag.saveFailed'))
       }
     }
   } finally {
@@ -85,17 +105,17 @@ const handleSave = async () => {
 }
 
 const handleDelete = (id: string) => {
-  const dev = libraryStore.developerMap.get(id)
-  if (!dev) return
+  const tag = libraryStore.tagMap.get(id)
+  if (!tag) return
   confirmDialog.warning({
-    title: t('developer.deleteConfirmTitle'),
-    content: t('developer.deleteConfirmMessage', { name: dev.names.ko }),
+    title: t('tag.deleteConfirmTitle'),
+    content: t('tag.deleteConfirmMessage', { name: tag.names.ko }),
     positiveText: t('common.delete'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
-      const ok = await libraryStore.deleteDeveloper(id)
+      const ok = await libraryStore.deleteTag(id)
       if (ok) {
-        message.success(t('developer.deleted'))
+        message.success(t('tag.deleted'))
         if (selectedId.value === id) startNew()
       }
     }
@@ -106,8 +126,8 @@ const handleDelete = (id: string) => {
 // (required) field rendered first.
 const otherLocales = computed(() => SUPPORTED_LOCALES.filter(c => c !== 'ko'))
 
-// Tooltip listing the still-untranslated languages for a developer, or '' when
-// every supported language has a name.
+// Tooltip listing the still-untranslated languages for a tag, or '' when every
+// supported language has a name (the hidden keyword is not part of this check).
 const incompleteTooltip = (names: LocalizedName): string => {
   const missing = missingLocaleNames(names)
   if (missing.length === 0) return ''
@@ -122,45 +142,61 @@ const incompleteTooltip = (names: LocalizedName): string => {
     :show="show"
     @update:show="emit('update:show', $event)"
     preset="card"
-    :title="t('developer.manageTitle')"
+    :title="t('tag.manageTitle')"
     :bordered="false"
     size="medium"
     :style="{ width: '720px', maxWidth: '92vw' }"
   >
-    <div class="dev-manager" :class="themeClass">
-      <!-- Left: registered developers -->
-      <div class="dev-list-pane">
+    <div class="tag-manager" :class="themeClass">
+      <!-- Left: registered tags -->
+      <div class="tag-list-pane">
         <div class="pane-header">
-          <span class="pane-label">{{ t('developer.listLabel') }}</span>
+          <span class="pane-label">{{ t('tag.listLabel') }}</span>
           <NButton size="small" tertiary @click="startNew">
             <template #icon><NIcon :component="AddIcon" /></template>
-            {{ t('developer.addNew') }}
+            {{ t('tag.addNew') }}
           </NButton>
         </div>
-        <div class="dev-list">
-          <NEmpty v-if="developers.length === 0" :description="t('developer.empty')" class="dev-empty" />
-          <button
-            v-for="dev in developers"
-            :key="dev.id"
-            type="button"
-            class="dev-item"
-            :class="{ 'is-active': dev.id === selectedId }"
-            @click="selectDeveloper(dev.id)"
+        <!-- IME-aware live read via native @input on the wrapper. -->
+        <div class="tag-search" @input="handleSearchInput">
+          <NInput
+            :value="query"
+            :placeholder="t('header.tagSearchPlaceholder')"
+            size="small"
+            clearable
+            @update:value="query = $event"
           >
-            <span class="dev-item-name truncate">{{ dev.names.ko }}</span>
-            <span class="dev-item-actions">
+            <template #prefix><NIcon :component="SearchIcon" /></template>
+          </NInput>
+        </div>
+        <div class="tag-list">
+          <NEmpty
+            v-if="tags.length === 0"
+            :description="query.trim() ? t('header.noMatchingTags') : t('tag.empty')"
+            class="tag-empty"
+          />
+          <button
+            v-for="tag in tags"
+            :key="tag.id"
+            type="button"
+            class="tag-item"
+            :class="{ 'is-active': tag.id === selectedId }"
+            @click="selectTag(tag.id)"
+          >
+            <span class="tag-item-name truncate">{{ resolveTagName(tag.id) }}</span>
+            <span class="tag-item-actions">
               <span
-                v-if="incompleteTooltip(dev.names)"
+                v-if="incompleteTooltip(tag.names)"
                 class="incomplete-dot"
-                :title="incompleteTooltip(dev.names)"
+                :title="incompleteTooltip(tag.names)"
               />
               <NButton
                 size="tiny"
                 quaternary
                 circle
                 type="error"
-                class="dev-item-del"
-                @click.stop="handleDelete(dev.id)"
+                class="tag-item-del"
+                @click.stop="handleDelete(tag.id)"
               >
                 <template #icon><NIcon :component="TrashIcon" /></template>
               </NButton>
@@ -169,20 +205,25 @@ const incompleteTooltip = (names: LocalizedName): string => {
         </div>
       </div>
 
-      <!-- Right: localized name editor -->
-      <div class="dev-editor-pane">
+      <!-- Right: localized name + keyword editor -->
+      <div class="tag-editor-pane">
         <div class="field">
           <label class="field-label">
             {{ LOCALE_META.ko.nativeName }}
             <span class="req">*</span>
           </label>
-          <NInput v-model:value="form.ko" :placeholder="t('developer.namePlaceholder')" clearable />
+          <NInput v-model:value="form.ko" :placeholder="t('tag.namePlaceholder')" clearable />
         </div>
         <div v-for="code in otherLocales" :key="code" class="field">
           <label class="field-label">{{ LOCALE_META[code].nativeName }}</label>
-          <NInput v-model:value="form[code]" :placeholder="t('developer.namePlaceholder')" clearable />
+          <NInput v-model:value="form[code]" :placeholder="t('tag.namePlaceholder')" clearable />
         </div>
-        <p class="field-hint">{{ t('developer.koRequired') }}</p>
+        <div class="field">
+          <label class="field-label">{{ t('tag.keywordLabel') }}</label>
+          <NInput v-model:value="keyword" :placeholder="t('tag.keywordPlaceholder')" clearable />
+          <span class="field-hint">{{ t('tag.keywordHint') }}</span>
+        </div>
+        <p class="field-hint">{{ t('tag.koRequired') }}</p>
         <div class="editor-actions">
           <NButton type="primary" :disabled="!canSave" :loading="isSaving" @click="handleSave">
             {{ t('common.save') }}
@@ -194,7 +235,7 @@ const incompleteTooltip = (names: LocalizedName): string => {
 </template>
 
 <style scoped>
-.dev-manager {
+.tag-manager {
   display: grid;
   grid-template-columns: 240px 1fr;
   gap: 20px;
@@ -202,7 +243,7 @@ const incompleteTooltip = (names: LocalizedName): string => {
 }
 
 @media (max-width: 620px) {
-  .dev-manager {
+  .tag-manager {
     grid-template-columns: 1fr;
   }
 }
@@ -226,20 +267,24 @@ const incompleteTooltip = (names: LocalizedName): string => {
   color: #71717a;
 }
 
-.dev-list {
+.tag-search {
+  margin-bottom: 8px;
+}
+
+.tag-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 360px;
+  max-height: 320px;
   overflow-y: auto;
   padding-right: 4px;
 }
 
-.dev-empty {
+.tag-empty {
   margin-top: 32px;
 }
 
-.dev-item {
+.tag-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -256,31 +301,27 @@ const incompleteTooltip = (names: LocalizedName): string => {
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.light-theme .dev-item {
+.light-theme .tag-item {
   background-color: #f4f4f5;
 }
 
-.dev-item:hover {
+.tag-item:hover {
   background-color: #52525b;
 }
 
-.light-theme .dev-item:hover {
+.light-theme .tag-item:hover {
   background-color: #e4e4e7;
 }
 
-.dev-item.is-active {
+.tag-item.is-active {
   border-color: #ab4aba;
 }
 
-.light-theme .dev-item.is-active {
-  border-color: #ab4aba;
-}
-
-.dev-item-name {
+.tag-item-name {
   min-width: 0;
 }
 
-.dev-item-actions {
+.tag-item-actions {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -301,18 +342,18 @@ const incompleteTooltip = (names: LocalizedName): string => {
   background-color: #ca8a04;
 }
 
-.dev-item-del {
+.tag-item-del {
   flex-shrink: 0;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
 
-.dev-item:hover .dev-item-del,
-.dev-item.is-active .dev-item-del {
+.tag-item:hover .tag-item-del,
+.tag-item.is-active .tag-item-del {
   opacity: 1;
 }
 
-.dev-editor-pane {
+.tag-editor-pane {
   display: flex;
   flex-direction: column;
   gap: 14px;

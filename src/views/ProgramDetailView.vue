@@ -13,12 +13,14 @@ import {
   FolderOpenOutline as FolderIcon,
   TrashOutline as TrashIcon,
   ImageOutline as ImageIcon,
-  PeopleOutline as DeveloperIcon
+  PeopleOutline as DeveloperIcon,
+  StorefrontOutline as PublisherIcon
 } from '@vicons/ionicons5'
 import { useLibraryStore } from '../stores/libraryStore'
 import { useThemeClass } from '../composables/useThemeClass'
 import { useDeveloperName } from '../composables/useDeveloperName'
 import MarkdownText from '../components/MarkdownText.vue'
+import { useTagName } from '../composables/useTagName'
 import { libImageUrl, type Program } from '../types'
 
 const props = defineProps<{ id: string }>()
@@ -30,10 +32,22 @@ const message = useMessage()
 const confirmDialog = useDialog()
 const themeClass = useThemeClass()
 const { resolveDeveloperName } = useDeveloperName()
+const { resolveTagName } = useTagName()
 
 const program = computed(() => libraryStore.programs.find(p => p.id === props.id) ?? null)
 
 const developerName = computed(() => resolveDeveloperName(program.value?.developerId))
+
+// Publisher pill — only shown when it names a different entry than the
+// developer (both usually hold the same circle via the form's auto-fill).
+const publisherName = computed(() => {
+  const p = program.value
+  if (!p?.publisherId || p.publisherId === p.developerId) return ''
+  return resolveDeveloperName(p.publisherId)
+})
+
+// Tag ids on this program; each resolves to its localized name at display time.
+const localizedTags = computed(() => program.value?.tags ?? [])
 
 // Deep-links / stale ids: if the program isn't in the store, bounce home.
 watch(
@@ -64,8 +78,9 @@ const openExternalLink = async (url: string) => {
   if (!ok) message.error(t('detailView.marketOpenFailed'))
 }
 
-// "Recommended" = other programs that share this one's developer and/or tags.
-// Same developer is weighted above any single shared tag; ties break by title.
+// "Recommended" = other programs that share this one's circles (developer or
+// publisher role, same master list) and/or tags. A shared circle is weighted
+// above any single shared tag; ties break by title.
 const RECOMMENDATION_LIMIT = 8
 const recImage = (p: Program): string => {
   if (p.thumbnailPath) return libImageUrl(p.thumbnailPath, p.updatedAt)
@@ -76,11 +91,13 @@ const recommendations = computed<Program[]>(() => {
   const cur = program.value
   if (!cur) return []
   const curTags = new Set(cur.tags)
+  const curCircles = new Set([cur.developerId, cur.publisherId].filter((id): id is string => !!id))
   return libraryStore.programs
     .filter(p => p.id !== cur.id)
     .map(p => {
       let score = 0
-      if (cur.developerId && p.developerId === cur.developerId) score += 5
+      if ((p.developerId && curCircles.has(p.developerId)) ||
+          (p.publisherId && curCircles.has(p.publisherId))) score += 5
       for (const tag of p.tags) if (curTags.has(tag)) score += 1
       return { program: p, score }
     })
@@ -144,8 +161,7 @@ const handleFilterByTag = (tag: string) => {
   router.push({ name: 'library' })
 }
 
-const handleFilterByDeveloper = () => {
-  const id = program.value?.developerId
+const handleFilterByCircle = (id: string | null | undefined) => {
   if (!id) return
   libraryStore.clearFilters()
   libraryStore.setSelectedDeveloper(id)
@@ -230,18 +246,32 @@ const handleMenuSelect = (key: string) => {
             </NButton>
           </div>
         </div>
-        <!-- Developer / circle — no field title; sits at the header's bottom-right
-             (below the "more" button) and filters the library when clicked. -->
-        <button
-          v-if="developerName"
-          type="button"
-          class="detail-developer detail-developer-btn header-developer"
-          :title="t('detailView.filterByThis')"
-          @click="handleFilterByDeveloper"
-        >
-          <NIcon :component="DeveloperIcon" :size="15" class="developer-icon" />
-          <span>{{ developerName }}</span>
-        </button>
+        <!-- Developer / publisher — no field titles; sit at the header's
+             bottom-right (below the "more" button) and filter the library when
+             clicked. The publisher pill appears only when it differs from the
+             developer. -->
+        <div v-if="developerName || publisherName" class="header-circles">
+          <button
+            v-if="developerName"
+            type="button"
+            class="detail-developer detail-developer-btn header-developer"
+            :title="`${t('detailView.developerLabel')} · ${t('detailView.filterByThis')}`"
+            @click="handleFilterByCircle(program.developerId)"
+          >
+            <NIcon :component="DeveloperIcon" :size="14" class="developer-icon" />
+            <span>{{ developerName }}</span>
+          </button>
+          <button
+            v-if="publisherName"
+            type="button"
+            class="detail-developer detail-developer-btn header-developer"
+            :title="`${t('detailView.publisherLabel')} · ${t('detailView.filterByThis')}`"
+            @click="handleFilterByCircle(program.publisherId)"
+          >
+            <NIcon :component="PublisherIcon" :size="14" class="developer-icon" />
+            <span>{{ publisherName }}</span>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -293,14 +323,14 @@ const handleMenuSelect = (key: string) => {
         <div class="section-label">{{ t('detailView.tagsLabel') }}</div>
         <div class="detail-tags">
           <NTag
-            v-for="tag in program.tags"
+            v-for="tag in localizedTags"
             :key="tag"
             :bordered="false"
             class="detail-tag-clickable"
             :title="t('detailView.filterByThis')"
             @click="handleFilterByTag(tag)"
-          >{{ tag }}</NTag>
-          <span v-if="program.tags.length === 0" class="tags-empty">—</span>
+          >{{ resolveTagName(tag) }}</NTag>
+          <span v-if="localizedTags.length === 0" class="tags-empty">—</span>
         </div>
       </section>
 
@@ -404,20 +434,33 @@ const handleMenuSelect = (key: string) => {
   min-width: 0;
 }
 
-/* Developer pill lives in the header's bottom-right corner. */
-.header-developer {
+/* Developer/publisher pills stack in the header's bottom-right corner. They
+   size to their content and never shrink, so each name stays on one line; the
+   title beside them takes the remaining space and wraps instead. */
+.header-circles {
   flex: 0 0 auto;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.header-developer {
   margin-left: 0;
+  /* Cancel the pill's right padding so the name's right edge lines up with the
+     header's, keeping the stack flush against the corner. */
+  margin-right: -8px;
   margin-bottom: 4px;
-  max-width: 45%;
+  max-width: 100%;
   color: #e4d3e8;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
 }
 
+/* Names render in full on a single line — no ellipsis, no wrapping. */
 .header-developer span {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: right;
 }
 
 .light-theme .header-developer {
@@ -552,7 +595,7 @@ const handleMenuSelect = (key: string) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   color: #d4d4d8;
 }
 

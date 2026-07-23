@@ -8,7 +8,7 @@ import * as previewService from './services/previewService'
 import * as iconService from './services/iconService'
 import * as steamService from './services/steamService'
 import * as imageService from './services/imageService'
-import type { CreateProgramData, UpdateProgramData, Settings, LibraryData, CreateSteamProgramData, CreateDeveloperData, UpdateDeveloperData } from '../src/types'
+import type { CreateProgramData, UpdateProgramData, Settings, LibraryData, CreateSteamProgramData, CreateDeveloperData, UpdateDeveloperData, CreateTagData, UpdateTagData } from '../src/types'
 
 // Register the wl-image scheme as privileged BEFORE app.ready so it can be
 // used in <img> tags, supports streaming, and bypasses CSP for local assets.
@@ -159,6 +159,19 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('developer:delete', (_event, id: string) => {
     dataService.deleteDeveloper(id)
+  })
+
+  // Tag master-list operations
+  ipcMain.handle('tag:add', (_event, data: CreateTagData) => {
+    return dataService.addTag(data)
+  })
+
+  ipcMain.handle('tag:update', (_event, data: UpdateTagData) => {
+    return dataService.updateTag(data)
+  })
+
+  ipcMain.handle('tag:delete', (_event, id: string) => {
+    dataService.deleteTag(id)
   })
 
   ipcMain.handle('program:launch', async (_event, executablePath: string) => {

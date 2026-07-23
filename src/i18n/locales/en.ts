@@ -11,7 +11,8 @@ export default {
     apply: 'Apply',
     rescan: 'Rescan',
     change: 'Change',
-    select: 'Select'
+    select: 'Select',
+    incompleteTranslations: 'Missing languages: {langs}'
   },
   header: {
     searchPlaceholder: 'Search programs...',
@@ -20,6 +21,10 @@ export default {
     addFromSteam: 'Add from Steam',
     gridView: 'Grid view',
     listView: 'List view',
+    cardSize: 'Card size',
+    cardSize_small: 'Small',
+    cardSize_medium: 'Medium',
+    cardSize_large: 'Large',
     darkMode: 'Dark mode',
     lightMode: 'Light mode',
     language: 'Language',
@@ -35,6 +40,7 @@ export default {
     tags: 'Tags',
     selectTags: 'Select tags',
     clearTags: 'Clear tags',
+    manageTags: 'Manage tags',
     tagSearchPlaceholder: 'Search tags...',
     noTags: 'No tags yet',
     noMatchingTags: 'No matching tags',
@@ -80,6 +86,7 @@ export default {
     noPreviews: 'No preview images',
     pathLabel: 'Executable path',
     developerLabel: 'Developer / Circle',
+    publisherLabel: 'Publisher',
     tagsLabel: 'Tags',
     memoLabel: 'Memo',
     filterByThis: 'Filter the library by this',
@@ -91,6 +98,9 @@ export default {
     titlePlaceholder: 'Enter program title',
     developerLabel: 'Developer / Circle',
     developerPlaceholder: 'Developer or circle name',
+    publisherLabel: 'Publisher',
+    publisherPlaceholder: 'Select or search publisher',
+    publisherHint: 'If only one of developer/publisher is set, the other is saved with the same value',
     executablePath: 'Executable Path',
     executablePathPlaceholder: 'Select executable file',
     tagsLabel: 'Tags',
@@ -100,7 +110,7 @@ export default {
     keywordsHint: 'Used only for search, not for categorization',
     memoLabel: 'Memo',
     memoPlaceholder: 'Enter a reference note',
-    memoHint: 'A reference note — not included in search',
+    memoHint: 'A reference note — not included in search. Markdown formatting is supported',
     selectImage: 'Select from file',
     imageUrl: 'Image URL',
     fetchUrl: 'Fetch',
@@ -188,6 +198,7 @@ export default {
   card: {
     launchSuccess: 'Launching {title}',
     launchFailed: 'Failed to launch program',
+    showTags: 'Show tags',
     thumbnailUpdated: 'Thumbnail updated',
     thumbnailUpdateFailed: 'Failed to update thumbnail'
   },
@@ -211,6 +222,23 @@ export default {
     added: 'Developer added',
     updated: 'Developer updated',
     deleted: 'Developer deleted',
+    saveFailed: 'Failed to save'
+  },
+  tag: {
+    manageTitle: 'Manage Tags',
+    listLabel: 'Registered tags',
+    empty: 'No tags registered yet',
+    addNew: 'New tag',
+    koRequired: 'The Korean name is required. It is used as a fallback when a language is left blank.',
+    namePlaceholder: 'Enter name',
+    keywordLabel: 'Search keyword',
+    keywordPlaceholder: 'Search keyword (optional)',
+    keywordHint: 'Never displayed — only used for searching',
+    deleteConfirmTitle: 'Delete tag',
+    deleteConfirmMessage: 'Delete "{name}"? It will be unlinked from any program using it.',
+    added: 'Tag added',
+    updated: 'Tag updated',
+    deleted: 'Tag deleted',
     saveFailed: 'Failed to save'
   },
   window: {

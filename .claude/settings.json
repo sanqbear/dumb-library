@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vue-tsc *)",
+      "PowerShell(npx vue-tsc -b 2>&1)",
+      "PowerShell(& \"C:\\\\Program Files\\\\nodejs\\\\npx.cmd\" vue-tsc -b 2>&1)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\sanqb\\.claude\\projects\\c--Users-sanqb-source-repos-me-waifu-library\\memory"
+    ]
+  }
+}

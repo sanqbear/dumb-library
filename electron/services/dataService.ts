@@ -13,6 +13,9 @@ import type {
   LocalizedName,
   CreateDeveloperData,
   UpdateDeveloperData,
+  Tag,
+  CreateTagData,
+  UpdateTagData,
   LocaleCode
 } from '../../src/types'
 import { isProviderId } from '../../src/types'
@@ -31,7 +34,8 @@ const getPreviewsPath = () => path.join(getUserDataPath(), 'previews')
 const DEFAULT_LIBRARY_DATA: LibraryData = {
   version: '1.0',
   programs: [],
-  developers: []
+  developers: [],
+  tags: []
 }
 
 const LOCALE_CODES: LocaleCode[] = ['ko', 'en', 'ja', 'zh-CN']
@@ -39,7 +43,8 @@ const LOCALE_CODES: LocaleCode[] = ['ko', 'en', 'ja', 'zh-CN']
 const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
   viewMode: 'grid',
-  language: 'ko'
+  language: 'ko',
+  gridCardSize: 'medium'
 }
 
 // Ensure directories exist
@@ -149,6 +154,7 @@ const migrateProgram = (raw: unknown): Program | null => {
     marketUrl: typeof p.marketUrl === 'string' && p.marketUrl.trim() ? p.marketUrl.trim() : null,
     category: isProviderId(p.category) ? p.category : 'local',
     developerId: typeof p.developerId === 'string' && p.developerId ? p.developerId : null,
+    publisherId: typeof p.publisherId === 'string' && p.publisherId ? p.publisherId : null,
     tags: normalizeTags(p.tags),
     keywords: normalizeTags(p.keywords),
     memo: normalizeMemo(p.memo),
@@ -172,6 +178,45 @@ const migrateDeveloper = (raw: unknown): Developer | null => {
   }
 }
 
+// Validate/normalize a stored Tag entry. Drops entries with no usable name.
+const migrateTag = (raw: unknown): Tag | null => {
+  if (!raw || typeof raw !== 'object') return null
+  const t = raw as Partial<Tag>
+  if (typeof t.id !== 'string' || !t.id) return null
+  const names = normalizeNames(t.names)
+  if (!names) return null
+  return {
+    id: t.id,
+    names,
+    keyword: normalizeMemo(t.keyword),
+    createdAt: typeof t.createdAt === 'string' ? t.createdAt : new Date().toISOString(),
+    updatedAt: typeof t.updatedAt === 'string' ? t.updatedAt : new Date().toISOString()
+  }
+}
+
+// Recognized legacy tag prefixes (`code:name`) → locale, for one-time migration of
+// pre-master-list tag strings. `jp`/`zh` are accepted aliases. Kept inline here so
+// the main process doesn't depend on the renderer's tagLocale util.
+const LEGACY_TAG_PREFIX_TO_LOCALE: Record<string, LocaleCode> = {
+  ko: 'ko', en: 'en', ja: 'ja', jp: 'ja', zh: 'zh-CN', 'zh-cn': 'zh-CN'
+}
+
+// Turn a legacy raw tag string into a localized-name seed. `en:Fantasy` → the
+// English name is set, with `ko` filled as the required fallback. A plain string
+// (or unknown prefix) becomes the Korean name.
+const legacyTagNames = (rawTag: string): LocalizedName => {
+  const sep = rawTag.indexOf(':')
+  if (sep > 0) {
+    const code = rawTag.slice(0, sep).trim().toLowerCase()
+    const locale = LEGACY_TAG_PREFIX_TO_LOCALE[code]
+    const name = rawTag.slice(sep + 1).trim()
+    if (locale && name) {
+      return locale === 'ko' ? { ko: name } : { ko: name, [locale]: name }
+    }
+  }
+  return { ko: rawTag.trim() }
+}
+
 const isValidSettings = (value: unknown): value is Settings => {
   if (!value || typeof value !== 'object') return false
   const v = value as Partial<Settings>
@@ -181,7 +226,10 @@ const isValidSettings = (value: unknown): value is Settings => {
   const validLang = v.language === undefined ||
     v.language === 'ko' || v.language === 'en' ||
     v.language === 'ja' || v.language === 'zh-CN'
-  return validTheme && validView && validLang
+  // gridCardSize was added later still — same tolerance.
+  const validCardSize = v.gridCardSize === undefined ||
+    v.gridCardSize === 'small' || v.gridCardSize === 'medium' || v.gridCardSize === 'large'
+  return validTheme && validView && validLang && validCardSize
 }
 
 // Library operations
@@ -247,23 +295,66 @@ const readLibraryFromDisk = (): LibraryData => {
         migrationDirty = true
       }
 
+      // Tag master list — validate stored entries first.
+      const rawTags = Array.isArray((parsed as { tags?: unknown }).tags)
+        ? (parsed as { tags: unknown[] }).tags
+        : []
+      const tags = rawTags
+        .map(migrateTag)
+        .filter((t): t is Tag => t !== null)
+
+      // Migrate legacy inline tag strings into Tag entities. Each program's
+      // `tags` was an array of raw strings (possibly with a `code:name` prefix);
+      // convert each to a tag id, deduping identical strings across programs.
+      // Entries already equal to a known tag id (data saved post-migration) pass
+      // through untouched.
+      const tagIdSet = new Set(tags.map(t => t.id))
+      const tagByLegacyKey = new Map<string, Tag>()
+      for (const raw of parsed.programs) {
+        if (!raw || typeof raw !== 'object') continue
+        const rp = raw as { tags?: unknown }
+        if (!Array.isArray(rp.tags)) continue
+        const ids: string[] = []
+        for (const entry of rp.tags) {
+          if (typeof entry !== 'string') continue
+          const value = entry.trim()
+          if (!value) continue
+          if (tagIdSet.has(value)) { ids.push(value); continue } // already an id
+          const key = value.toLowerCase()
+          let tag = tagByLegacyKey.get(key)
+          if (!tag) {
+            tag = { id: uuidv4(), names: legacyTagNames(value), keyword: '', createdAt: now, updatedAt: now }
+            tagByLegacyKey.set(key, tag)
+            tags.push(tag)
+            tagIdSet.add(tag.id)
+            migrationDirty = true
+          }
+          ids.push(tag.id)
+        }
+        rp.tags = ids
+      }
+
       const programs = parsed.programs
         .map(migrateProgram)
         .filter((p): p is Program => p !== null)
 
-      // Drop dangling references so a program never points at a deleted developer.
+      // Drop dangling references so a program never points at a deleted developer/tag.
       const devIds = new Set(developers.map(d => d.id))
       for (const program of programs) {
         if (program.developerId && !devIds.has(program.developerId)) {
           program.developerId = null
         }
+        if (program.publisherId && !devIds.has(program.publisherId)) {
+          program.publisherId = null
+        }
+        program.tags = program.tags.filter(id => tagIdSet.has(id))
       }
 
       const version = typeof (parsed as { version?: unknown }).version === 'string'
         ? (parsed as { version: string }).version
         : '1.0'
-      logger.info(`Loaded library with ${programs.length} programs, ${developers.length} developers`)
-      return { version, programs, developers }
+      logger.info(`Loaded library with ${programs.length} programs, ${developers.length} developers, ${tags.length} tags`)
+      return { version, programs, developers, tags }
     }
   } catch (error) {
     logger.error('Failed to load library:', error)
@@ -354,6 +445,7 @@ export const addProgram = (data: CreateProgramData): Program => {
     marketUrl: data.marketUrl?.trim() || null,
     category: 'local',
     developerId: typeof data.developerId === 'string' && data.developerId ? data.developerId : null,
+    publisherId: typeof data.publisherId === 'string' && data.publisherId ? data.publisherId : null,
     tags: normalizeTags(data.tags),
     keywords: normalizeTags(data.keywords),
     memo: normalizeMemo(data.memo),
@@ -383,6 +475,7 @@ const buildSteamProgram = (data: CreateSteamProgramData): Program => {
     marketUrl: `https://store.steampowered.com/app/${data.appId}`,
     category: 'steam',
     developerId: null,
+    publisherId: null,
     tags: [],
     keywords: [],
     memo: '',
@@ -437,6 +530,9 @@ export const updateProgram = (data: UpdateProgramData): Program => {
     developerId: data.developerId !== undefined
       ? (typeof data.developerId === 'string' && data.developerId ? data.developerId : null)
       : program.developerId,
+    publisherId: data.publisherId !== undefined
+      ? (typeof data.publisherId === 'string' && data.publisherId ? data.publisherId : null)
+      : program.publisherId,
     tags: data.tags !== undefined ? normalizeTags(data.tags) : program.tags,
     keywords: data.keywords !== undefined ? normalizeTags(data.keywords) : program.keywords,
     memo: data.memo !== undefined ? normalizeMemo(data.memo) : program.memo,
@@ -565,15 +661,77 @@ export const deleteDeveloper = (id: string): void => {
     throw new Error(`Developer not found: ${id}`)
   }
   library.developers.splice(index, 1)
-  // Clear the reference on every program that pointed at the removed developer.
+  // Clear both role references on every program that pointed at the removed entry.
   for (const program of library.programs) {
-    if (program.developerId === id) {
-      program.developerId = null
+    if (program.developerId === id || program.publisherId === id) {
+      if (program.developerId === id) program.developerId = null
+      if (program.publisherId === id) program.publisherId = null
       program.updatedAt = new Date().toISOString()
     }
   }
   scheduleSave()
   logger.info(`Deleted developer: ${id}`)
+}
+
+// Tag master-list operations
+export const addTag = (data: CreateTagData): Tag => {
+  const names = normalizeNames(data.names)
+  if (!names) {
+    throw new Error('Tag requires at least one name')
+  }
+  const library = getLibrary()
+  const now = new Date().toISOString()
+  const tag: Tag = {
+    id: uuidv4(),
+    names,
+    keyword: normalizeMemo(data.keyword),
+    createdAt: now,
+    updatedAt: now
+  }
+  library.tags.push(tag)
+  scheduleSave()
+  logger.info(`Added tag: ${tag.names.ko} (${tag.id})`)
+  return tag
+}
+
+export const updateTag = (data: UpdateTagData): Tag => {
+  const names = normalizeNames(data.names)
+  if (!names) {
+    throw new Error('Tag requires at least one name')
+  }
+  const library = getLibrary()
+  const index = library.tags.findIndex(t => t.id === data.id)
+  if (index === -1) {
+    throw new Error(`Tag not found: ${data.id}`)
+  }
+  const updated: Tag = {
+    ...library.tags[index],
+    names,
+    keyword: normalizeMemo(data.keyword),
+    updatedAt: new Date().toISOString()
+  }
+  library.tags[index] = updated
+  scheduleSave()
+  logger.info(`Updated tag: ${updated.names.ko} (${updated.id})`)
+  return updated
+}
+
+export const deleteTag = (id: string): void => {
+  const library = getLibrary()
+  const index = library.tags.findIndex(t => t.id === id)
+  if (index === -1) {
+    throw new Error(`Tag not found: ${id}`)
+  }
+  library.tags.splice(index, 1)
+  // Remove the tag id from every program that referenced it.
+  for (const program of library.programs) {
+    if (program.tags.includes(id)) {
+      program.tags = program.tags.filter(t => t !== id)
+      program.updatedAt = new Date().toISOString()
+    }
+  }
+  scheduleSave()
+  logger.info(`Deleted tag: ${id}`)
 }
 
 // Update program's icon path

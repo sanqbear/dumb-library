@@ -89,8 +89,17 @@ watch(
 </script>
 
 <template>
-  <div class="library-view" ref="rootEl">
-    <NSpin :show="libraryStore.isLoading" description="Loading...">
+  <div
+    class="library-view"
+    :class="{ 'is-list': settingsStore.viewMode === 'list' && !isEmpty }"
+    ref="rootEl"
+  >
+    <NSpin
+      :show="libraryStore.isLoading"
+      description="Loading..."
+      class="view-spin"
+      content-class="view-spin-content"
+    >
       <template v-if="isEmpty">
         <EmptyState :is-filtered="isFiltered" />
       </template>
@@ -106,5 +115,23 @@ watch(
 .library-view {
   height: 100%;
   overflow: auto;
+}
+
+/* List mode: the table owns the scroll, so this container must NOT scroll
+   (avoids a scrollbar nested inside the table's own). Turn it into a flex
+   column and stretch NSpin's wrappers so the table's flex-height resolves. */
+.library-view.is-list {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.library-view.is-list :deep(.view-spin) {
+  flex: 1;
+  min-height: 0;
+}
+
+.library-view.is-list :deep(.view-spin .view-spin-content) {
+  height: 100%;
 }
 </style>
