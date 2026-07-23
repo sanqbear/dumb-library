@@ -76,7 +76,9 @@ Electron 없이 브라우저에서 렌더러만 띄웁니다. `http://localhost:
 
 - **창 크기** 프리셋과 **배율(맞춤 / 100%)** 로 좁은 창까지 확인 가능
 - `window.electron` 은 `src/testbed/mockElectron.ts` 의 모의 구현으로 대체되며,
-  라이브러리·설정은 localStorage 에 저장됩니다 (**데이터 초기화** 버튼으로 리셋)
+  라이브러리·설정은 localStorage 에 저장됩니다 (**데이터 초기화** 버튼으로 리셋).
+  저장 키에 스키마 버전이 붙어 있어, 데이터 모델이 바뀌면 옛 데이터를 버리고
+  자동으로 다시 시드합니다 (콘솔에 사유가 남습니다)
 - 표지·스크린샷은 `testbed-assets/lib/` 의 생성된 플레이스홀더 SVG 입니다.
   `public/` 밖에 있으므로 Electron 빌드에는 포함되지 않습니다
 - 시드 데이터(`src/testbed/fixtures.ts`)는 표지 없는 항목, 긴 제목, 태그 0~5개,

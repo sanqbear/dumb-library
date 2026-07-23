@@ -27,8 +27,15 @@ import type {
 import { setLibImageBase } from '../types'
 import { buildLibrary } from './fixtures'
 
-const LIB_KEY = 'testbed:library'
-const SET_KEY = 'testbed:settings'
+// Bump when the fixture shape changes in a way older persisted data cannot
+// satisfy — e.g. tags became id-referenced master entities, so a payload that
+// still stores tag *names* resolves to nothing and every chip renders blank.
+// Stale payloads are dropped rather than migrated: this is disposable fixture
+// data, and the real app has its own migration in dataService.
+const SCHEMA = 2
+const LIB_KEY = `testbed:library:v${SCHEMA}`
+const SET_KEY = `testbed:settings:v${SCHEMA}`
+const LEGACY_KEYS = ['testbed:library', 'testbed:settings']
 
 /** Library images are served from `testbed-assets/lib/`, mirroring wl-image://lib/. */
 export const LIB_IMAGE_BASE = '/lib/'
@@ -45,11 +52,31 @@ const now = () => new Date().toISOString()
 
 // ---------------------------------------------------------------- persistence
 
+// A payload from an older schema is worse than none: it loads without error and
+// then renders half-empty. Anything that isn't the current shape is discarded.
+const isCurrentShape = (value: unknown): value is LibraryData => {
+  const data = value as Partial<LibraryData> | null
+  return (
+    !!data &&
+    Array.isArray(data.programs) &&
+    Array.isArray(data.developers) &&
+    Array.isArray(data.tags)
+  )
+}
+
 const readLibrary = (): LibraryData => {
+  const stale = LEGACY_KEYS.filter(key => localStorage.getItem(key) !== null)
+  if (stale.length > 0) {
+    stale.forEach(key => localStorage.removeItem(key))
+    log('이전 스키마의 저장 데이터를 제거했습니다:', stale.join(', '))
+  }
+
   const raw = localStorage.getItem(LIB_KEY)
   if (raw) {
     try {
-      return JSON.parse(raw) as LibraryData
+      const parsed: unknown = JSON.parse(raw)
+      if (isCurrentShape(parsed)) return parsed
+      log('저장된 데이터가 현재 스키마와 달라 초기 데이터로 되돌립니다')
     } catch {
       log('저장된 라이브러리를 읽지 못해 초기 데이터로 되돌립니다')
     }
