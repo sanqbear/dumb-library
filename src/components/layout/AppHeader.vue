@@ -36,19 +36,23 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import AddProgramDialog from '../dialogs/AddProgramDialog.vue'
 import AddSteamProgramDialog from '../dialogs/AddSteamProgramDialog.vue'
 import DeveloperManagerDialog from '../dialogs/DeveloperManagerDialog.vue'
-import { PROVIDERS, PROVIDER_IDS, type ProviderId } from '../../types'
+import TagManagerDialog from '../dialogs/TagManagerDialog.vue'
+import { PROVIDERS, PROVIDER_IDS, type ProviderId, type GridCardSize } from '../../types'
 import { SUPPORTED_LOCALES, LOCALE_META, type LocaleCode } from '../../i18n'
 import { useDeveloperName } from '../../composables/useDeveloperName'
+import { useTagName, tagSearchBlob } from '../../composables/useTagName'
 
 const { t } = useI18n()
 const libraryStore = useLibraryStore()
 const settingsStore = useSettingsStore()
 const message = useMessage()
 const { resolveDeveloperName } = useDeveloperName()
+const { resolveTagName } = useTagName()
 
 const showAddDialog = ref(false)
 const showAddSteamDialog = ref(false)
 const showDeveloperManager = ref(false)
+const showTagManager = ref(false)
 // Left overlay sidebar holding filters, tags, sort and utility actions.
 const showDrawer = ref(false)
 
@@ -130,6 +134,10 @@ const handleSortChange = (value: string) => {
   libraryStore.setSortOrder(order)
 }
 
+// Grid card density — three fixed steps persisted in settings.
+const CARD_SIZES: GridCardSize[] = ['small', 'medium', 'large']
+const cardSizeLabel = (size: GridCardSize) => t(`header.cardSize_${size}`)
+
 const hasActiveFilters = computed(() =>
   libraryStore.selectedCategory !== null ||
   libraryStore.selectedDeveloper !== null ||
@@ -168,49 +176,58 @@ const handleDeveloperChange = (value: string | null) => {
   libraryStore.setSelectedDeveloper(value)
 }
 
-// Tag search — filters the chip cloud when the library has many tags. Committed
-// ref stays bound to the field; the live ref is updated from the native `input`
-// event so Hangul composition filters per visible character (IME guideline).
+// Tag search — filters the chip cloud when the library has many tags.
+//
+// `tagQuery` is bound to the field AND updated from the native `input` event on
+// every keystroke, including IME composition steps. This is deliberate: filtering
+// the tag cloud re-renders this section, and naive's NInput re-applies its
+// `mergedValue` to the DOM on re-render. If the bound value lagged behind the
+// composing text (as a composition-gated committed ref would), that re-apply
+// would wipe the in-flight Hangul from the field. Keeping the bound value equal
+// to what's displayed makes the re-apply a no-op (Vue skips writing when the DOM
+// value already matches), so composition survives. See IME input guideline.
 const tagQuery = ref('')
-const tagQueryLive = ref('')
-const effectiveTagQuery = computed(() => tagQueryLive.value || tagQuery.value)
 
 const handleTagSearchInput = (event: Event) => {
   const target = event.target as HTMLInputElement | null
-  if (target) tagQueryLive.value = target.value
+  if (target) tagQuery.value = target.value
 }
+// Clear button / composition-end commit path.
 const handleTagSearch = (value: string) => {
   tagQuery.value = value
-  tagQueryLive.value = value
 }
 
-// How many programs carry each tag. Counting the whole library rather than the
-// current result keeps the number stable while you build up a filter, so it
-// reads as "how big is this slice" instead of flickering with every click.
+// How many programs carry each tag, keyed by tag id. Counting the whole library
+// rather than the current result keeps the number stable while a filter is being
+// built up, so it reads as "how big is this slice" instead of flickering with
+// every click.
 const tagCounts = computed(() => {
   const counts = new Map<string, number>()
   for (const program of libraryStore.programs) {
-    for (const tag of program.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    for (const id of program.tags) counts.set(id, (counts.get(id) ?? 0) + 1)
   }
   return counts
 })
 
+// Chip cloud of the tag master list, filtered by the search across every
+// language + keyword (tagSearchBlob), so a tag is findable regardless of the
+// active UI language.
 const filteredTags = computed(() => {
-  const q = effectiveTagQuery.value.trim().toLowerCase()
+  const q = tagQuery.value.trim().toLowerCase()
   if (!q) return libraryStore.allTags
-  return libraryStore.allTags.filter(tag => tag.toLowerCase().includes(q))
+  return libraryStore.allTags.filter(tag => tagSearchBlob(tag).includes(q))
 })
 
 // Tags are toggled individually from the prominent chip cloud rather than a
-// multi-select, so picking/removing a tag is a single click.
-const isTagSelected = (tag: string) => libraryStore.selectedTags.includes(tag)
+// multi-select, so picking/removing a tag (by id) is a single click.
+const isTagSelected = (id: string) => libraryStore.selectedTags.includes(id)
 
-const toggleTag = (tag: string) => {
+const toggleTag = (id: string) => {
   const current = libraryStore.selectedTags
-  if (current.includes(tag)) {
-    libraryStore.setSelectedTags(current.filter(x => x !== tag))
+  if (current.includes(id)) {
+    libraryStore.setSelectedTags(current.filter(x => x !== id))
   } else {
-    libraryStore.setSelectedTags([...current, tag])
+    libraryStore.setSelectedTags([...current, id])
   }
 }
 
@@ -247,7 +264,12 @@ const activeFilterChips = computed<FilterChip[]>(() => {
     })
   }
   for (const tag of libraryStore.selectedTags) {
-    chips.push({ key: `tag:${tag}`, icon: TagIcon, label: tag, clear: () => toggleTag(tag) })
+    chips.push({
+      key: `tag:${tag}`,
+      icon: TagIcon,
+      label: resolveTagName(tag),
+      clear: () => toggleTag(tag)
+    })
   }
   return chips
 })
@@ -305,6 +327,35 @@ const handleRandomPick = () => {
 
     <div class="header-right">
       <NSpace>
+        <!-- Random pick -->
+        <NTooltip>
+          <template #trigger>
+            <NButton
+              quaternary
+              circle
+              :disabled="libraryStore.programCount === 0"
+              @click="handleRandomPick"
+            >
+              <template #icon>
+                <NIcon :component="ShuffleIcon" />
+              </template>
+            </NButton>
+          </template>
+          {{ t('header.randomPick') }}
+        </NTooltip>
+
+        <!-- Theme toggle -->
+        <NTooltip>
+          <template #trigger>
+            <NButton quaternary circle @click="settingsStore.toggleTheme">
+              <template #icon>
+                <NIcon :component="settingsStore.theme === 'dark' ? SunnyIcon : MoonIcon" />
+              </template>
+            </NButton>
+          </template>
+          {{ settingsStore.theme === 'dark' ? t('header.lightMode') : t('header.darkMode') }}
+        </NTooltip>
+
         <!-- View mode toggle -->
         <NButtonGroup>
           <NTooltip>
@@ -419,14 +470,14 @@ const handleRandomPick = () => {
             <div class="tag-cloud">
               <button
                 v-for="tag in filteredTags"
-                :key="tag"
+                :key="tag.id"
                 type="button"
                 class="tag-chip"
-                :class="{ 'is-active': isTagSelected(tag) }"
-                @click="toggleTag(tag)"
+                :class="{ 'is-active': isTagSelected(tag.id) }"
+                @click="toggleTag(tag.id)"
               >
-                {{ tag }}
-                <span class="tag-chip-count">{{ tagCounts.get(tag) ?? 0 }}</span>
+                {{ resolveTagName(tag.id) }}
+                <span class="tag-chip-count">{{ tagCounts.get(tag.id) ?? 0 }}</span>
               </button>
               <p v-if="filteredTags.length === 0" class="drawer-empty">
                 {{ t('header.noMatchingTags') }}
@@ -471,42 +522,50 @@ const handleRandomPick = () => {
           </NButton>
         </section>
 
-        <!-- Ordering, kept apart from the filters: it changes the sequence of
-             the results, not which results there are. -->
+        <!-- Presentation, kept apart from the filters: ordering and density
+             change how the results are shown, not which results there are. -->
         <section class="drawer-section">
-          <div class="drawer-section-title">{{ t('header.sort') }}</div>
-          <NSelect
-            :value="currentSort"
-            :options="sortOptions"
-            @update:value="handleSortChange"
-          >
-            <template #arrow>
-              <NIcon :component="SortIcon" />
-            </template>
-          </NSelect>
+          <div class="drawer-section-title">{{ t('header.view') }}</div>
+          <div class="drawer-field">
+            <label>{{ t('header.sort') }}</label>
+            <NSelect
+              :value="currentSort"
+              :options="sortOptions"
+              @update:value="handleSortChange"
+            >
+              <template #arrow>
+                <NIcon :component="SortIcon" />
+              </template>
+            </NSelect>
+          </div>
+          <!-- Grid card density — only meaningful in grid mode. -->
+          <div class="drawer-field" v-if="settingsStore.viewMode === 'grid'">
+            <label>{{ t('header.cardSize') }}</label>
+            <NButtonGroup class="card-size-group">
+              <NButton
+                v-for="size in CARD_SIZES"
+                :key="size"
+                :type="settingsStore.gridCardSize === size ? 'primary' : 'default'"
+                secondary
+                @click="settingsStore.setGridCardSize(size)"
+              >
+                {{ cardSizeLabel(size) }}
+              </NButton>
+            </NButtonGroup>
+          </div>
         </section>
 
         <!-- Utility actions moved out of the header -->
         <section class="drawer-section">
           <div class="drawer-section-title">{{ t('header.actions') }}</div>
           <div class="drawer-action-list">
-            <NButton
-              block
-              :disabled="libraryStore.programCount === 0"
-              @click="handleRandomPick"
-            >
-              <template #icon><NIcon :component="ShuffleIcon" /></template>
-              {{ t('header.randomPick') }}
+            <NButton block @click="showTagManager = true">
+              <template #icon><NIcon :component="TagIcon" /></template>
+              {{ t('header.manageTags') }}
             </NButton>
             <NButton block @click="showDeveloperManager = true">
               <template #icon><NIcon :component="DeveloperIcon" /></template>
               {{ t('developer.manage') }}
-            </NButton>
-            <NButton block @click="settingsStore.toggleTheme">
-              <template #icon>
-                <NIcon :component="settingsStore.theme === 'dark' ? SunnyIcon : MoonIcon" />
-              </template>
-              {{ settingsStore.theme === 'dark' ? t('header.lightMode') : t('header.darkMode') }}
             </NButton>
             <NDropdown
               trigger="click"
@@ -527,6 +586,7 @@ const handleRandomPick = () => {
     <AddProgramDialog v-model:show="showAddDialog" />
     <AddSteamProgramDialog v-model:show="showAddSteamDialog" />
     <DeveloperManagerDialog v-model:show="showDeveloperManager" />
+    <TagManagerDialog v-model:show="showTagManager" />
   </header>
 </template>
 
@@ -551,6 +611,16 @@ const handleRandomPick = () => {
   align-items: center;
   gap: 10px;
   min-width: 0;
+}
+
+/* Card-size steps span the drawer width in equal thirds. */
+.card-size-group {
+  display: flex;
+  width: 100%;
+}
+
+.card-size-group :deep(.n-button) {
+  flex: 1;
 }
 
 .search-input-wrap {

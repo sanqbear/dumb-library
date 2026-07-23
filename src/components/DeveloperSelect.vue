@@ -8,7 +8,9 @@ import { useDeveloperName } from '../composables/useDeveloperName'
 import type { LocalizedName } from '../types'
 import DeveloperManagerDialog from './dialogs/DeveloperManagerDialog.vue'
 
-const props = defineProps<{ value: string | null }>()
+// `placeholder` lets the publisher field reuse this component with its own
+// wording; the option list and manager are the shared developer master list.
+const props = defineProps<{ value: string | null; placeholder?: string }>()
 const emit = defineEmits<{ (e: 'update:value', value: string | null): void }>()
 
 const { t } = useI18n()
@@ -22,21 +24,12 @@ const CREATE_KEY = '__create_developer__'
 const searchText = ref('')
 const showManager = ref(false)
 
-// Live, IME-aware read of NSelect's inner <input>. The native `input` event
-// fires on every keystroke — including Hangul composition steps — so the option
-// list and the "create" affordance react per visible character rather than per
-// finished syllable. NSelect's own `@search` is composition-gated (it only
-// commits on composition end), which is the same IME lag the search box avoids.
-// We only read the value here; we never write it back (that would break the IME).
-const handleNativeInput = (event: Event) => {
-  const target = event.target as HTMLElement | null
-  if (target && target.tagName === 'INPUT') {
-    searchText.value = (target as HTMLInputElement).value
-  }
-}
-
-// NSelect commits the pattern on composition end / clear / selection — mirror it
-// so the live text resets correctly when the field is cleared or an item chosen.
+// `:ignore-composition="false"` on NSelect makes `@search` fire on every keystroke
+// INCLUDING Hangul composition steps (live filtering), and keeps naive's internal
+// pattern in sync with the composing text. That sync is what prevents the wipe:
+// our recomputed `options` re-render the selection, and with a lagging pattern
+// naive would re-apply its stale value to the inner <input>, erasing the in-flight
+// glyph. See docs: input & IME handling guidelines.
 const onSearch = (query: string) => { searchText.value = query }
 
 const matchesQuery = (names: LocalizedName, q: string): boolean =>
@@ -90,16 +83,14 @@ const handleUpdate = async (val: string | null) => {
 </script>
 
 <template>
-  <!-- @input on the wrapper captures the inner <input>'s native event (it
-       bubbles), giving an IME-aware live read while the group styling between
-       the select and button stays intact. -->
-  <div class="dev-select" @input="handleNativeInput">
+  <div class="dev-select">
     <NInputGroup>
       <NSelect
         :value="value"
         :options="options"
-        :placeholder="t('developer.selectPlaceholder')"
+        :placeholder="placeholder ?? t('developer.selectPlaceholder')"
         :filter="() => true"
+        :ignore-composition="false"
         filterable
         clearable
         @update:value="handleUpdate"
@@ -120,6 +111,8 @@ const handleUpdate = async (val: string | null) => {
    siblings and the dropdown too narrow to read. */
 .dev-select {
   display: flex;
+  /* Fill the form item whether mounted bare or inside a width-100% stack, so
+     the developer and publisher fields always render at the same width. */
   width: 100%;
 }
 

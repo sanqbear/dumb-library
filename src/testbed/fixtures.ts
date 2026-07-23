@@ -8,7 +8,7 @@
  *
  * All titles, circles and paths are invented.
  */
-import type { Developer, LibraryData, Program } from '../types'
+import type { Developer, LibraryData, Program, Tag } from '../types'
 
 const STAMP = '2026-05-14T09:00:00.000Z'
 
@@ -27,6 +27,42 @@ export const DEVELOPERS: Developer[] = [
   dev('dev-5', '고양이자리', 'Cattus', '猫座'),
   dev('dev-6', '한밤의 서랍', 'Midnight Drawer', '真夜中の抽斗')
 ]
+
+
+// Tag master list. Seeds carry tag names; buildPrograms maps them to ids, the
+// way the app stores them.
+const TAG_SEEDS: Array<[ko: string, en: string, ja?: string, zh?: string]> = [
+  ['비주얼노벨', 'Visual Novel', 'ビジュアルノベル', '视觉小说'],
+  ['어드벤처', 'Adventure', 'アドベンチャー', '冒险'],
+  ['퍼즐', 'Puzzle', 'パズル', '解谜'],
+  ['액션', 'Action', 'アクション', '动作'],
+  ['로그라이크', 'Roguelike', 'ローグライク', 'роguelike'],
+  ['호러', 'Horror', 'ホラー', '恐怖'],
+  ['힐링', 'Healing', '癒し', '治愈'],
+  ['탐색', 'Exploration', '探索', '探索'],
+  ['스토리', 'Story', 'ストーリー', '剧情'],
+  ['분기', 'Branching', '分岐', '分支'],
+  ['단편', 'Short', '短編', '短篇'],
+  ['풀보이스', 'Full Voice', 'フルボイス', '全语音'],
+  ['한글화', 'Korean Patch', '韓国語化', '韩化'],
+  ['일본어', 'Japanese', '日本語', '日语'],
+  ['무료', 'Free', '無料', '免费'],
+  ['멀티', 'Multiplayer', 'マルチ', '多人'],
+  ['미분류', 'Unsorted', '未分類', '未分类']
+]
+
+export const TAGS: Tag[] = TAG_SEEDS.map(([ko, en, ja, zh], i) => ({
+  id: `tag-${String(i + 1).padStart(2, '0')}`,
+  names: { ko, en, ja, 'zh-CN': zh },
+  keyword: '',
+  createdAt: STAMP,
+  updatedAt: STAMP
+}))
+
+const TAG_ID_BY_NAME = new Map(TAGS.map(tag => [tag.names.ko, tag.id]))
+
+const tagIds = (names: string[]): string[] =>
+  names.map(name => TAG_ID_BY_NAME.get(name)).filter((id): id is string => !!id)
 
 const MEMO_MARKDOWN = `구입: **2025년 겨울** 이벤트 현장판
 
@@ -57,11 +93,12 @@ type Seed = {
   market?: string
   keywords?: string[]
   folder: string
+  publisherId?: string | null
 }
 
 const SEEDS: Seed[] = [
-  { title: '별이 지는 해안선', developerId: 'dev-1', tags: ['어드벤처', '스토리', '한글화'], cover: 1, shots: [1, 2, 3], memo: MEMO_MARKDOWN, market: 'https://example.com/store/1', folder: 'ShorelineOfFallingStars' },
-  { title: '夜明けまでのカウントダウン', developerId: 'dev-2', tags: ['비주얼노벨', '일본어', '풀보이스', '분기'], cover: 2, shots: [4, 5], memo: SHORT_MEMO, folder: 'CountdownToDawn' },
+  { title: '별이 지는 해안선', developerId: 'dev-1', tags: ['어드벤처', '스토리', '한글화'], cover: 1, shots: [1, 2, 3], memo: MEMO_MARKDOWN, market: 'https://example.com/store/1', folder: 'ShorelineOfFallingStars', publisherId: 'dev-3' },
+  { title: '夜明けまでのカウントダウン', developerId: 'dev-2', tags: ['비주얼노벨', '일본어', '풀보이스', '분기'], cover: 2, shots: [4, 5], memo: SHORT_MEMO, folder: 'CountdownToDawn', publisherId: 'dev-6' },
   { title: 'Paper Lantern Drift', developerId: 'dev-3', tags: ['퍼즐', '힐링'], cover: 3, shots: [6], memo: '', folder: 'PaperLanternDrift' },
   { title: '유리창 너머의 계절', developerId: 'dev-1', tags: ['비주얼노벨', '스토리'], cover: 4, shots: [7, 8, 9], memo: '초회 특전 태피스트리 포함.', folder: 'SeasonBeyondGlass' },
   { title: '기나긴 복도의 끝에서 우리는 다시 만나기로 했다', developerId: 'dev-4', tags: ['호러', '탐색', '단편', '무료', '한글화'], cover: 5, shots: [10], memo: '', folder: 'AtTheEndOfTheCorridor' },
@@ -70,7 +107,7 @@ const SEEDS: Seed[] = [
   { title: '서랍 속의 편지', developerId: 'dev-6', tags: ['비주얼노벨', '단편', '한글화'], cover: 8, shots: [1, 4], memo: SHORT_MEMO, folder: 'LetterInTheDrawer' },
   { title: '무제 프로젝트 (개발판)', developerId: null, tags: ['미분류'], cover: null, shots: [], memo: '빌드만 받아둔 상태. 실행 파일 경로 확인 필요.', folder: 'untitled_build_0417' },
   { title: '灯りのない図書館', developerId: 'dev-2', tags: ['어드벤처', '분기', '일본어'], cover: 9, shots: [2, 5, 7], memo: '', folder: 'LibraryWithoutLights' },
-  { title: 'Salt & Static', developerId: 'dev-4', tags: ['로그라이크', '액션'], cover: 10, shots: [3], memo: '', steam: true, market: 'https://store.steampowered.com/app/000000', folder: 'SaltAndStatic' },
+  { title: 'Salt & Static', developerId: 'dev-4', tags: ['로그라이크', '액션'], cover: 10, shots: [3], memo: '', steam: true, market: 'https://store.steampowered.com/app/000000', folder: 'SaltAndStatic', publisherId: 'dev-1' },
   { title: '여름의 잔상', developerId: 'dev-1', tags: ['비주얼노벨', '풀보이스'], cover: 11, shots: [6, 8], memo: MEMO_MARKDOWN, folder: 'AfterimageOfSummer' },
   { title: '오후 네 시의 관측소', developerId: 'dev-6', tags: ['힐링', '스토리', '한글화'], cover: 12, shots: [9], memo: '', folder: 'Observatory1600' },
   { title: '風の通り道', developerId: 'dev-5', tags: ['퍼즐', '단편'], cover: null, shots: [10, 11], memo: '표지 이미지 아직 안 넣음.', folder: 'WindPassage' },
@@ -105,7 +142,10 @@ export const buildPrograms = (): Program[] =>
     marketUrl: seed.market ?? null,
     category: seed.steam ? 'steam' : 'local',
     developerId: seed.developerId,
-    tags: seed.tags,
+    // Publisher shares the developer pool; the forms auto-fill one from the
+    // other, so the seed mirrors that.
+    publisherId: seed.publisherId ?? seed.developerId,
+    tags: tagIds(seed.tags),
     keywords: seed.keywords ?? [],
     memo: seed.memo,
     createdAt: createdAt(i),
@@ -115,5 +155,6 @@ export const buildPrograms = (): Program[] =>
 export const buildLibrary = (): LibraryData => ({
   version: '1.0.0',
   programs: buildPrograms(),
-  developers: DEVELOPERS
+  developers: DEVELOPERS,
+  tags: TAGS
 })

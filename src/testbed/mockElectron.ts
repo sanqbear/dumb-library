@@ -19,6 +19,9 @@ import type {
   Program,
   Settings,
   SteamGame,
+  Tag,
+  CreateTagData,
+  UpdateTagData,
   UpdateDeveloperData
 } from '../types'
 import { setLibImageBase } from '../types'
@@ -142,6 +145,7 @@ const newProgram = (data: CreateProgramData, category: 'local' | 'steam'): Progr
   marketUrl: data.marketUrl ?? null,
   category,
   developerId: data.developerId ?? null,
+  publisherId: data.publisherId ?? data.developerId ?? null,
   tags: data.tags ?? [],
   keywords: data.keywords ?? [],
   memo: data.memo ?? '',
@@ -203,6 +207,36 @@ const api: ElectronAPI = {
     library.developers = library.developers.filter(d => d.id !== id)
     library.programs.forEach(p => {
       if (p.developerId === id) p.developerId = null
+      if (p.publisherId === id) p.publisherId = null
+    })
+    persist()
+  },
+
+  addTag: async (data: CreateTagData) => {
+    const tag: Tag = {
+      id: uid('tag'),
+      names: data.names,
+      keyword: data.keyword ?? '',
+      createdAt: now(),
+      updatedAt: now()
+    }
+    library.tags.push(tag)
+    persist()
+    return tag
+  },
+  updateTag: async (data: UpdateTagData) => {
+    const tag = library.tags.find(x => x.id === data.id)
+    if (!tag) throw new Error(`알 수 없는 태그: ${data.id}`)
+    tag.names = data.names
+    if (data.keyword !== undefined) tag.keyword = data.keyword
+    tag.updatedAt = now()
+    persist()
+    return { ...tag }
+  },
+  deleteTag: async (id) => {
+    library.tags = library.tags.filter(t => t.id !== id)
+    library.programs.forEach(p => {
+      p.tags = p.tags.filter(t => t !== id)
     })
     persist()
   },
@@ -296,7 +330,7 @@ const api: ElectronAPI = {
         /* fall through to defaults */
       }
     }
-    return { theme: 'dark', viewMode: 'grid', language: 'ko' }
+    return { theme: 'dark', viewMode: 'grid', language: 'ko', gridCardSize: 'medium' }
   },
   saveSettings: async (settings) => {
     localStorage.setItem(SET_KEY, JSON.stringify(settings))

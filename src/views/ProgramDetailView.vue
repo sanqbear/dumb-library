@@ -13,11 +13,13 @@ import {
   FolderOpenOutline as FolderIcon,
   TrashOutline as TrashIcon,
   ImageOutline as ImageIcon,
-  PeopleOutline as DeveloperIcon
+  PeopleOutline as DeveloperIcon,
+  StorefrontOutline as PublisherIcon
 } from '@vicons/ionicons5'
 import { useLibraryStore } from '../stores/libraryStore'
 import { useDeveloperName } from '../composables/useDeveloperName'
 import MarkdownText from '../components/MarkdownText.vue'
+import { useTagName } from '../composables/useTagName'
 import JacketArt from '../components/library/JacketArt.vue'
 import { libImageUrl, type Program } from '../types'
 
@@ -29,10 +31,22 @@ const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
 const { resolveDeveloperName } = useDeveloperName()
+const { resolveTagName } = useTagName()
 
 const program = computed(() => libraryStore.programs.find(p => p.id === props.id) ?? null)
 
 const developerName = computed(() => resolveDeveloperName(program.value?.developerId))
+
+// Publisher pill — only shown when it names a different entry than the
+// developer (both usually hold the same circle via the form's auto-fill).
+const publisherName = computed(() => {
+  const p = program.value
+  if (!p?.publisherId || p.publisherId === p.developerId) return ''
+  return resolveDeveloperName(p.publisherId)
+})
+
+// Tag ids on this program; each resolves to its localized name at display time.
+const localizedTags = computed(() => program.value?.tags ?? [])
 
 // Deep-links / stale ids: if the program isn't in the store, bounce home.
 watch(
@@ -63,8 +77,9 @@ const openExternalLink = async (url: string) => {
   if (!ok) message.error(t('detailView.marketOpenFailed'))
 }
 
-// "Recommended" = other programs that share this one's developer and/or tags.
-// Same developer is weighted above any single shared tag; ties break by title.
+// "Recommended" = other programs that share this one's circles (developer or
+// publisher role, same master list) and/or tags. A shared circle is weighted
+// above any single shared tag; ties break by title.
 const RECOMMENDATION_LIMIT = 8
 const recImage = (p: Program): string => {
   if (p.thumbnailPath) return libImageUrl(p.thumbnailPath, p.updatedAt)
@@ -75,11 +90,13 @@ const recommendations = computed<Program[]>(() => {
   const cur = program.value
   if (!cur) return []
   const curTags = new Set(cur.tags)
+  const curCircles = new Set([cur.developerId, cur.publisherId].filter((id): id is string => !!id))
   return libraryStore.programs
     .filter(p => p.id !== cur.id)
     .map(p => {
       let score = 0
-      if (cur.developerId && p.developerId === cur.developerId) score += 5
+      if ((p.developerId && curCircles.has(p.developerId)) ||
+          (p.publisherId && curCircles.has(p.publisherId))) score += 5
       for (const tag of p.tags) if (curTags.has(tag)) score += 1
       return { program: p, score }
     })
@@ -144,8 +161,7 @@ const handleFilterByTag = (tag: string) => {
   router.push({ name: 'library' })
 }
 
-const handleFilterByDeveloper = () => {
-  const id = program.value?.developerId
+const handleFilterByCircle = (id: string | null | undefined) => {
   if (!id) return
   libraryStore.clearFilters()
   libraryStore.setSelectedDeveloper(id)
@@ -217,17 +233,31 @@ const handleMenuSelect = (key: string) => {
         <header class="record-head">
           <h1 class="detail-title">{{ program.title }}</h1>
 
-          <!-- Circle name filters the library when clicked. -->
-          <button
-            v-if="developerName"
-            type="button"
-            class="detail-developer detail-developer-btn"
-            :title="t('detailView.filterByThis')"
-            @click="handleFilterByDeveloper"
-          >
-            <NIcon :component="DeveloperIcon" :size="15" class="developer-icon" />
-            <span>{{ developerName }}</span>
-          </button>
+          <!-- Developer and publisher share one master list; the publisher only
+               gets its own pill when it names a different entry. Either filters
+               the library when clicked. -->
+          <div v-if="developerName || publisherName" class="detail-circles">
+            <button
+              v-if="developerName"
+              type="button"
+              class="detail-developer detail-developer-btn"
+              :title="`${t('detailView.developerLabel')} · ${t('detailView.filterByThis')}`"
+              @click="handleFilterByCircle(program.developerId)"
+            >
+              <NIcon :component="DeveloperIcon" :size="15" class="developer-icon" />
+              <span>{{ developerName }}</span>
+            </button>
+            <button
+              v-if="publisherName"
+              type="button"
+              class="detail-developer detail-developer-btn"
+              :title="`${t('detailView.publisherLabel')} · ${t('detailView.filterByThis')}`"
+              @click="handleFilterByCircle(program.publisherId)"
+            >
+              <NIcon :component="PublisherIcon" :size="15" class="developer-icon" />
+              <span>{{ publisherName }}</span>
+            </button>
+          </div>
 
           <div class="detail-actions">
             <NButton type="primary" size="large" @click="handleLaunch">
@@ -246,15 +276,15 @@ const handleMenuSelect = (key: string) => {
 
           <!-- Tags identify the program, so they sit with it rather than in a
                labelled section further down the page. -->
-          <div v-if="program.tags.length > 0" class="detail-tags">
+          <div v-if="localizedTags.length > 0" class="detail-tags">
             <NTag
-              v-for="tag in program.tags"
+              v-for="tag in localizedTags"
               :key="tag"
               :bordered="false"
               class="detail-tag-clickable"
               :title="t('detailView.filterByThis')"
               @click="handleFilterByTag(tag)"
-            >{{ tag }}</NTag>
+            >{{ resolveTagName(tag) }}</NTag>
           </div>
         </header>
 
@@ -345,7 +375,7 @@ const handleMenuSelect = (key: string) => {
 
 .hero-jacket {
   position: sticky;
-  top: 14px;
+  top: 0;
   aspect-ratio: 2 / 3;
   border-radius: var(--r-sm);
   overflow: hidden;
@@ -374,13 +404,9 @@ const handleMenuSelect = (key: string) => {
     gap: 22px;
   }
 
-  /* `relative`, never `static`: JacketArt fills this box with `position:
-     absolute`, so dropping the positioned ancestor would let the cover escape
-     and stretch across the whole page. */
   .hero-jacket {
-    position: relative;
+    position: static;
     width: 168px;
-    justify-self: start;
   }
 }
 
@@ -446,10 +472,6 @@ const handleMenuSelect = (key: string) => {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  /* Sized like one preview frame rather than the full column: an absence
-     shouldn't take more room than the thing it stands in for. */
-  width: 420px;
-  max-width: 100%;
   height: 160px;
   border: 2px dashed var(--border);
   border-radius: var(--r-lg);
@@ -486,6 +508,13 @@ const handleMenuSelect = (key: string) => {
 .developer-icon {
   flex-shrink: 0;
   opacity: 0.8;
+}
+
+.detail-circles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: -8px;
 }
 
 .detail-tags {

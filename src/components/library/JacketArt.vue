@@ -10,13 +10,29 @@
  * Sizing is in container units (`cqw`), so the same component works at grid
  * size and in the smaller recommendation strip without a prop to tell it which.
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps<{
   title: string
   /** Cover image URL. Empty/undefined switches to the typographic jacket. */
   src?: string
 }>()
+
+// Cover lifecycle: fade in once decoded so covers don't pop while scrolling,
+// and fall back to the typographic jacket if the file is missing or broken —
+// a stored path can outlive its file.
+const loaded = ref(false)
+const failed = ref(false)
+
+watch(
+  () => props.src,
+  () => {
+    loaded.value = false
+    failed.value = false
+  }
+)
+
+const showImage = computed(() => !!props.src && !failed.value)
 
 // Hangul, kana and Han set vertically, the way a spine reads. Latin stays
 // horizontal — rotating it would be costume, not typography.
@@ -55,7 +71,17 @@ const titleSize = computed(() => {
 
 <template>
   <div class="jacket-art">
-    <img v-if="src" :src="src" class="jacket-img" loading="lazy" decoding="async" alt="" />
+    <img
+      v-if="showImage"
+      :src="src"
+      class="jacket-img"
+      :class="{ 'is-loaded': loaded }"
+      loading="lazy"
+      decoding="async"
+      alt=""
+      @load="loaded = true"
+      @error="failed = true"
+    />
     <div v-else class="jacket-type" :class="{ 'is-vertical': isVertical }" :style="fieldStyle">
       <span class="jacket-rule" />
       <span class="jacket-title">{{ title }}</span>
@@ -76,6 +102,18 @@ const titleSize = computed(() => {
   height: 100%;
   object-fit: cover;
   display: block;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.jacket-img.is-loaded {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jacket-img {
+    transition: none;
+  }
 }
 
 .jacket-type {

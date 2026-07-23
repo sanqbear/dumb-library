@@ -28,6 +28,7 @@ import { useThemeClass } from '../../composables/useThemeClass'
 import { MAX_PREVIEW_IMAGES } from '../../types'
 import ImageCropDialog from './ImageCropDialog.vue'
 import TagInput from '../TagInput.vue'
+import TagSelect from '../TagSelect.vue'
 import DeveloperSelect from '../DeveloperSelect.vue'
 
 const props = defineProps<{ show: boolean }>()
@@ -49,6 +50,7 @@ const LAST_STEP = 3
 const title = ref('')
 const executablePath = ref('')
 const developerId = ref<string | null>(null)
+const publisherId = ref<string | null>(null)
 const tags = ref<string[]>([])
 const keywords = ref<string[]>([])
 const memo = ref('')
@@ -81,6 +83,7 @@ const resetForm = () => {
   title.value = ''
   executablePath.value = ''
   developerId.value = null
+  publisherId.value = null
   tags.value = []
   keywords.value = []
   memo.value = ''
@@ -179,10 +182,13 @@ const handleSubmit = async () => {
   if (!isValid.value) return
   isSubmitting.value = true
   try {
+    // Developer and publisher share one master list: when only one of the two
+    // was entered, the other is saved with the same value.
     const newProgram = await libraryStore.addProgram({
       title: title.value.trim(),
       executablePath: executablePath.value,
-      developerId: developerId.value,
+      developerId: developerId.value ?? publisherId.value,
+      publisherId: publisherId.value ?? developerId.value,
       tags: [...tags.value],
       keywords: [...keywords.value],
       memo: memo.value.trim(),
@@ -198,6 +204,9 @@ const handleSubmit = async () => {
       }
       message.success(t('addDialog.addedSuccess'))
       emit('update:show', false)
+      // Reveal the new card: scrolls into view with the highlight ring, and
+      // clears any active filters that would hide it.
+      libraryStore.highlightProgram(newProgram.id)
     } else {
       message.error(t('addDialog.addFailed'))
     }
@@ -249,6 +258,12 @@ const handleCancel = () => { emit('update:show', false) }
           </NFormItem>
           <NFormItem :label="t('addDialog.developerLabel')">
             <DeveloperSelect v-model:value="developerId" />
+          </NFormItem>
+          <NFormItem :label="t('addDialog.publisherLabel')">
+            <div class="field-stack">
+              <DeveloperSelect v-model:value="publisherId" :placeholder="t('addDialog.publisherPlaceholder')" />
+              <span class="field-hint">{{ t('addDialog.publisherHint') }}</span>
+            </div>
           </NFormItem>
         </template>
 
@@ -328,9 +343,8 @@ const handleCancel = () => { emit('update:show', false) }
             </NInput>
           </NFormItem>
           <NFormItem :label="t('addDialog.tagsLabel')">
-            <TagInput
+            <TagSelect
               v-model:value="tags"
-              :suggestions="libraryStore.allTags"
               :placeholder="t('addDialog.tagInputPlaceholder')"
             />
           </NFormItem>

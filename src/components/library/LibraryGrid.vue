@@ -1,9 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useLibraryStore } from '../../stores/libraryStore'
+import { useSettingsStore } from '../../stores/settingsStore'
+import type { GridCardSize } from '../../types'
 import ProgramCard from './ProgramCard.vue'
 
 const libraryStore = useLibraryStore()
+const settingsStore = useSettingsStore()
+
+// Minimum card width per user-selected density; the grid auto-fills columns.
+const CARD_MIN: Record<GridCardSize, string> = {
+  small: '150px',
+  medium: '180px',
+  large: '230px'
+}
+const gridStyle = computed(() => ({ '--card-min': CARD_MIN[settingsStore.gridCardSize] }))
 
 // Incremental ("infinite scroll") rendering: only the first `visibleCount`
 // filtered programs are mounted, and more are appended as the user scrolls near
@@ -69,6 +80,44 @@ watch(
   }
 )
 
+// Arrow-key navigation between cards. Cards are tabbable; arrows move focus by
+// one card (left/right) or one visual row (up/down, using the grid's current
+// column count). Reaching past the rendered window loads the next batch first.
+const gridEl = ref<HTMLElement | null>(null)
+
+const focusCard = (cards: HTMLElement[], index: number) => {
+  const card = cards[index]
+  if (!card) return
+  card.focus()
+  card.scrollIntoView({ block: 'nearest' })
+}
+
+const handleGridKeydown = (e: KeyboardEvent) => {
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return
+  const grid = gridEl.value
+  if (!grid) return
+  const active = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.program-card')
+  if (!active) return
+  const cards = Array.from(grid.querySelectorAll<HTMLElement>('.program-card'))
+  const index = cards.indexOf(active)
+  if (index === -1) return
+  const columns = getComputedStyle(grid).gridTemplateColumns.split(' ').length
+  const delta = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' ? -columns : columns
+  const target = index + delta
+  if (target < 0) return
+  e.preventDefault()
+  if (target >= cards.length) {
+    if (!hasMore.value) return
+    loadMore()
+    nextTick(() => {
+      const grown = grid ? Array.from(grid.querySelectorAll<HTMLElement>('.program-card')) : []
+      focusCard(grown, Math.min(target, grown.length - 1))
+    })
+    return
+  }
+  focusCard(cards, target)
+}
+
 onMounted(() => {
   // Observe against the scrolling ancestor (LibraryView) so intersection is
   // measured within the scroll container, not just the window.
@@ -93,7 +142,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="library-grid-wrap">
-    <div class="library-grid">
+    <div ref="gridEl" class="library-grid" :style="gridStyle" @keydown="handleGridKeydown">
       <ProgramCard
         v-for="program in visiblePrograms"
         :key="program.id"
@@ -110,7 +159,8 @@ onBeforeUnmount(() => {
    is small rather than absent. */
 .library-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  /* --card-min is set inline from the user's card-size setting. */
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min, 180px), 1fr));
   gap: 10px;
   padding: 4px;
 }

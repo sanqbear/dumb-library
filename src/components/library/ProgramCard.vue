@@ -18,6 +18,7 @@ import type { Program, ProviderId } from '../../types'
 import { DEFAULT_PROVIDER, PROVIDERS, libImageUrl } from '../../types'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useDeveloperName } from '../../composables/useDeveloperName'
+import { useTagName } from '../../composables/useTagName'
 import { useThemeClass } from '../../composables/useThemeClass'
 import JacketArt from './JacketArt.vue'
 
@@ -25,24 +26,48 @@ const props = defineProps<{
   program: Program
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
 const { resolveDeveloperName } = useDeveloperName()
+const { resolveTagName } = useTagName()
 const themeClass = useThemeClass()
 
 const developerName = computed(() => resolveDeveloperName(props.program.developerId))
+
+// Publisher shares the developer master list and — thanks to the form's
+// auto-fill — usually equals the developer. It gets its own segment on the
+// circle row only when it names a different entry, so the common case renders
+// exactly one name and the card height never changes.
+const publisherName = computed(() => {
+  const p = props.program
+  if (!p.publisherId || p.publisherId === p.developerId) return ''
+  return resolveDeveloperName(p.publisherId)
+})
+
+// Full, labeled names for the hover tooltip — the row itself may truncate both.
+const circleTooltip = computed(() => {
+  const parts: string[] = []
+  if (developerName.value) parts.push(`${t('detailView.developerLabel')}: ${developerName.value}`)
+  if (publisherName.value) parts.push(`${t('detailView.publisherLabel')}: ${publisherName.value}`)
+  return parts.join(' · ')
+})
 
 // Tags render on a single line. We measure how many actually fit and collapse
 // the remainder into a "+n" badge, so a program with many/long tags never grows
 // the card taller than its neighbours in the grid.
 const metaRef = ref<HTMLElement | null>(null)
-const visibleTagCount = ref(props.program.tags.length)
 
-const visibleTags = computed(() => props.program.tags.slice(0, visibleTagCount.value))
-const hiddenTagCount = computed(() => props.program.tags.length - visibleTagCount.value)
+// Tag ids on this program; the measurement/display resolves each to its
+// localized name. Recomputes when the tag list or UI language changes.
+const localizedTags = computed(() => props.program.tags)
+
+const visibleTagCount = ref(localizedTags.value.length)
+
+const visibleTags = computed(() => localizedTags.value.slice(0, visibleTagCount.value))
+const hiddenTagCount = computed(() => localizedTags.value.length - visibleTagCount.value)
 
 // Approx. footprint reserved for the "+n" badge (badge width + preceding gap)
 // so the last visible tag never sits where the badge needs to go.
@@ -51,7 +76,7 @@ const OVERFLOW_RESERVE = 40
 const computeVisibleTags = () => {
   const el = metaRef.value
   if (!el) return
-  const total = props.program.tags.length
+  const total = localizedTags.value.length
   if (total === 0) return
   const tagEls = Array.from(el.querySelectorAll<HTMLElement>('.card-tag'))
   if (tagEls.length < total) return // not all tags in the DOM yet
@@ -73,10 +98,8 @@ const computeVisibleTags = () => {
 
 // Two-phase: render every tag first so their natural widths are measurable,
 // then trim to what fits. Re-runs on resize and whenever the tag list changes.
-// The reveal is only translated out of sight, never unmounted or collapsed, so
-// these measurements stay valid while the card is idle.
 const measureTags = () => {
-  const total = props.program.tags.length
+  const total = localizedTags.value.length
   if (visibleTagCount.value !== total) {
     visibleTagCount.value = total
     nextTick(computeVisibleTags)
@@ -100,7 +123,9 @@ onBeforeUnmount(() => {
   resizeObserver = null
 })
 
-watch(() => props.program.tags, () => nextTick(measureTags), { deep: true })
+// Re-measure when the tag set changes, and when the UI language switches (tag
+// labels — and thus their widths — differ per language).
+watch([localizedTags, locale], () => nextTick(measureTags))
 
 const displayImage = computed(() => {
   const v = props.program.updatedAt
@@ -109,12 +134,8 @@ const displayImage = computed(() => {
   return ''
 })
 
-const isHighlighted = computed(() => libraryStore.highlightedProgramId === props.program.id)
-
-// With no cover art the jacket sets the title itself, so repeating it in the
-// caption would print the same words twice on one card — and the crowding is
-// what pushed long titles into an awkward stub column. The caption keeps only
-// the rows that appear on hover.
+// With no cover art JacketArt sets the title itself, so repeating it in the
+// caption would print the same words twice on one card.
 const hasArt = computed(() => !!displayImage.value)
 
 // How far the caption sits below the card edge while idle: exactly the height
@@ -122,10 +143,22 @@ const hasArt = computed(() => !!displayImage.value)
 // has neither a circle nor tags.
 const revealHeight = computed(() => {
   let h = 0
-  if (developerName.value) h += 20
+  if (developerName.value || publisherName.value) h += 20
   if (props.program.tags.length > 0) h += 27
   return h
 })
+
+// Keyboard: Enter/Space on the card itself mirrors a click (open detail).
+// Guarded to the card root so inner buttons keep their own key behaviour.
+const handleCardKeydown = (e: KeyboardEvent) => {
+  if (e.target !== e.currentTarget) return
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault()
+    handleCardClick()
+  }
+}
+
+const isHighlighted = computed(() => libraryStore.highlightedProgramId === props.program.id)
 
 // Provider badge over the top-left of the cover art. A local file is the
 // default, so it carries no mark — badging every jacket with the norm would
@@ -258,12 +291,11 @@ const handleDelete = () => {
     :class="{ 'is-highlighted': isHighlighted }"
     :style="{ '--reveal-h': `${revealHeight}px`, '--veil-base': hasArt ? '46%' : '0px' }"
     :data-program-id="program.id"
-    role="link"
+    role="button"
     tabindex="0"
     :aria-label="program.title"
     @click="handleCardClick"
-    @keydown.enter.prevent="handleCardClick"
-    @keydown.space.prevent="handleCardClick"
+    @keydown="handleCardKeydown"
     @contextmenu="handleContextMenu"
   >
     <JacketArt :title="program.title" :src="displayImage" />
@@ -313,15 +345,26 @@ const handleDelete = () => {
     <div class="jacket-caption">
       <div v-if="hasArt" class="card-title" :title="titleTooltip">{{ program.title }}</div>
       <div class="card-reveal">
-        <div v-if="developerName" class="card-developer truncate" :title="developerName">
-          <NIcon :component="DeveloperIcon" :size="13" class="card-developer-icon" />
+        <div
+          v-if="developerName || publisherName"
+          class="card-circle truncate"
+          :title="circleTooltip"
+        >
+          <NIcon :component="DeveloperIcon" :size="13" class="card-circle-icon" />
           <span class="truncate">{{ developerName }}</span>
+          <span v-if="publisherName" class="card-circle-sep">·</span>
+          <span v-if="publisherName" class="truncate">{{ publisherName }}</span>
         </div>
         <div v-if="program.tags.length > 0" ref="metaRef" class="card-meta">
           <NTag v-for="tag in visibleTags" :key="tag" size="small" class="card-tag">
-            {{ tag }}
+            {{ resolveTagName(tag) }}
           </NTag>
-          <NTag v-if="hiddenTagCount > 0" size="small" :bordered="false" class="card-tag card-tag-more">
+          <NTag
+            v-if="hiddenTagCount > 0"
+            size="small"
+            :bordered="false"
+            class="card-tag card-tag-more"
+          >
             +{{ hiddenTagCount }}
           </NTag>
         </div>
@@ -403,7 +446,7 @@ const handleDelete = () => {
 }
 
 /* The screenshot peek is a hover affordance by definition — showing it on every
-   idle jacket would put a second floating mark on all 24 covers for nothing. */
+   idle jacket would put a second floating mark on all covers for nothing. */
 .info-badge {
   right: 7px;
   cursor: help;
@@ -504,7 +547,7 @@ const handleDelete = () => {
 }
 
 /* Always laid out — only translated out of sight — so the tag-overflow
-   measurement below stays correct while the card is idle. */
+   measurement stays correct while the card is idle. */
 .card-reveal {
   height: var(--reveal-h);
   opacity: 0;
@@ -516,7 +559,9 @@ const handleDelete = () => {
   opacity: 1;
 }
 
-.card-developer {
+/* Circle row: developer, plus the publisher only when it names a different
+   entry (the forms auto-fill one from the other, so they usually match). */
+.card-circle {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -525,9 +570,14 @@ const handleDelete = () => {
   color: var(--plum-soft);
 }
 
-.card-developer-icon {
+.card-circle-icon {
   flex-shrink: 0;
   opacity: 0.85;
+}
+
+.card-circle-sep {
+  flex-shrink: 0;
+  opacity: 0.6;
 }
 
 .card-meta {

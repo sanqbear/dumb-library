@@ -21,24 +21,18 @@ const { t } = useI18n()
 // Sentinel for the synthetic "create the typed text as a new tag" option.
 const CREATE_KEY = '__create_tag__'
 
-// Live, IME-aware read of NSelect's inner <input>. The native `input` event
-// fires on every keystroke — including Hangul composition steps — so the
-// suggestion list and the "add" affordance react per visible character rather
-// than per finished syllable. NSelect's own `@search` is composition-gated
-// (it commits only on composition end), which is the IME lag we want to avoid.
-// Mirrors DeveloperSelect. We only read here; never write back (that breaks the
-// IME). See docs: input & IME handling guidelines.
+// Live search text driving the suggestion list and the "add" affordance.
+//
+// We set `:ignore-composition="false"` on NSelect so its `@search` fires on every
+// keystroke INCLUDING Hangul composition steps (live filtering), AND — crucially —
+// so naive keeps its internal pattern in sync with the composing text. If the
+// pattern lagged (the default `ignoreComposition: true`), our recomputed `options`
+// would re-render the selection and naive would re-apply its stale/empty pattern
+// to the inner <input>, wiping the in-flight glyph (only one char survived, prior
+// ones erased). Keeping the pattern live makes that re-apply a no-op. See docs:
+// input & IME handling guidelines.
 const searchText = ref('')
 
-const handleNativeInput = (event: Event) => {
-  const target = event.target as HTMLElement | null
-  if (target && target.tagName === 'INPUT') {
-    searchText.value = (target as HTMLInputElement).value
-  }
-}
-
-// NSelect commits the pattern on composition end / clear / selection — mirror it
-// so the live text resets correctly when the field is cleared or an item chosen.
 const onSearch = (query: string) => {
   searchText.value = query
 }
@@ -100,9 +94,7 @@ function handleUpdate(values: string[]) {
 </script>
 
 <template>
-  <!-- @input on the wrapper captures the inner <input>'s native event (it
-       bubbles), giving an IME-aware live read. -->
-  <div class="tag-input" @input="handleNativeInput">
+  <div class="tag-input">
     <NSelect
       multiple
       filterable
@@ -110,6 +102,7 @@ function handleUpdate(values: string[]) {
       :options="options"
       :placeholder="props.placeholder"
       :filter="() => true"
+      :ignore-composition="false"
       :show-arrow="false"
       @update:value="handleUpdate"
       @search="onSearch"
@@ -118,12 +111,16 @@ function handleUpdate(values: string[]) {
 </template>
 
 <style scoped>
-/* Fill the container. NFormItem lays its content out as a flex row, so without
-   an explicit width this wrapper shrinks to fit its chips — and with no tags at
-   all it collapsed to barely wider than the caret, taking the suggestion menu
-   (which naive-ui sizes to the trigger) down with it. */
+/* NFormItem lays its content out as a flex row, so without an explicit width
+   this wrapper shrinks to fit its chips — with no tags at all it collapsed to
+   barely wider than the caret, taking the suggestion menu (which naive-ui sizes
+   to the trigger) down with it. */
 .tag-input {
   width: 100%;
-  min-width: 0;
+}
+
+.tag-input :deep(.n-select) {
+  width: 100%;
+  min-width: 180px;
 }
 </style>

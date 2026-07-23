@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { Program, LibraryData, CreateProgramData, UpdateProgramData, ProviderId, SteamGame, CreateSteamProgramData, Developer, CreateDeveloperData, UpdateDeveloperData } from '../types'
+import type { Program, LibraryData, CreateProgramData, UpdateProgramData, ProviderId, SteamGame, CreateSteamProgramData, Developer, CreateDeveloperData, UpdateDeveloperData, Tag, CreateTagData, UpdateTagData } from '../types'
 
 export const useLibraryStore = defineStore('library', () => {
   // State
   const programs = ref<Program[]>([])
   const developers = ref<Developer[]>([])
+  const tags = ref<Tag[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -13,6 +14,13 @@ export const useLibraryStore = defineStore('library', () => {
   const developerMap = computed(() => {
     const map = new Map<string, Developer>()
     for (const d of developers.value) map.set(d.id, d)
+    return map
+  })
+
+  // Fast id → Tag lookup, rebuilt only when the tag list changes.
+  const tagMap = computed(() => {
+    const map = new Map<string, Tag>()
+    for (const t of tags.value) map.set(t.id, t)
     return map
   })
 
@@ -53,15 +61,31 @@ export const useLibraryStore = defineStore('library', () => {
   // program each time.
   const searchIndex = computed(() => {
     const devMap = developerMap.value
+    const tMap = tagMap.value
     const index = new Map<string, string>()
     for (const p of programs.value) {
       // Fold in every localized name of the linked developer so a search matches
-      // regardless of the UI language the name was typed in.
+      // regardless of the UI language the name was typed in. The publisher draws
+      // from the same master list — include it too when it names a different entry.
       const dev = p.developerId ? devMap.get(p.developerId) : undefined
-      const devNames = dev ? Object.values(dev.names).filter(Boolean).join('\n') : ''
+      let devNames = dev ? Object.values(dev.names).filter(Boolean).join('\n') : ''
+      const pub = p.publisherId && p.publisherId !== p.developerId
+        ? devMap.get(p.publisherId)
+        : undefined
+      if (pub) devNames += `\n${Object.values(pub.names).filter(Boolean).join('\n')}`
+      // Each referenced tag contributes ALL its localized names plus its hidden
+      // keyword, so a tag is found by its name in any language (or by keyword)
+      // regardless of the active UI language.
+      const tagText = p.tags
+        .map(id => {
+          const tag = tMap.get(id)
+          if (!tag) return ''
+          return `${Object.values(tag.names).filter(Boolean).join('\n')}\n${tag.keyword}`
+        })
+        .join('\n')
       index.set(
         p.id,
-        `${p.title}\n${devNames}\n${p.tags.join('\n')}\n${(p.keywords ?? []).join('\n')}`.toLowerCase()
+        `${p.title}\n${devNames}\n${tagText}\n${(p.keywords ?? []).join('\n')}`.toLowerCase()
       )
     }
     return index
@@ -103,9 +127,12 @@ export const useLibraryStore = defineStore('library', () => {
       result = result.filter(p => p.category === selectedCategory.value)
     }
 
-    // Filter by developer (circle)
+    // Filter by developer (circle) — matches the entry in either role, since
+    // developer and publisher share one master list.
     if (selectedDeveloper.value) {
-      result = result.filter(p => p.developerId === selectedDeveloper.value)
+      result = result.filter(
+        p => p.developerId === selectedDeveloper.value || p.publisherId === selectedDeveloper.value
+      )
     }
 
     // Filter by tags — membership tested against a Set to avoid a nested scan.
@@ -128,13 +155,11 @@ export const useLibraryStore = defineStore('library', () => {
     return result
   })
 
-  const allTags = computed(() => {
-    const tagSet = new Set<string>()
-    programs.value.forEach(p => {
-      p.tags.forEach(tag => tagSet.add(tag))
-    })
-    return Array.from(tagSet).sort()
-  })
+  // The full tag master list, sorted by Korean name. Consumers resolve each tag
+  // to the active-language label via useTagName.
+  const allTags = computed(() =>
+    [...tags.value].sort((a, b) => a.names.ko.localeCompare(b.names.ko, 'ko'))
+  )
 
   // Distinct search-index keywords across the whole library, for autocomplete
   // suggestions when editing a program's keywords.
@@ -158,6 +183,7 @@ export const useLibraryStore = defineStore('library', () => {
       const data: LibraryData = await window.electron.loadLibrary()
       programs.value = data.programs
       developers.value = data.developers ?? []
+      tags.value = data.tags ?? []
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load library'
       console.error('Failed to load library:', e)
@@ -275,15 +301,65 @@ export const useLibraryStore = defineStore('library', () => {
       await window.electron.deleteDeveloper(id)
       const index = developers.value.findIndex(d => d.id === id)
       if (index !== -1) developers.value.splice(index, 1)
-      // Mirror the main-process cleanup: drop the reference from any program
-      // in memory so the UI updates without a reload.
+      // Mirror the main-process cleanup: drop the reference (both roles) from
+      // any program in memory so the UI updates without a reload.
       for (const program of programs.value) {
         if (program.developerId === id) program.developerId = null
+        if (program.publisherId === id) program.publisherId = null
       }
       return true
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to delete developer'
       console.error('Failed to delete developer:', e)
+      return false
+    }
+  }
+
+  // Tag master-list actions (mirror the developer actions above).
+  const addTag = async (data: CreateTagData): Promise<Tag | null> => {
+    try {
+      const tag = await window.electron.addTag(data)
+      tags.value.push(tag)
+      return tag
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to add tag'
+      console.error('Failed to add tag:', e)
+      return null
+    }
+  }
+
+  const updateTag = async (data: UpdateTagData): Promise<Tag | null> => {
+    try {
+      const updated = await window.electron.updateTag(data)
+      const index = tags.value.findIndex(t => t.id === data.id)
+      if (index !== -1) tags.value[index] = updated
+      return updated
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to update tag'
+      console.error('Failed to update tag:', e)
+      return null
+    }
+  }
+
+  const deleteTag = async (id: string): Promise<boolean> => {
+    try {
+      await window.electron.deleteTag(id)
+      const index = tags.value.findIndex(t => t.id === id)
+      if (index !== -1) tags.value.splice(index, 1)
+      // Mirror the main-process cleanup: drop the id from any program in memory.
+      for (const program of programs.value) {
+        if (program.tags.includes(id)) {
+          program.tags = program.tags.filter(t => t !== id)
+        }
+      }
+      // Also drop it from the active tag filter if selected.
+      if (selectedTags.value.includes(id)) {
+        selectedTags.value = selectedTags.value.filter(t => t !== id)
+      }
+      return true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to delete tag'
+      console.error('Failed to delete tag:', e)
       return false
     }
   }
@@ -564,29 +640,33 @@ export const useLibraryStore = defineStore('library', () => {
     highlightedProgramId.value = null
   }
 
-  // Pick a random program from the entire library (not the filtered view).
-  // If the picked program is currently filtered out, filters are cleared so
-  // it becomes visible. Returns the picked program, or null when the library
-  // is empty.
-  const pickRandom = (): Program | null => {
-    if (programs.value.length === 0) return null
-    const picked = programs.value[Math.floor(Math.random() * programs.value.length)]
-    if (!picked) return null
-
+  // Highlight a program in the library view: clears filters when they hide it,
+  // then applies the temporary visual ring (components scroll it into view).
+  // Used by random pick and to reveal a freshly added program.
+  const highlightProgram = (id: string): void => {
     const visibleIds = new Set(filteredPrograms.value.map(p => p.id))
-    if (!visibleIds.has(picked.id)) {
+    if (!visibleIds.has(id)) {
       clearFilters()
     }
 
     if (highlightTimer !== null) {
       window.clearTimeout(highlightTimer)
     }
-    highlightedProgramId.value = picked.id
+    highlightedProgramId.value = id
     highlightTimer = window.setTimeout(() => {
       highlightedProgramId.value = null
       highlightTimer = null
     }, HIGHLIGHT_DURATION_MS)
+  }
 
+  // Pick a random program from the entire library (not the filtered view).
+  // Returns the picked program, or null when the library is empty.
+  const pickRandom = (): Program | null => {
+    if (programs.value.length === 0) return null
+    const picked = programs.value[Math.floor(Math.random() * programs.value.length)]
+    if (!picked) return null
+
+    highlightProgram(picked.id)
     return picked
   }
 
@@ -608,6 +688,8 @@ export const useLibraryStore = defineStore('library', () => {
     programs,
     developers,
     developerMap,
+    tags,
+    tagMap,
     isLoading,
     error,
     searchQuery,
@@ -636,6 +718,9 @@ export const useLibraryStore = defineStore('library', () => {
     addDeveloper,
     updateDeveloper,
     deleteDeveloper,
+    addTag,
+    updateTag,
+    deleteTag,
     launchProgram,
     revealProgram,
     openMarketUrl,
@@ -661,6 +746,7 @@ export const useLibraryStore = defineStore('library', () => {
     setSortBy,
     setSortOrder,
     setLibraryScrollTop,
+    highlightProgram,
     pickRandom,
     clearHighlight
   }
