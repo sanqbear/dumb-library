@@ -5,6 +5,7 @@ interface CreateProgramData {
   title: string
   executablePath: string
   developerId?: string | null
+  publisherId?: string | null
   tags?: string[]
 }
 
@@ -13,6 +14,7 @@ interface UpdateProgramData {
   title?: string
   executablePath?: string
   developerId?: string | null
+  publisherId?: string | null
   tags?: string[]
 }
 
@@ -30,6 +32,17 @@ interface CreateDeveloperData {
 interface UpdateDeveloperData {
   id: string
   names: LocalizedName
+}
+
+interface CreateTagData {
+  names: LocalizedName
+  keyword?: string
+}
+
+interface UpdateTagData {
+  id: string
+  names: LocalizedName
+  keyword?: string
 }
 
 interface Settings {
@@ -57,6 +70,10 @@ const IPC_CHANNELS = {
   ADD_DEVELOPER: 'developer:add',
   UPDATE_DEVELOPER: 'developer:update',
   DELETE_DEVELOPER: 'developer:delete',
+  // Tag master list
+  ADD_TAG: 'tag:add',
+  UPDATE_TAG: 'tag:update',
+  DELETE_TAG: 'tag:delete',
   LAUNCH_PROGRAM: 'program:launch',
   REVEAL_PROGRAM: 'program:reveal',
   OPEN_EXTERNAL: 'shell:openExternal',
@@ -121,6 +138,11 @@ const electronAPI = {
   addDeveloper: (data: CreateDeveloperData) => ipcRenderer.invoke(IPC_CHANNELS.ADD_DEVELOPER, data),
   updateDeveloper: (data: UpdateDeveloperData) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_DEVELOPER, data),
   deleteDeveloper: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_DEVELOPER, id),
+
+  // Tag operations
+  addTag: (data: CreateTagData) => ipcRenderer.invoke(IPC_CHANNELS.ADD_TAG, data),
+  updateTag: (data: UpdateTagData) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_TAG, data),
+  deleteTag: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_TAG, id),
 
   // Subscribe to background patches for a single program. Returns an unsubscribe.
   onProgramPatched: (

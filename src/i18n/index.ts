@@ -1,4 +1,5 @@
 import { createI18n } from 'vue-i18n'
+import type { LocalizedName } from '../types'
 import ko from './locales/ko'
 import en from './locales/en'
 import ja from './locales/ja'
@@ -18,6 +19,15 @@ export const LOCALE_META: Record<LocaleCode, { nativeName: string; englishName: 
 export const isLocaleCode = (value: unknown): value is LocaleCode => {
   return typeof value === 'string' && (SUPPORTED_LOCALES as string[]).includes(value)
 }
+
+/**
+ * Supported locales that have no (non-blank) name in `names`, in display order.
+ * Used by the developer/tag managers to flag entries whose translations are
+ * still incomplete. Only the localized display names count — auxiliary fields
+ * like a tag's hidden search keyword are intentionally excluded.
+ */
+export const missingLocaleNames = (names: LocalizedName): LocaleCode[] =>
+  SUPPORTED_LOCALES.filter(code => !(names[code] ?? '').trim())
 
 /**
  * Detect the best initial locale from the OS/browser preference.

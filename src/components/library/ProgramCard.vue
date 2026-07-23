@@ -13,36 +13,65 @@ import {
   TrashOutline as TrashIcon,
   LogoSteam as SteamIcon,
   DesktopOutline as LocalIcon,
-  PeopleOutline as DeveloperIcon
+  PeopleOutline as DeveloperIcon,
+  StorefrontOutline as PublisherIcon
 } from '@vicons/ionicons5'
 import type { Program, ProviderId } from '../../types'
 import { PROVIDERS, libImageUrl } from '../../types'
 import { useLibraryStore } from '../../stores/libraryStore'
 import { useDeveloperName } from '../../composables/useDeveloperName'
+import { useTagName } from '../../composables/useTagName'
 
 const props = defineProps<{
   program: Program
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
 const { resolveDeveloperName } = useDeveloperName()
+const { resolveTagName } = useTagName()
 
 const developerName = computed(() => resolveDeveloperName(props.program.developerId))
 
-const isHovered = ref(false)
+// Publisher shares the developer master list and — thanks to the form's
+// auto-fill — usually equals the developer. It gets its own segment on the
+// circle row only when it names a different entry, so the common case renders
+// exactly one name and the card height never changes.
+const publisherName = computed(() => {
+  const p = props.program
+  if (!p.publisherId || p.publisherId === p.developerId) return ''
+  return resolveDeveloperName(p.publisherId)
+})
+
+// Full, labeled names for the hover tooltip — the row itself may truncate both.
+const circleTooltip = computed(() => {
+  const parts: string[] = []
+  if (developerName.value) parts.push(`${t('detailView.developerLabel')}: ${developerName.value}`)
+  if (publisherName.value) parts.push(`${t('detailView.publisherLabel')}: ${publisherName.value}`)
+  return parts.join(' · ')
+})
+
+// Cover-image lifecycle: fade the image in once it loads (no pop-in while
+// scrolling) and fall back to the generated placeholder if the file is broken.
+const imgLoaded = ref(false)
+const imgError = ref(false)
 
 // Tags render on a single line. We measure how many actually fit and collapse
 // the remainder into a "+n" badge, so a program with many/long tags never grows
 // the card taller than its neighbours in the grid.
 const metaRef = ref<HTMLElement | null>(null)
-const visibleTagCount = ref(props.program.tags.length)
 
-const visibleTags = computed(() => props.program.tags.slice(0, visibleTagCount.value))
-const hiddenTagCount = computed(() => props.program.tags.length - visibleTagCount.value)
+// Tag ids on this program; the measurement/display resolves each to its
+// localized name. Recomputes when the tag list or UI language changes.
+const localizedTags = computed(() => props.program.tags)
+
+const visibleTagCount = ref(localizedTags.value.length)
+
+const visibleTags = computed(() => localizedTags.value.slice(0, visibleTagCount.value))
+const hiddenTagCount = computed(() => localizedTags.value.length - visibleTagCount.value)
 
 // Approx. footprint reserved for the "+n" badge (badge width + preceding gap)
 // so the last visible tag never sits where the badge needs to go.
@@ -51,7 +80,7 @@ const OVERFLOW_RESERVE = 40
 const computeVisibleTags = () => {
   const el = metaRef.value
   if (!el) return
-  const total = props.program.tags.length
+  const total = localizedTags.value.length
   if (total === 0) return
   const tagEls = Array.from(el.querySelectorAll<HTMLElement>('.card-tag'))
   if (tagEls.length < total) return // not all tags in the DOM yet
@@ -74,7 +103,7 @@ const computeVisibleTags = () => {
 // Two-phase: render every tag first so their natural widths are measurable,
 // then trim to what fits. Re-runs on resize and whenever the tag list changes.
 const measureTags = () => {
-  const total = props.program.tags.length
+  const total = localizedTags.value.length
   if (visibleTagCount.value !== total) {
     visibleTagCount.value = total
     nextTick(computeVisibleTags)
@@ -98,7 +127,9 @@ onBeforeUnmount(() => {
   resizeObserver = null
 })
 
-watch(() => props.program.tags, () => nextTick(measureTags), { deep: true })
+// Re-measure when the tag set changes, and when the UI language switches (tag
+// labels — and thus their widths — differ per language).
+watch([localizedTags, locale], () => nextTick(measureTags))
 
 const displayImage = computed(() => {
   const v = props.program.updatedAt
@@ -108,6 +139,35 @@ const displayImage = computed(() => {
 })
 
 const hasImage = computed(() => !!displayImage.value)
+
+// A replaced thumbnail (new URL) must load fresh — reset the fade/error state.
+watch(displayImage, () => {
+  imgLoaded.value = false
+  imgError.value = false
+})
+
+// Cover-less placeholder: a stable gradient derived from the title, with the
+// title rendered on top, so programs without artwork stay identifiable in the
+// grid instead of being anonymous grey tiles.
+const placeholderStyle = computed(() => {
+  let hue = 0
+  for (const ch of props.program.title) {
+    hue = (hue * 31 + (ch.codePointAt(0) ?? 0)) % 360
+  }
+  return {
+    background: `linear-gradient(160deg, hsl(${hue}, 30%, 34%) 0%, hsl(${(hue + 42) % 360}, 34%, 18%) 100%)`
+  }
+})
+
+// Keyboard: Enter/Space on the card itself mirrors a click (open detail).
+// Guarded to the card root so inner buttons keep their own key behaviour.
+const handleCardKeydown = (e: KeyboardEvent) => {
+  if (e.target !== e.currentTarget) return
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault()
+    handleCardClick()
+  }
+}
 
 const isHighlighted = computed(() => libraryStore.highlightedProgramId === props.program.id)
 
@@ -232,10 +292,12 @@ const handleDelete = () => {
     :data-program-id="program.id"
     :bordered="false"
     content-style="padding: 0"
+    tabindex="0"
+    role="button"
+    :aria-label="program.title"
     @click="handleCardClick"
+    @keydown="handleCardKeydown"
     @contextmenu="handleContextMenu"
-    @mouseenter="isHovered = true"
-    @mouseleave="isHovered = false"
   >
     <!-- Image area -->
     <div class="card-image">
@@ -243,15 +305,19 @@ const handleDelete = () => {
            scrolls near the viewport, and it's far lighter than a per-card
            NImage component instance when the grid holds many programs. -->
       <img
-        v-if="hasImage"
+        v-if="hasImage && !imgError"
         :src="displayImage"
         class="card-img"
+        :class="{ 'is-loaded': imgLoaded }"
         loading="lazy"
         decoding="async"
         alt=""
+        @load="imgLoaded = true"
+        @error="imgError = true"
       />
-      <div v-else class="placeholder-image">
-        <NIcon :component="ImageIcon" :size="48" />
+      <div v-else class="placeholder-image" :style="placeholderStyle">
+        <span class="placeholder-title">{{ program.title }}</span>
+        <NIcon :component="ImageIcon" :size="18" class="placeholder-icon" />
       </div>
 
       <!-- Provider badge (top-left, over the cover) -->
@@ -290,9 +356,11 @@ const handleDelete = () => {
         </div>
       </NPopover>
 
-      <!-- Overlay on hover -->
-      <div v-show="isHovered" class="card-overlay" @click.stop="handleCardClick">
-        <button class="launch-btn" @click.stop="handleLaunch" aria-label="실행">
+      <!-- Overlay on hover/focus — pure CSS visibility (opacity), so it fades
+           and never blocks the cover when hidden. A bottom gradient keeps most
+           of the artwork visible while the launch button floats above it. -->
+      <div class="card-overlay" @click.stop="handleCardClick">
+        <button class="launch-btn" @click.stop="handleLaunch" :aria-label="t('detailView.launch')">
           <NIcon :component="PlayIcon" :size="32" />
         </button>
       </div>
@@ -300,33 +368,74 @@ const handleDelete = () => {
 
     <!-- Info area -->
     <div class="card-info">
-      <div class="card-title truncate">{{ program.title }}</div>
-      <div v-if="developerName" class="card-developer truncate" :title="developerName">
-        <NIcon :component="DeveloperIcon" :size="13" class="card-developer-icon" />
-        <span class="truncate">{{ developerName }}</span>
+      <div class="card-title truncate" :title="program.title">{{ program.title }}</div>
+      <!-- Circle row: developer and (when different) publisher share one line;
+           the icons act as the labels and both segments shrink with ellipsis.
+           Rows below always render (with an em-dash when empty) so every card's
+           info block keeps the same structure and baselines line up per row. -->
+      <div class="card-developer" :title="circleTooltip || undefined">
+        <template v-if="developerName">
+          <NIcon :component="DeveloperIcon" :size="13" class="card-developer-icon" />
+          <span class="truncate circle-seg">{{ developerName }}</span>
+        </template>
+        <template v-if="publisherName">
+          <NIcon
+            :component="PublisherIcon"
+            :size="13"
+            class="card-developer-icon"
+            :class="{ 'circle-pub-gap': developerName }"
+          />
+          <span class="truncate circle-seg">{{ publisherName }}</span>
+        </template>
+        <span v-if="!developerName && !publisherName" class="row-empty">—</span>
       </div>
-      <div v-if="folderName" class="card-folder truncate" :title="program.executablePath">
-        <NIcon :component="FolderIcon" :size="13" class="card-folder-icon" />
-        <span class="truncate">{{ folderName }}</span>
+      <div class="card-folder truncate" :title="folderName ? program.executablePath : undefined">
+        <template v-if="folderName">
+          <NIcon :component="FolderIcon" :size="13" class="card-folder-icon" />
+          <span class="truncate">{{ folderName }}</span>
+        </template>
+        <span v-else class="row-empty">—</span>
       </div>
-      <div ref="metaRef" class="card-meta">
-        <NTag
-          v-for="tag in visibleTags"
-          :key="tag"
-          size="small"
-          class="card-tag"
-        >
-          {{ tag }}
-        </NTag>
-        <NTag
-          v-if="hiddenTagCount > 0"
-          size="small"
-          :bordered="false"
-          class="card-tag card-tag-more"
-        >
-          +{{ hiddenTagCount }}
-        </NTag>
-        <span v-if="program.tags.length === 0" class="card-meta-empty">—</span>
+      <!-- Tags. Since the row is single-line and often truncated to a "+n"
+           badge, clicking it opens a popover listing every tag. @click.stop
+           keeps the click from navigating to the detail page. -->
+      <NPopover
+        v-if="localizedTags.length > 0"
+        trigger="click"
+        placement="top"
+        :style="{ maxWidth: '280px' }"
+      >
+        <template #trigger>
+          <div
+            ref="metaRef"
+            class="card-meta card-meta-clickable"
+            :title="t('card.showTags')"
+            @click.stop
+          >
+            <NTag
+              v-for="tag in visibleTags"
+              :key="tag"
+              size="small"
+              class="card-tag"
+            >
+              {{ resolveTagName(tag) }}
+            </NTag>
+            <NTag
+              v-if="hiddenTagCount > 0"
+              size="small"
+              :bordered="false"
+              class="card-tag card-tag-more"
+            >
+              +{{ hiddenTagCount }}
+            </NTag>
+          </div>
+        </template>
+        <div class="tag-popover" @click.stop>
+          <NTag v-for="tag in localizedTags" :key="tag" size="small">{{ resolveTagName(tag) }}</NTag>
+        </div>
+      </NPopover>
+      <div v-else class="card-meta">
+        <span class="card-meta-empty">—</span>
       </div>
     </div>
 
@@ -364,6 +473,12 @@ const handleDelete = () => {
   box-shadow:
     0 6px 14px rgba(0, 0, 0, 0.38),
     0 16px 32px rgba(0, 0, 0, 0.34);
+}
+
+/* Keyboard focus ring — the card is tabbable (Enter/Space opens the detail). */
+.program-card:focus-visible {
+  outline: 2px solid #ab4aba;
+  outline-offset: 2px;
 }
 
 .light-theme .program-card {
@@ -415,15 +530,48 @@ const handleDelete = () => {
   height: 100%;
   object-fit: cover;
   display: block;
+  /* Fade in once loaded instead of popping while scrolling. */
+  opacity: 0;
+  transition: opacity 0.25s ease;
 }
 
+.card-img.is-loaded {
+  opacity: 1;
+}
+
+/* Cover-less tile: title-derived gradient (set inline) with the title on top,
+   so the program stays identifiable without artwork. */
 .placeholder-image {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #71717a;
+  padding: 14px;
+}
+
+.placeholder-title {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: center;
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+  -webkit-box-orient: vertical;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* Quiet "no cover yet" cue in the tile's corner. */
+.placeholder-icon {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 /* Provider / info badges float above the cover and stay above the hover
@@ -492,15 +640,33 @@ const handleDelete = () => {
   border-radius: 6px;
 }
 
+/* Hover/focus overlay: a bottom-weighted gradient keeps most of the cover art
+   visible (no full darkening). Hidden via opacity so it can fade, and
+   pointer-events off so the hidden state never eats clicks. */
 .card-overlay {
   position: absolute;
   inset: 0;
   z-index: 2;
-  background-color: rgba(0, 0, 0, 0.5);
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 0.3) 40%,
+    rgba(0, 0, 0, 0.05) 72%,
+    rgba(0, 0, 0, 0) 100%
+  );
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.program-card:hover .card-overlay,
+.program-card:focus-within .card-overlay {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .launch-btn {
@@ -564,6 +730,22 @@ const handleDelete = () => {
   font-size: 0.74rem;
   color: #d6a9dd;
   margin-bottom: 4px;
+  overflow: hidden;
+  /* Fixed row height (icon is 13px) so cards align whether or not data exists. */
+  min-height: 17px;
+}
+
+/* Developer/publisher segments shrink proportionally, each with its own
+   ellipsis, so the row stays a single line no matter how long the names are. */
+.circle-seg {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Breathing room between the developer segment and the publisher icon, so the
+   icon reads as the start of a new segment rather than a trailing glyph. */
+.circle-pub-gap {
+  margin-left: 6px;
 }
 
 .light-theme .card-developer {
@@ -582,6 +764,13 @@ const handleDelete = () => {
   font-size: 0.72rem;
   color: #a1a1aa;
   margin-bottom: 8px;
+  min-height: 17px;
+}
+
+/* Placeholder for an empty info row — mirrors the tag row's em-dash so every
+   card renders the same three rows and baselines stay aligned. */
+.row-empty {
+  color: #52525b;
 }
 
 .light-theme .card-folder {
@@ -602,6 +791,23 @@ const handleDelete = () => {
   overflow: hidden;
 }
 
+/* The tag row is clickable to reveal the full list in a popover. */
+.card-meta-clickable {
+  cursor: pointer;
+  border-radius: 6px;
+  margin: -2px -4px;
+  padding: 2px 4px;
+  transition: background-color 0.14s ease;
+}
+
+.card-meta-clickable:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.light-theme .card-meta-clickable:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
 /* Tags stay on one line: never shrink, never wrap their own text. */
 .card-tag {
   flex: 0 0 auto;
@@ -615,5 +821,27 @@ const handleDelete = () => {
 .card-meta-empty {
   font-size: 0.8rem;
   color: #52525b;
+}
+
+/* Full tag list inside the click popover — wraps freely. */
+.tag-popover {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Let a very long tag wrap onto multiple lines instead of overflowing the
+   popover: NTag defaults to a fixed height and single-line content. */
+.tag-popover :deep(.n-tag) {
+  max-width: 100%;
+  height: auto;
+  min-height: 22px;
+  white-space: normal;
+}
+
+.tag-popover :deep(.n-tag__content) {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 </style>

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { NImage, NImageGroup, NButton, NIcon, NTag, NDropdown, useMessage, useDialog } from 'naive-ui'
 import type { DropdownMixedOption } from 'naive-ui/es/dropdown/src/interface'
+import MarkdownIt from 'markdown-it'
 import {
   Play as PlayIcon,
   CreateOutline as EditIcon,
@@ -13,11 +14,13 @@ import {
   FolderOpenOutline as FolderIcon,
   TrashOutline as TrashIcon,
   ImageOutline as ImageIcon,
-  PeopleOutline as DeveloperIcon
+  PeopleOutline as DeveloperIcon,
+  StorefrontOutline as PublisherIcon
 } from '@vicons/ionicons5'
 import { useLibraryStore } from '../stores/libraryStore'
 import { useThemeClass } from '../composables/useThemeClass'
 import { useDeveloperName } from '../composables/useDeveloperName'
+import { useTagName } from '../composables/useTagName'
 import { libImageUrl, type Program } from '../types'
 
 const props = defineProps<{ id: string }>()
@@ -29,10 +32,22 @@ const message = useMessage()
 const confirmDialog = useDialog()
 const themeClass = useThemeClass()
 const { resolveDeveloperName } = useDeveloperName()
+const { resolveTagName } = useTagName()
 
 const program = computed(() => libraryStore.programs.find(p => p.id === props.id) ?? null)
 
 const developerName = computed(() => resolveDeveloperName(program.value?.developerId))
+
+// Publisher pill — only shown when it names a different entry than the
+// developer (both usually hold the same circle via the form's auto-fill).
+const publisherName = computed(() => {
+  const p = program.value
+  if (!p?.publisherId || p.publisherId === p.developerId) return ''
+  return resolveDeveloperName(p.publisherId)
+})
+
+// Tag ids on this program; each resolves to its localized name at display time.
+const localizedTags = computed(() => program.value?.tags ?? [])
 
 // Deep-links / stale ids: if the program isn't in the store, bounce home.
 watch(
@@ -58,29 +73,14 @@ const previewUrls = computed(() =>
   program.value ? program.value.previewImages.map(rel => libImageUrl(rel, program.value!.updatedAt)) : []
 )
 
-// Memo may contain http(s) URLs — split it into plain-text and link segments so
-// the links become clickable while the rest renders as-is (newlines preserved).
-type MemoSegment = { type: 'text' | 'link'; text: string; href?: string }
-const URL_RE = /https?:\/\/[^\s<>]+/g
-const memoSegments = computed<MemoSegment[]>(() => {
+// The memo is authored as Markdown and rendered for display only. Raw HTML is
+// disabled (html: false) so the field can never inject markup; linkify turns
+// bare URLs into links, matching the previous plain-text behaviour. Rendered
+// link clicks are intercepted below and opened in the system browser.
+const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
+const memoHtml = computed(() => {
   const memo = program.value?.memo ?? ''
-  if (!memo) return []
-  const segments: MemoSegment[] = []
-  let last = 0
-  for (const match of memo.matchAll(URL_RE)) {
-    const full = match[0] ?? ''
-    const start = match.index ?? 0
-    let url = full
-    // Trailing punctuation is usually sentence syntax, not part of the URL.
-    const trail = url.match(/[),.;:!?'"\]]+$/)?.[0] ?? ''
-    if (trail) url = url.slice(0, url.length - trail.length)
-    if (start > last) segments.push({ type: 'text', text: memo.slice(last, start) })
-    segments.push({ type: 'link', text: url, href: url })
-    if (trail) segments.push({ type: 'text', text: trail })
-    last = start + full.length
-  }
-  if (last < memo.length) segments.push({ type: 'text', text: memo.slice(last) })
-  return segments
+  return memo ? md.render(memo) : ''
 })
 
 const openExternalLink = async (url: string) => {
@@ -88,8 +88,19 @@ const openExternalLink = async (url: string) => {
   if (!ok) message.error(t('detailView.marketOpenFailed'))
 }
 
-// "Recommended" = other programs that share this one's developer and/or tags.
-// Same developer is weighted above any single shared tag; ties break by title.
+// Intercept clicks on links inside the rendered Markdown so http(s) URLs open
+// in the system browser instead of navigating the app window.
+const handleMemoClick = (e: MouseEvent) => {
+  const anchor = (e.target as HTMLElement | null)?.closest('a')
+  if (!anchor) return
+  e.preventDefault()
+  const href = anchor.getAttribute('href') ?? ''
+  if (/^https?:\/\//i.test(href)) openExternalLink(href)
+}
+
+// "Recommended" = other programs that share this one's circles (developer or
+// publisher role, same master list) and/or tags. A shared circle is weighted
+// above any single shared tag; ties break by title.
 const RECOMMENDATION_LIMIT = 8
 const recImage = (p: Program): string => {
   if (p.thumbnailPath) return libImageUrl(p.thumbnailPath, p.updatedAt)
@@ -100,11 +111,13 @@ const recommendations = computed<Program[]>(() => {
   const cur = program.value
   if (!cur) return []
   const curTags = new Set(cur.tags)
+  const curCircles = new Set([cur.developerId, cur.publisherId].filter((id): id is string => !!id))
   return libraryStore.programs
     .filter(p => p.id !== cur.id)
     .map(p => {
       let score = 0
-      if (cur.developerId && p.developerId === cur.developerId) score += 5
+      if ((p.developerId && curCircles.has(p.developerId)) ||
+          (p.publisherId && curCircles.has(p.publisherId))) score += 5
       for (const tag of p.tags) if (curTags.has(tag)) score += 1
       return { program: p, score }
     })
@@ -168,8 +181,7 @@ const handleFilterByTag = (tag: string) => {
   router.push({ name: 'library' })
 }
 
-const handleFilterByDeveloper = () => {
-  const id = program.value?.developerId
+const handleFilterByCircle = (id: string | null | undefined) => {
   if (!id) return
   libraryStore.clearFilters()
   libraryStore.setSelectedDeveloper(id)
@@ -254,18 +266,32 @@ const handleMenuSelect = (key: string) => {
             </NButton>
           </div>
         </div>
-        <!-- Developer / circle — no field title; sits at the header's bottom-right
-             (below the "more" button) and filters the library when clicked. -->
-        <button
-          v-if="developerName"
-          type="button"
-          class="detail-developer detail-developer-btn header-developer"
-          :title="t('detailView.filterByThis')"
-          @click="handleFilterByDeveloper"
-        >
-          <NIcon :component="DeveloperIcon" :size="15" class="developer-icon" />
-          <span>{{ developerName }}</span>
-        </button>
+        <!-- Developer / publisher — no field titles; sit at the header's
+             bottom-right (below the "more" button) and filter the library when
+             clicked. The publisher pill appears only when it differs from the
+             developer. -->
+        <div v-if="developerName || publisherName" class="header-circles">
+          <button
+            v-if="developerName"
+            type="button"
+            class="detail-developer detail-developer-btn header-developer"
+            :title="`${t('detailView.developerLabel')} · ${t('detailView.filterByThis')}`"
+            @click="handleFilterByCircle(program.developerId)"
+          >
+            <NIcon :component="DeveloperIcon" :size="14" class="developer-icon" />
+            <span>{{ developerName }}</span>
+          </button>
+          <button
+            v-if="publisherName"
+            type="button"
+            class="detail-developer detail-developer-btn header-developer"
+            :title="`${t('detailView.publisherLabel')} · ${t('detailView.filterByThis')}`"
+            @click="handleFilterByCircle(program.publisherId)"
+          >
+            <NIcon :component="PublisherIcon" :size="14" class="developer-icon" />
+            <span>{{ publisherName }}</span>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -287,18 +313,12 @@ const handleMenuSelect = (key: string) => {
       </section>
 
       <!-- Reference memo — display only, never part of search/filtering.
-           URLs are rendered as clickable links opened in the system browser. -->
+           Authored as Markdown; rendered here with links opened externally. -->
       <section v-if="program.memo" class="detail-section">
         <div class="section-label">{{ t('detailView.memoLabel') }}</div>
-        <p class="detail-memo"><template
-            v-for="(seg, i) in memoSegments"
-            :key="i"
-          ><a
-              v-if="seg.type === 'link'"
-              class="memo-link"
-              :href="seg.href"
-              @click.prevent="openExternalLink(seg.href ?? seg.text)"
-            >{{ seg.text }}</a><template v-else>{{ seg.text }}</template></template></p>
+        <!-- eslint-disable-next-line vue/no-v-html -- memo is rendered by
+             markdown-it with html:false, so no raw HTML can pass through. -->
+        <div class="detail-memo markdown-body" @click="handleMemoClick" v-html="memoHtml"></div>
       </section>
 
       <!-- Executable path, with a "reveal in explorer" button on the right. -->
@@ -325,14 +345,14 @@ const handleMenuSelect = (key: string) => {
         <div class="section-label">{{ t('detailView.tagsLabel') }}</div>
         <div class="detail-tags">
           <NTag
-            v-for="tag in program.tags"
+            v-for="tag in localizedTags"
             :key="tag"
             :bordered="false"
             class="detail-tag-clickable"
             :title="t('detailView.filterByThis')"
             @click="handleFilterByTag(tag)"
-          >{{ tag }}</NTag>
-          <span v-if="program.tags.length === 0" class="tags-empty">—</span>
+          >{{ resolveTagName(tag) }}</NTag>
+          <span v-if="localizedTags.length === 0" class="tags-empty">—</span>
         </div>
       </section>
 
@@ -436,20 +456,33 @@ const handleMenuSelect = (key: string) => {
   min-width: 0;
 }
 
-/* Developer pill lives in the header's bottom-right corner. */
-.header-developer {
+/* Developer/publisher pills stack in the header's bottom-right corner. They
+   size to their content and never shrink, so each name stays on one line; the
+   title beside them takes the remaining space and wraps instead. */
+.header-circles {
   flex: 0 0 auto;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.header-developer {
   margin-left: 0;
+  /* Cancel the pill's right padding so the name's right edge lines up with the
+     header's, keeping the stack flush against the corner. */
+  margin-right: -8px;
   margin-bottom: 4px;
-  max-width: 45%;
+  max-width: 100%;
   color: #e4d3e8;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
 }
 
+/* Names render in full on a single line — no ellipsis, no wrapping. */
 .header-developer span {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: right;
 }
 
 .light-theme .header-developer {
@@ -584,7 +617,7 @@ const handleMenuSelect = (key: string) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   color: #d4d4d8;
 }
 
@@ -647,7 +680,6 @@ const handleMenuSelect = (key: string) => {
 
 .detail-memo {
   margin: 0;
-  white-space: pre-wrap;
   word-break: break-word;
   font-size: 0.9rem;
   line-height: 1.6;
@@ -662,7 +694,54 @@ const handleMenuSelect = (key: string) => {
   background-color: #ffffff;
 }
 
-.memo-link {
+/* Rendered Markdown — spacing that collapses at the container's edges so the
+   memo box hugs its content regardless of the first/last block type. */
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body p {
+  margin: 0 0 0.6em;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin: 1em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.markdown-body h1 { font-size: 1.35rem; }
+.markdown-body h2 { font-size: 1.2rem; }
+.markdown-body h3 { font-size: 1.05rem; }
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 { font-size: 0.95rem; }
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0 0 0.6em;
+  padding-left: 1.4em;
+}
+
+.markdown-body li {
+  margin: 0.15em 0;
+}
+
+.markdown-body li > ul,
+.markdown-body li > ol {
+  margin: 0.15em 0;
+}
+
+.markdown-body a {
   color: #d6a9dd;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -670,16 +749,100 @@ const handleMenuSelect = (key: string) => {
   word-break: break-all;
 }
 
-.memo-link:hover {
+.markdown-body a:hover {
   color: #e8c4ee;
 }
 
-.light-theme .memo-link {
+.markdown-body code {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.85em;
+  background-color: #3f3f46;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+.markdown-body pre {
+  margin: 0 0 0.6em;
+  padding: 10px 12px;
+  background-color: #18181b;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.85em;
+}
+
+.markdown-body blockquote {
+  margin: 0 0 0.6em;
+  padding: 0.2em 0.9em;
+  border-left: 3px solid #52525b;
+  color: #a1a1aa;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid #3f3f46;
+  margin: 0.9em 0;
+}
+
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 0 0 0.6em;
+  display: block;
+  overflow-x: auto;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid #3f3f46;
+  padding: 0.35em 0.6em;
+  text-align: left;
+}
+
+.markdown-body th {
+  background-color: #3f3f46;
+}
+
+.markdown-body img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+.light-theme .markdown-body a {
   color: #953ea3;
 }
 
-.light-theme .memo-link:hover {
+.light-theme .markdown-body a:hover {
   color: #7d3389;
+}
+
+.light-theme .markdown-body code {
+  background-color: #f4f4f5;
+}
+
+.light-theme .markdown-body pre {
+  background-color: #f4f4f5;
+}
+
+.light-theme .markdown-body blockquote {
+  border-left-color: #d4d4d8;
+  color: #71717a;
+}
+
+.light-theme .markdown-body hr {
+  border-top-color: #e4e4e7;
+}
+
+.light-theme .markdown-body th,
+.light-theme .markdown-body td {
+  border-color: #e4e4e7;
+}
+
+.light-theme .markdown-body th {
+  background-color: #f4f4f5;
 }
 
 /* Recommendations — horizontal strip of compact program cards. */

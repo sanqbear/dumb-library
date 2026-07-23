@@ -1,37 +1,23 @@
 <script setup lang="ts">
-import { h, ref, computed, onMounted, onUnmounted } from 'vue'
+import { h, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { NDataTable, NButton, NIcon, NSpace, NImage, NTag, useMessage, useDialog } from 'naive-ui'
+import { NDataTable, NButton, NIcon, NSpace, NPopover, NTag, useMessage, useDialog } from 'naive-ui'
 import { Play as PlayIcon, Create as EditIcon, Trash as DeleteIcon } from '@vicons/ionicons5'
 import type { DataTableColumns } from 'naive-ui'
 import { useLibraryStore } from '../../stores/libraryStore'
 import type { Program } from '../../types'
 import { PROVIDERS, libImageUrl } from '../../types'
 import { useDeveloperName } from '../../composables/useDeveloperName'
+import { useTagName } from '../../composables/useTagName'
 
 const { t } = useI18n()
 const router = useRouter()
 const libraryStore = useLibraryStore()
 const { resolveDeveloperName } = useDeveloperName()
+const { resolveTagName } = useTagName()
 const message = useMessage()
 const dialog = useDialog()
-
-const tableMaxHeight = ref(500)
-
-const updateTableHeight = () => {
-  // Calculate available height (viewport - header - padding)
-  tableMaxHeight.value = window.innerHeight - 120
-}
-
-onMounted(() => {
-  updateTableHeight()
-  window.addEventListener('resize', updateTableHeight)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', updateTableHeight)
-})
 
 const getDisplayImage = (program: Program): string => {
   if (program.thumbnailPath) return libImageUrl(program.thumbnailPath, program.updatedAt)
@@ -91,23 +77,29 @@ const columns = computed<DataTableColumns<Program>>(() => [
     width: 50,
     render(row) {
       const src = getDisplayImage(row)
-      if (src) {
-        return h(NImage, {
-          src,
-          width: 32,
-          height: 32,
-          objectFit: 'cover',
-          style: { borderRadius: '4px' },
-          fallbackSrc: undefined
+      if (!src) {
+        return h('div', {
+          style: {
+            width: '32px',
+            height: '32px',
+            backgroundColor: '#3f3f46',
+            borderRadius: '4px'
+          }
         })
       }
-      return h('div', {
-        style: {
-          width: '32px',
-          height: '32px',
-          backgroundColor: '#3f3f46',
-          borderRadius: '4px'
-        }
+      // Plain <img> (no NImage lightbox) so a click only navigates the row; the
+      // large preview is shown on hover instead, avoiding the two overlapping
+      // actions (navigate + zoom) firing together.
+      const thumb = h('img', {
+        src,
+        style: 'width: 32px; height: 32px; object-fit: cover; border-radius: 4px; display: block;'
+      })
+      return h(NPopover, { trigger: 'hover', placement: 'right', delay: 120 }, {
+        trigger: () => thumb,
+        default: () => h('img', {
+          src,
+          style: 'display: block; max-width: 300px; max-height: 300px; object-fit: contain; border-radius: 6px;'
+        })
       })
     }
   },
@@ -138,12 +130,20 @@ const columns = computed<DataTableColumns<Program>>(() => [
     key: 'tags',
     width: 200,
     render(row) {
-      if (row.tags.length === 0) return '-'
-      return h(NSpace, { size: 'small' }, {
-        default: () => row.tags.slice(0, 3).map(tag =>
-          h(NTag, { size: 'small' }, { default: () => tag })
+      const tags = row.tags
+      if (tags.length === 0) return '-'
+      const shown = tags.slice(0, 3)
+      const extra = tags.length - shown.length
+      // Single-line row: nowrap + clip so long/many tags never grow the row.
+      const nodes = shown.map(tag =>
+        h(NTag, { size: 'small', style: 'flex: 0 0 auto;' }, { default: () => resolveTagName(tag) })
+      )
+      if (extra > 0) {
+        nodes.push(
+          h(NTag, { size: 'small', bordered: false, style: 'flex: 0 0 auto;' }, { default: () => `+${extra}` })
         )
-      })
+      }
+      return h('div', { style: 'display: flex; gap: 4px; overflow: hidden;' }, nodes)
     }
   },
   {
@@ -189,6 +189,7 @@ const columns = computed<DataTableColumns<Program>>(() => [
 <template>
   <div class="library-list">
     <NDataTable
+      class="list-table"
       :columns="columns"
       :data="libraryStore.filteredPrograms"
       :row-key="(row: Program) => row.id"
@@ -196,7 +197,7 @@ const columns = computed<DataTableColumns<Program>>(() => [
       :row-class-name="(row: Program) => libraryStore.highlightedProgramId === row.id ? 'is-highlighted' : ''"
       :bordered="false"
       striped
-      :max-height="tableMaxHeight"
+      flex-height
       virtual-scroll
       :min-row-height="48"
     />
@@ -206,7 +207,22 @@ const columns = computed<DataTableColumns<Program>>(() => [
 <style scoped>
 .library-list {
   height: 100%;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+
+/* Fill the column and let NDataTable's flex-height drive the body scroll, so the
+   table is the only scroller (no nested/duplicate outer scrollbar). */
+.list-table {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Full-bleed table — square corners so it reads as a list, not a floating card. */
+.list-table :deep(.n-data-table-wrapper),
+.list-table :deep(.n-data-table) {
+  border-radius: 0;
 }
 
 /* Background tint on highlighted row cells — no border/padding change,

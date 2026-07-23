@@ -68,6 +68,28 @@ export const localizedName = (names: LocalizedName, locale: LocaleCode): string 
   return value && value.trim() ? value : names.ko
 }
 
+// Tag master entry. Like Developer, programs reference one by `id` rather than
+// storing the name inline, so a tag is localized once and shows correctly in
+// every language. `keyword` is an extra, hidden search term (never displayed).
+export interface Tag {
+  id: string
+  names: LocalizedName
+  keyword: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateTagData {
+  names: LocalizedName
+  keyword?: string
+}
+
+export interface UpdateTagData {
+  id: string
+  names: LocalizedName
+  keyword?: string
+}
+
 // Program item in the library
 export interface Program {
   id: string
@@ -85,6 +107,12 @@ export interface Program {
   // unset. The localized name is resolved from the Developer registry, not
   // stored here. Included in search via its names.
   developerId: string | null
+  // Publisher reference — points into the SAME Developer master list as
+  // `developerId` (one shared pool of circles/companies, two roles). The
+  // create/edit forms fill the missing one from the other when only one is set.
+  publisherId: string | null
+  // References to Tag master entries by id. The localized names are resolved
+  // from the Tag registry, not stored here. Included in search via those names.
   tags: string[]
   // Free-form search-index keywords. Unlike `tags` they are not used for
   // categorization/filtering chips — they only widen what the search box matches.
@@ -105,6 +133,7 @@ export interface CreateProgramData {
   title: string
   executablePath: string
   developerId?: string | null
+  publisherId?: string | null
   tags?: string[]
   keywords?: string[]
   memo?: string
@@ -117,6 +146,7 @@ export interface UpdateProgramData {
   title?: string
   executablePath?: string
   developerId?: string | null
+  publisherId?: string | null
   tags?: string[]
   keywords?: string[]
   memo?: string
@@ -142,13 +172,20 @@ export interface LibraryData {
   // Developer / circle master list. Optional on disk for backward compatibility;
   // always present after load (migration backfills it from legacy data).
   developers: Developer[]
+  // Tag master list. Optional on disk; backfilled on load by migrating legacy
+  // inline tag strings into localized Tag entities.
+  tags: Tag[]
 }
+
+// Grid card density — the minimum card width the grid auto-fills with.
+export type GridCardSize = 'small' | 'medium' | 'large'
 
 // User settings
 export interface Settings {
   theme: 'dark' | 'light'
   viewMode: 'grid' | 'list'
   language: 'ko' | 'en' | 'ja' | 'zh-CN'
+  gridCardSize: GridCardSize
 }
 
 // View mode type
@@ -172,6 +209,11 @@ export interface ElectronAPI {
   addDeveloper: (data: CreateDeveloperData) => Promise<Developer>
   updateDeveloper: (data: UpdateDeveloperData) => Promise<Developer>
   deleteDeveloper: (id: string) => Promise<void>
+
+  // Tag master-list operations
+  addTag: (data: CreateTagData) => Promise<Tag>
+  updateTag: (data: UpdateTagData) => Promise<Tag>
+  deleteTag: (id: string) => Promise<void>
   // Background single-program patch pushed from main (e.g. async thumbnail).
   // Returns an unsubscribe function.
   onProgramPatched: (

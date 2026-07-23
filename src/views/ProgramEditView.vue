@@ -33,6 +33,7 @@ import { useThemeClass } from '../composables/useThemeClass'
 import ImageCropDialog from '../components/dialogs/ImageCropDialog.vue'
 import SteamArtworkDialog from '../components/dialogs/SteamArtworkDialog.vue'
 import TagInput from '../components/TagInput.vue'
+import TagSelect from '../components/TagSelect.vue'
 import DeveloperSelect from '../components/DeveloperSelect.vue'
 
 const props = defineProps<{ id: string }>()
@@ -55,6 +56,7 @@ const previewInput = useImageInput()
 const title = ref('')
 const executablePath = ref('')
 const developerId = ref<string | null>(null)
+const publisherId = ref<string | null>(null)
 const tags = ref<string[]>([])
 const keywords = ref<string[]>([])
 const memo = ref('')
@@ -125,6 +127,7 @@ watch(
       title.value = p.title
       executablePath.value = p.executablePath
       developerId.value = p.developerId ?? null
+      publisherId.value = p.publisherId ?? null
       tags.value = [...p.tags]
       keywords.value = [...(p.keywords ?? [])]
       memo.value = p.memo ?? ''
@@ -322,11 +325,14 @@ const handleSubmit = async () => {
   const pendingIcon = iconChanged.value ? iconPath.value : undefined
 
   try {
+    // Developer and publisher share one master list: when only one of the two
+    // was entered, the other is saved with the same value.
     const updated = await libraryStore.updateProgram({
       id: programId,
       title: title.value.trim(),
       executablePath: executablePath.value,
-      developerId: developerId.value,
+      developerId: developerId.value ?? publisherId.value,
+      publisherId: publisherId.value ?? developerId.value,
       tags: [...tags.value],
       keywords: [...keywords.value],
       memo: memo.value.trim(),
@@ -441,6 +447,15 @@ const handleDelete = () => {
               <DeveloperSelect v-model:value="developerId" />
             </NFormItem>
 
+            <!-- Publisher — same master list as developer; left empty it is
+                 saved with the developer's value (and vice versa). -->
+            <NFormItem :label="t('addDialog.publisherLabel')">
+              <div class="field-stack">
+                <DeveloperSelect v-model:value="publisherId" :placeholder="t('addDialog.publisherPlaceholder')" />
+                <span class="field-hint">{{ t('addDialog.publisherHint') }}</span>
+              </div>
+            </NFormItem>
+
             <!-- Executable Path -->
             <NFormItem :label="t('addDialog.executablePath')" required>
               <NInput v-model:value="executablePath" :placeholder="t('addDialog.executablePathPlaceholder')" readonly>
@@ -461,9 +476,8 @@ const handleDelete = () => {
 
             <!-- Tags -->
             <NFormItem :label="t('addDialog.tagsLabel')">
-              <TagInput
+              <TagSelect
                 v-model:value="tags"
-                :suggestions="libraryStore.allTags"
                 :placeholder="t('addDialog.tagInputPlaceholder')"
               />
             </NFormItem>

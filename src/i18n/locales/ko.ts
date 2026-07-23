@@ -11,7 +11,8 @@ export default {
     apply: '적용',
     rescan: '다시 스캔',
     change: '변경',
-    select: '선택'
+    select: '선택',
+    incompleteTranslations: '미입력 언어: {langs}'
   },
   header: {
     searchPlaceholder: '프로그램 검색...',
@@ -20,6 +21,10 @@ export default {
     addFromSteam: '스팀에서 추가',
     gridView: '그리드 보기',
     listView: '리스트 보기',
+    cardSize: '카드 크기',
+    cardSize_small: '작게',
+    cardSize_medium: '보통',
+    cardSize_large: '크게',
     darkMode: '다크 모드',
     lightMode: '라이트 모드',
     language: '언어',
@@ -35,6 +40,7 @@ export default {
     tags: '태그',
     selectTags: '태그 선택',
     clearTags: '태그 초기화',
+    manageTags: '태그 관리',
     tagSearchPlaceholder: '태그 검색...',
     noTags: '태그가 없습니다',
     noMatchingTags: '일치하는 태그가 없습니다',
@@ -56,11 +62,11 @@ export default {
     emptyFilteredAction: '필터를 조정해 보세요'
   },
   listView: {
-    columnTitle: 'Title',
-    columnProvider: 'Provider',
-    columnDeveloper: 'Developer',
-    columnTags: 'Tags',
-    columnActions: 'Actions'
+    columnTitle: '제목',
+    columnProvider: '제공자',
+    columnDeveloper: '개발사',
+    columnTags: '태그',
+    columnActions: '작업'
   },
   cardMenu: {
     launch: '실행',
@@ -80,6 +86,7 @@ export default {
     noPreviews: '미리보기 이미지가 없습니다',
     pathLabel: '실행 경로',
     developerLabel: '개발사(서클)',
+    publisherLabel: '배급사(퍼블리셔)',
     tagsLabel: '태그',
     memoLabel: '메모',
     filterByThis: '이 항목으로 목록 필터링',
@@ -91,6 +98,9 @@ export default {
     titlePlaceholder: '프로그램 이름 입력',
     developerLabel: '개발사(서클)',
     developerPlaceholder: '개발사 또는 서클 이름',
+    publisherLabel: '배급사(퍼블리셔)',
+    publisherPlaceholder: '배급사 선택 또는 검색',
+    publisherHint: '개발사·배급사 중 하나만 입력하면 나머지도 같은 값으로 저장됩니다',
     executablePath: '실행 파일 경로',
     executablePathPlaceholder: '실행 파일 선택',
     tagsLabel: '태그',
@@ -100,7 +110,7 @@ export default {
     keywordsHint: '분류에는 쓰이지 않고 검색에만 사용됩니다',
     memoLabel: '메모',
     memoPlaceholder: '참고용 메모를 입력하세요',
-    memoHint: '검색에는 포함되지 않는 참고용 메모입니다',
+    memoHint: '검색에는 포함되지 않는 참고용 메모입니다. 마크다운 서식을 사용할 수 있습니다',
     selectImage: '파일에서 선택',
     imageUrl: '이미지 URL',
     fetchUrl: '가져오기',
@@ -188,6 +198,7 @@ export default {
   card: {
     launchSuccess: '{title} 실행 중',
     launchFailed: '프로그램 실행에 실패했습니다',
+    showTags: '태그 보기',
     thumbnailUpdated: '썸네일이 업데이트되었습니다',
     thumbnailUpdateFailed: '썸네일 업데이트에 실패했습니다'
   },
@@ -211,6 +222,23 @@ export default {
     added: '개발사가 추가되었습니다',
     updated: '개발사가 수정되었습니다',
     deleted: '개발사가 삭제되었습니다',
+    saveFailed: '저장에 실패했습니다'
+  },
+  tag: {
+    manageTitle: '태그 관리',
+    listLabel: '등록된 태그',
+    empty: '등록된 태그가 없습니다',
+    addNew: '새 태그',
+    koRequired: '한국어 이름은 필수입니다. 다른 언어를 입력하지 않으면 한국어로 표시됩니다.',
+    namePlaceholder: '이름 입력',
+    keywordLabel: '검색 키워드',
+    keywordPlaceholder: '검색용 키워드 (선택)',
+    keywordHint: '화면에는 표시되지 않고 검색에만 사용됩니다',
+    deleteConfirmTitle: '태그 삭제',
+    deleteConfirmMessage: '"{name}"을(를) 삭제하시겠습니까? 이 태그를 사용하는 항목에서 연결이 해제됩니다.',
+    added: '태그가 추가되었습니다',
+    updated: '태그가 수정되었습니다',
+    deleted: '태그가 삭제되었습니다',
     saveFailed: '저장에 실패했습니다'
   },
   window: {

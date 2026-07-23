@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Theme, ViewMode, Settings } from '../types'
+import type { Theme, ViewMode, Settings, GridCardSize } from '../types'
 import { i18n, detectInitialLocale, isLocaleCode, type LocaleCode } from '../i18n'
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -8,6 +8,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const theme = ref<Theme>('dark')
   const viewMode = ref<ViewMode>('grid')
   const language = ref<LocaleCode>('ko')
+  const gridCardSize = ref<GridCardSize>('medium')
   const isLoading = ref(false)
 
   const applyLanguage = (lang: LocaleCode) => {
@@ -23,6 +24,8 @@ export const useSettingsStore = defineStore('settings', () => {
       const settings: Settings = await window.electron.loadSettings()
       theme.value = settings.theme
       viewMode.value = settings.viewMode
+      // Added after the first release — older settings files lack it.
+      gridCardSize.value = settings.gridCardSize ?? 'medium'
       // Language was introduced later — detect from OS when missing
       const savedLang = isLocaleCode(settings.language) ? settings.language : detectInitialLocale()
       applyLanguage(savedLang)
@@ -41,7 +44,8 @@ export const useSettingsStore = defineStore('settings', () => {
       await window.electron.saveSettings({
         theme: theme.value,
         viewMode: viewMode.value,
-        language: language.value
+        language: language.value,
+        gridCardSize: gridCardSize.value
       })
     } catch (e) {
       console.error('Failed to save settings:', e)
@@ -73,11 +77,17 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings()
   }
 
+  const setGridCardSize = (size: GridCardSize): void => {
+    gridCardSize.value = size
+    saveSettings()
+  }
+
   return {
     // State
     theme,
     viewMode,
     language,
+    gridCardSize,
     isLoading,
 
     // Actions
@@ -87,6 +97,7 @@ export const useSettingsStore = defineStore('settings', () => {
     toggleTheme,
     setViewMode,
     toggleViewMode,
-    setLanguage
+    setLanguage,
+    setGridCardSize
   }
 })

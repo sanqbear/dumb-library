@@ -15,6 +15,13 @@ const route = useRoute()
 // the detail/edit pages provide their own headers.
 const showLibraryHeader = computed(() => route.name === 'library')
 
+// The table list view fills the content area edge-to-edge (no card-like inset)
+// and manages its own scroll, so drop main-content's padding for it. The grid
+// keeps the padding for card spacing.
+const isFlushContent = computed(
+  () => route.name === 'library' && settingsStore.viewMode === 'list'
+)
+
 // Radix Plum brand over a Tailwind zinc neutral ramp. Plum 9 (#ab4aba) is the
 // solid primary in both themes; dark brightens on hover and darkens on press,
 // light darkens on both. Status: info = Radix Indigo (bright on dark surfaces),
@@ -109,7 +116,7 @@ onMounted(async () => {
                rather than covering the whole viewport or pushing layout. -->
           <div class="app-body">
             <AppHeader v-if="showLibraryHeader" />
-            <main class="main-content">
+            <main class="main-content" :class="{ 'is-flush': isFlushContent }">
               <!-- Keep the library list alive across navigation so its filters,
                    incremental-render window, and scroll position survive a trip to
                    the detail/edit pages and back. Only LibraryView is cached; the
@@ -155,5 +162,10 @@ onMounted(async () => {
   flex: 1;
   overflow: hidden;
   padding: 16px;
+}
+
+/* Table list view: edge-to-edge, no card-like inset. */
+.main-content.is-flush {
+  padding: 0;
 }
 </style>
