@@ -392,13 +392,8 @@ const handleCancel = () => {
 
 .games-count {
   font-size: 0.8rem;
-  color: #a1a1aa;
+  color: var(--text-2);
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.light-theme .games-count {
-  color: #52525b;
 }
 
 /* h()-rendered spans do not receive the scoped data-v attribute, so we
@@ -416,12 +411,8 @@ const handleCancel = () => {
 }
 
 :global(.clickable-name:hover) {
-  color: #d6a9dd;
+  color: var(--plum-soft);
   border-bottom-color: currentColor;
-}
-
-:global(.light-theme .clickable-name:hover) {
-  color: #953ea3;
 }
 
 .preview-body {
@@ -434,17 +425,13 @@ const handleCancel = () => {
 .preview-image {
   width: 100%;
   aspect-ratio: 2 / 3;
-  background-color: #18181b;
-  border-radius: 8px;
+  background-color: var(--surface-2);
+  border-radius: var(--r-md);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-}
-
-.light-theme .preview-image {
-  background-color: #e4e4e7;
 }
 
 .preview-image img {
@@ -467,22 +454,14 @@ const handleCancel = () => {
   gap: 8px;
   align-items: center;
   font-size: 0.85rem;
-  color: #a1a1aa;
-}
-
-.light-theme .preview-meta {
-  color: #52525b;
+  color: var(--text-2);
 }
 
 .preview-meta code {
   padding: 2px 8px;
-  border-radius: 4px;
-  background-color: rgba(255, 255, 255, 0.08);
-  font-variant-numeric: tabular-nums;
-}
-
-.light-theme .preview-meta code {
-  background-color: rgba(0, 0, 0, 0.06);
+  border-radius: var(--r-sm);
+  background-color: var(--surface-2);
+  font-family: var(--font-mono);
 }
 
 .manual-help {
@@ -492,12 +471,9 @@ const handleCancel = () => {
 
 .manual-help code {
   padding: 2px 4px;
-  border-radius: 3px;
-  background-color: rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-sm);
+  background-color: var(--surface-2);
+  font-family: var(--font-mono);
   font-size: 0.85em;
-}
-
-.light-theme .manual-help code {
-  background-color: rgba(0, 0, 0, 0.06);
 }
 </style>

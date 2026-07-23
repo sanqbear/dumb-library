@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+<defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="hsl(62 45% 22%)"/><stop offset="1" stop-color="hsl(62 55% 10%)"/>
+</linearGradient></defs>
+<rect width="960" height="540" fill="url(#s)"/>
+<rect x="40" y="542" width="62" height="400" fill="hsl(62 70% 60%)" opacity="0.40"/>
+<rect x="136" y="354" width="62" height="400" fill="hsl(74 70% 60%)" opacity="0.44"/>
+<rect x="232" y="518" width="62" height="400" fill="hsl(86 70% 60%)" opacity="0.21"/>
+<rect x="328" y="338" width="62" height="400" fill="hsl(98 70% 60%)" opacity="0.25"/>
+<rect x="424" y="481" width="62" height="400" fill="hsl(110 70% 60%)" opacity="0.28"/>
+<rect x="520" y="305" width="62" height="400" fill="hsl(122 70% 60%)" opacity="0.36"/>
+<rect x="616" y="357" width="62" height="400" fill="hsl(134 70% 60%)" opacity="0.40"/>
+<rect x="712" y="438" width="62" height="400" fill="hsl(146 70% 60%)" opacity="0.46"/>
+<rect x="808" y="515" width="62" height="400" fill="hsl(158 70% 60%)" opacity="0.46"/>
+<rect x="40" y="40" width="296" height="12" rx="2" fill="#fff" opacity="0.5"/>
+<rect x="40" y="66" width="152" height="8" rx="2" fill="#fff" opacity="0.28"/>
+</svg>

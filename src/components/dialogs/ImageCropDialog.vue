@@ -127,13 +127,9 @@ const handleCancel = () => {
 <style scoped>
 .cropper-box {
   height: 420px;
-  background-color: #18181b;
-  border-radius: 8px;
+  background-color: var(--surface-2);
+  border-radius: var(--r-md);
   overflow: hidden;
-}
-
-.cropper-box.light-theme {
-  background-color: #e4e4e7;
 }
 
 .cropper {

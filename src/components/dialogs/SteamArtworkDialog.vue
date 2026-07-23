@@ -164,9 +164,9 @@ const handleCancel = () => {
 }
 
 .artwork-card {
-  border-radius: 8px;
+  border-radius: var(--r-md);
   overflow: hidden;
-  background-color: #3f3f46;
+  background-color: var(--surface-2);
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   position: relative;
@@ -174,13 +174,9 @@ const handleCancel = () => {
   flex-direction: column;
 }
 
-.artwork-grid.light-theme .artwork-card {
-  background-color: #f4f4f5;
-}
-
 .artwork-card:hover:not(.is-unavailable):not(.is-loading) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-2);
 }
 
 .artwork-card.is-unavailable {
@@ -195,7 +191,7 @@ const handleCancel = () => {
 .artwork-image {
   width: 100%;
   aspect-ratio: 3 / 2;
-  background-color: #27272a;
+  background-color: var(--surface);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -213,7 +209,7 @@ const handleCancel = () => {
   position: absolute;
   inset: 0;
   margin: auto;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -231,8 +227,7 @@ const handleCancel = () => {
 }
 
 .artwork-aspect {
-  color: #a1a1aa;
-  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
 }
 
 .unavailable-hint {
@@ -242,7 +237,7 @@ const handleCancel = () => {
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
-  color: #a1a1aa;
+  color: var(--text-2);
   pointer-events: none;
 }
 </style>

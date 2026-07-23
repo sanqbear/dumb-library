@@ -1,3 +1,120 @@
+/* ============================================================
+   DESIGN TOKENS — "Ink & Jacket"
+
+   The neutral ramp is derived from the Plum brand hue (~292°) at
+   very low chroma, so surfaces read as warm violet-black ink rather
+   than the blue-grey of a stock zinc scale. Cover art is the only
+   place saturated colour is allowed to come from; plum is spent on
+   events (an active filter, a launch, a link) and nowhere else.
+
+   Dark is the default theme, so it lives on :root. Light overrides
+   under `.light-theme`, which App.vue puts on `.app-container` and
+   `useThemeClass()` puts on wrappers inside teleported naive-ui
+   modals — those sit outside `.app-container` and would otherwise
+   inherit the dark values.
+   ============================================================ */
+
+:root {
+  /* Surfaces */
+  --bg: #141018;
+  --surface: #1d1824;
+  --surface-2: #262030;
+  --line: #342c3e;
+  --border: #453b51;
+  --hairline: rgba(255, 255, 255, 0.06);
+
+  /* Text */
+  --text: #f0ebf4;
+  --text-2: #a79eb2;
+  --text-3: #6f6879;
+
+  /* Brand */
+  --plum: #ab4aba;
+  --plum-hover: #b658c4;
+  --plum-press: #8e3a9c;
+  /* Accent *text* — legible on the current background */
+  --plum-soft: #d9a6e4;
+  --plum-soft-hover: #e8c4ee;
+  --plum-wash: rgba(171, 74, 186, 0.16);
+  --plum-ring: rgba(171, 74, 186, 0.55);
+  --on-plum: #ffffff;
+
+  /* Status */
+  --danger: #e54d2e;
+  --danger-hover: #ec5e43;
+  --danger-press: #d13c1c;
+  --info: #7c8cf8;
+  /* Attention without alarm — e.g. a master entry whose translations are
+     still incomplete. Not an error, so it never borrows the danger colour. */
+  --warn: #eab308;
+
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 10px rgba(0, 0, 0, 0.28);
+  --shadow-2: 0 6px 14px rgba(0, 0, 0, 0.38), 0 16px 32px rgba(0, 0, 0, 0.34);
+  --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.5);
+
+  /* Scrims over cover art — identical in both themes, since they sit
+     on the artwork rather than on a surface. */
+  /* Text and marks that sit on cover art rather than on a surface, so they
+     stay light in both themes. */
+  --on-art: rgba(255, 255, 255, 0.94);
+
+  --scrim: rgba(0, 0, 0, 0.5);
+  --scrim-chip: rgba(0, 0, 0, 0.42);
+  --scrim-chip-hover: rgba(0, 0, 0, 0.78);
+
+  /* Radius — tight. A large radius on a cover reads as a widget;
+     4px reads as a printed jacket. */
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-pill: 999px;
+
+  /* Type. Pretendard alone covers Latin + Hangul (its Latin is
+     Inter-derived), so one family carries the whole UI; ja/zh fall
+     back to the platform face as before. */
+  --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Consolas', 'D2Coding', 'Courier New', monospace;
+  /* Display voice — a book serif for a shelf of books. Reserved for type set
+     large; at UI sizes it turns muddy and Pretendard reads better. */
+  --font-display: 'Noto Serif KR', 'Batang', Georgia, serif;
+
+  /* Section labels. Deliberately NOT uppercase + tracked: CSS cannot
+     uppercase Hangul, so that treatment left `메모` / `태그` as loose
+     11px text in the app's primary language. Hierarchy comes from
+     colour and weight instead, which works in every locale. */
+  --label-size: 0.8125rem;
+  --label-weight: 600;
+}
+
+.light-theme {
+  --bg: #f6f3f8;
+  --surface: #ffffff;
+  --surface-2: #efeaf2;
+  --line: #e5deea;
+  --border: #d8cfe0;
+  --hairline: rgba(0, 0, 0, 0.05);
+
+  --text: #17121d;
+  --text-2: #6b6376;
+  --text-3: #8b8394;
+
+  --plum-hover: #a144af;
+  --plum-press: #953ea3;
+  --plum-soft: #953ea3;
+  --plum-soft-hover: #7d3389;
+  --plum-wash: rgba(171, 74, 186, 0.1);
+  --plum-ring: rgba(171, 74, 186, 0.5);
+
+  --info: #3e63dd;
+  --warn: #ca8a04;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-2: 0 6px 16px rgba(0, 0, 0, 0.12), 0 18px 36px rgba(0, 0, 0, 0.16);
+  --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.14);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -11,14 +128,17 @@ html, body, #app {
 }
 
 body {
-  /* Inter leads for Latin; Pretendard (bundled) covers Hangul/CJK for the
-     KO/JA/ZH locales; the native system stack is the final offline fallback. */
-  font-family: 'Inter', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar styling for dark theme */
+/* Numbers in this app are content — collection size, how far a filter
+   narrowed it — so they never reflow while they tick. */
+body {
+  font-variant-numeric: tabular-nums;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -30,14 +150,13 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* Light theme scrollbar */
 .light-theme ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.2);
 }
@@ -50,16 +169,6 @@ body {
 .no-select {
   user-select: none;
   -webkit-user-select: none;
-}
-
-/* Card hover effect */
-.card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Truncate text */

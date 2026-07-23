@@ -18,7 +18,7 @@ import type {
   UpdateTagData,
   LocaleCode
 } from '../../src/types'
-import { isProviderId } from '../../src/types'
+import { DEFAULT_PROVIDER, isProviderId } from '../../src/types'
 import { normalizeExecutablePathForStorage } from './executablePath'
 import logger from './logger'
 
@@ -132,7 +132,7 @@ const normalizeImagePath = (value: unknown): string | null => {
 
 // Coerce legacy free-form `category` values to a valid ProviderId.
 // Programs saved before the provider-based categorization have strings like
-// "Games", null, etc. — those all get mapped to 'local'.
+// "Games", null, etc. — those all get mapped to the default provider.
 // Image paths are also normalized from absolute to userData-relative here.
 const migrateProgram = (raw: unknown): Program | null => {
   if (!raw || typeof raw !== 'object') return null
@@ -152,7 +152,7 @@ const migrateProgram = (raw: unknown): Program | null => {
           .filter((v): v is string => v !== null)
       : [],
     marketUrl: typeof p.marketUrl === 'string' && p.marketUrl.trim() ? p.marketUrl.trim() : null,
-    category: isProviderId(p.category) ? p.category : 'local',
+    category: isProviderId(p.category) ? p.category : DEFAULT_PROVIDER,
     developerId: typeof p.developerId === 'string' && p.developerId ? p.developerId : null,
     publisherId: typeof p.publisherId === 'string' && p.publisherId ? p.publisherId : null,
     tags: normalizeTags(p.tags),
@@ -433,7 +433,7 @@ export const addProgram = (data: CreateProgramData): Program => {
   const library = getLibrary()
   const now = new Date().toISOString()
 
-  // Local-file adds always map to the 'local' provider.
+  // Local-file adds always map to the default provider.
   // Future integrations (steam, etc.) will call a separate entry point.
   const newProgram: Program = {
     id: uuidv4(),
@@ -443,7 +443,7 @@ export const addProgram = (data: CreateProgramData): Program => {
     thumbnailPath: null,
     previewImages: [],
     marketUrl: data.marketUrl?.trim() || null,
-    category: 'local',
+    category: DEFAULT_PROVIDER,
     developerId: typeof data.developerId === 'string' && data.developerId ? data.developerId : null,
     publisherId: typeof data.publisherId === 'string' && data.publisherId ? data.publisherId : null,
     tags: normalizeTags(data.tags),

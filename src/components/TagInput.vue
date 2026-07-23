@@ -111,8 +111,10 @@ function handleUpdate(values: string[]) {
 </template>
 
 <style scoped>
-/* Fill the field width so an empty tag input stays readable instead of
-   collapsing to the (near-zero) width of its placeholder/content. */
+/* NFormItem lays its content out as a flex row, so without an explicit width
+   this wrapper shrinks to fit its chips — with no tags at all it collapsed to
+   barely wider than the caret, taking the suggestion menu (which naive-ui sizes
+   to the trigger) down with it. */
 .tag-input {
   width: 100%;
 }

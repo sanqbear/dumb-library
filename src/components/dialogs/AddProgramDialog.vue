@@ -256,15 +256,21 @@ const handleCancel = () => { emit('update:show', false) }
             <NInput v-model:value="title" :placeholder="t('addDialog.titlePlaceholder')" clearable
               @keydown.enter.prevent="goNext" />
           </NFormItem>
-          <NFormItem :label="t('addDialog.developerLabel')">
-            <DeveloperSelect v-model:value="developerId" />
-          </NFormItem>
-          <NFormItem :label="t('addDialog.publisherLabel')">
-            <div class="field-stack">
-              <DeveloperSelect v-model:value="publisherId" :placeholder="t('addDialog.publisherPlaceholder')" />
-              <span class="field-hint">{{ t('addDialog.publisherHint') }}</span>
-            </div>
-          </NFormItem>
+          <!-- Two roles from one master list — paired, with a single manager
+               button and one hint for the rule that binds them. -->
+          <div class="field-pair">
+            <NFormItem :label="t('addDialog.developerLabel')">
+              <DeveloperSelect v-model:value="developerId" />
+            </NFormItem>
+            <NFormItem :label="t('addDialog.publisherLabel')">
+              <DeveloperSelect
+                v-model:value="publisherId"
+                :placeholder="t('addDialog.publisherPlaceholder')"
+                hide-manage
+              />
+            </NFormItem>
+          </div>
+          <span class="field-hint field-pair-hint">{{ t('addDialog.publisherHint') }}</span>
         </template>
 
         <!-- Step 2: Images (thumbnail + previews) -->
@@ -310,7 +316,7 @@ const handleCancel = () => { emit('update:show', false) }
             @dragenter="previewInput.onDragEnter" @dragover="previewInput.onDragOver"
             @dragleave="previewInput.onDragLeave" @drop="handlePreviewDrop">
             <div class="media-label">
-              {{ t('editDialog.previewLabel') }} ({{ pendingPreviews.length }}/{{ MAX_PREVIEW_IMAGES }})
+              {{ t('editDialog.previewLabel') }} · {{ pendingPreviews.length }}/{{ MAX_PREVIEW_IMAGES }}
             </div>
             <div class="preview-grid">
               <div v-for="(item, i) in pendingPreviews" :key="i" class="preview-tile">
@@ -403,34 +409,21 @@ const handleCancel = () => { emit('update:show', false) }
 .media-section {
   margin-bottom: 16px;
   padding: 12px 16px;
-  background-color: #3f3f46;
-  border-radius: 8px;
+  background-color: var(--surface-2);
+  border-radius: var(--r-md);
   transition: box-shadow 0.15s ease;
 }
 
-.light-theme .media-section {
-  background-color: #f4f4f5;
-}
-
 .media-section.is-drag-over {
-  box-shadow: 0 0 0 2px #ab4aba;
+  box-shadow: 0 0 0 2px var(--plum);
 }
 
-.light-theme .media-section.is-drag-over {
-  box-shadow: 0 0 0 2px #ab4aba;
-}
-
+/* Section label token: no uppercase, no tracking — see global.css. */
 .media-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #a1a1aa;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  color: var(--plum-soft);
   margin-bottom: 10px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.light-theme .media-label {
-  color: #52525b;
 }
 
 .media-row {
@@ -442,19 +435,14 @@ const handleCancel = () => { emit('update:show', false) }
 .thumbnail-preview {
   width: 160px;
   height: 240px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   overflow: hidden;
   flex-shrink: 0;
 }
 
 .thumbnail-preview.is-empty {
-  border: 2px dashed #52525b;
-  background-color: #27272a;
-}
-
-.light-theme .thumbnail-preview.is-empty {
-  border-color: #d4d4d8;
-  background-color: #e4e4e7;
+  border: 2px dashed var(--border);
+  background-color: var(--surface);
 }
 
 .media-placeholder {
@@ -465,7 +453,7 @@ const handleCancel = () => { emit('update:show', false) }
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #71717a;
+  color: var(--text-3);
   font-size: 0.78rem;
   pointer-events: none;
 }
@@ -489,9 +477,9 @@ const handleCancel = () => { emit('update:show', false) }
   position: relative;
   width: 210px;
   aspect-ratio: 16 / 9;
-  border-radius: 6px;
+  border-radius: var(--r-md);
   overflow: hidden;
-  background-color: #27272a;
+  background-color: var(--surface);
 }
 
 .preview-remove {
@@ -503,10 +491,10 @@ const handleCancel = () => { emit('update:show', false) }
 .preview-add {
   width: 210px;
   aspect-ratio: 16 / 9;
-  border: 2px dashed #52525b;
-  border-radius: 6px;
-  background-color: #27272a;
-  color: #a1a1aa;
+  border: 2px dashed var(--border);
+  border-radius: var(--r-md);
+  background-color: var(--surface);
+  color: var(--text-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -515,17 +503,24 @@ const handleCancel = () => { emit('update:show', false) }
 }
 
 .preview-add:hover {
-  border-color: #ab4aba;
-  color: #d6a9dd;
-}
-
-.light-theme .preview-add {
-  background-color: #e4e4e7;
-  border-color: #d4d4d8;
+  border-color: var(--plum);
+  color: var(--plum-soft);
 }
 
 .preview-url {
   margin-top: 10px;
+}
+
+/* Two roles from one list, side by side when there is room. */
+.field-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0 16px;
+}
+
+.field-pair-hint {
+  display: block;
+  margin: -14px 0 18px;
 }
 
 .field-stack {
@@ -537,11 +532,7 @@ const handleCancel = () => { emit('update:show', false) }
 
 .field-hint {
   font-size: 0.72rem;
-  color: #a1a1aa;
-}
-
-.light-theme .field-hint {
-  color: #71717a;
+  color: var(--text-2);
 }
 
 .wizard-footer {

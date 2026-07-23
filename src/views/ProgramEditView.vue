@@ -29,7 +29,6 @@ import { useI18n } from 'vue-i18n'
 import { useLibraryStore } from '../stores/libraryStore'
 import { libImageUrl, MAX_PREVIEW_IMAGES } from '../types'
 import { useImageInput } from '../composables/useImageInput'
-import { useThemeClass } from '../composables/useThemeClass'
 import ImageCropDialog from '../components/dialogs/ImageCropDialog.vue'
 import SteamArtworkDialog from '../components/dialogs/SteamArtworkDialog.vue'
 import TagInput from '../components/TagInput.vue'
@@ -43,7 +42,6 @@ const router = useRouter()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
-const themeClass = useThemeClass()
 
 const program = computed(() => libraryStore.programs.find(p => p.id === props.id) ?? null)
 
@@ -383,57 +381,16 @@ const handleDelete = () => {
 </script>
 
 <template>
-  <div v-if="program" class="edit-view" :class="themeClass">
+  <div v-if="program" class="edit-view">
     <header class="edit-topbar">
       <NButton quaternary circle @click="goToDetail" :aria-label="t('common.cancel')">
         <template #icon><NIcon :component="BackIcon" /></template>
       </NButton>
       <h2 class="edit-heading">{{ t('editDialog.title') }}</h2>
-      <NButton type="error" ghost @click="handleDelete" :disabled="isSubmitting">
-        <template #icon><NIcon :component="DeleteIcon" /></template>
-        {{ t('common.delete') }}
-      </NButton>
     </header>
 
     <div class="edit-body">
       <NForm label-placement="top">
-        <!-- Preview images (landscape, max 3) — full width, shown first -->
-        <div class="media-section" :class="{ 'is-drag-over': previewInput.isDragOver.value }"
-          @dragenter="previewInput.onDragEnter" @dragover="previewInput.onDragOver" @dragleave="previewInput.onDragLeave"
-          @drop="handlePreviewDrop">
-          <div class="media-label">
-            {{ t('editDialog.previewLabel') }} ({{ previewItems.length }}/{{ MAX_PREVIEW_IMAGES }})
-          </div>
-          <div class="preview-grid">
-            <div v-for="(item, i) in previewItems" :key="item.rel" class="preview-tile">
-              <NImage :src="item.url" object-fit="cover" width="100%" height="100%" preview-disabled />
-              <div class="preview-tile-actions">
-                <NButton size="tiny" circle :disabled="i === 0" @click="handleMovePreview(i, -1)" aria-label="←">‹</NButton>
-                <NButton size="tiny" circle @click="handleSetPreviewAsThumbnail(item.url)" :title="t('editDialog.setAsThumbnail')">
-                  <template #icon><NIcon :component="CropIcon" /></template>
-                </NButton>
-                <NButton size="tiny" circle type="error" @click="handleRemovePreview(item.rel)" aria-label="×">
-                  <template #icon><NIcon :component="CloseIcon" /></template>
-                </NButton>
-                <NButton size="tiny" circle :disabled="i === previewItems.length - 1" @click="handleMovePreview(i, 1)" aria-label="→">›</NButton>
-              </div>
-            </div>
-            <button v-if="canAddPreview" type="button" class="preview-add" @click="handleSelectPreview">
-              <NIcon :component="AddIcon" :size="28" />
-              <span>{{ t('addDialog.selectImage') }}</span>
-            </button>
-          </div>
-          <NInputGroup v-if="canAddPreview" class="preview-url">
-            <NInput v-model:value="previewUrl" :placeholder="t('addDialog.imageUrl')"
-              @keydown.enter.prevent="handleFetchPreviewUrl" />
-            <NButton type="primary" :disabled="!previewUrl.trim() || previewInput.isFetching.value"
-              :loading="previewInput.isFetching.value" @click="handleFetchPreviewUrl">
-              <template #icon><NIcon :component="LinkIcon" /></template>
-              {{ t('addDialog.fetchUrl') }}
-            </NButton>
-          </NInputGroup>
-        </div>
-
         <div class="edit-grid">
           <!-- Left column: metadata fields -->
           <div class="edit-col-fields">
@@ -442,19 +399,24 @@ const handleDelete = () => {
               <NInput v-model:value="title" :placeholder="t('addDialog.titlePlaceholder')" clearable />
             </NFormItem>
 
-            <!-- Developer / circle — mapped to a master entry (included in search) -->
-            <NFormItem :label="t('addDialog.developerLabel')">
-              <DeveloperSelect v-model:value="developerId" />
-            </NFormItem>
-
-            <!-- Publisher — same master list as developer; left empty it is
-                 saved with the developer's value (and vice versa). -->
-            <NFormItem :label="t('addDialog.publisherLabel')">
-              <div class="field-stack">
-                <DeveloperSelect v-model:value="publisherId" :placeholder="t('addDialog.publisherPlaceholder')" />
-                <span class="field-hint">{{ t('addDialog.publisherHint') }}</span>
-              </div>
-            </NFormItem>
+            <!-- Two roles drawn from one master list, so they read as a pair.
+                 The manager button belongs to the pair, not to each field, and
+                 the hint describes the fill-in-either-direction rule that binds
+                 them — hence one of each for the row. Stacks on its own when the
+                 column gets narrow. -->
+            <div class="field-pair">
+              <NFormItem :label="t('addDialog.developerLabel')">
+                <DeveloperSelect v-model:value="developerId" />
+              </NFormItem>
+              <NFormItem :label="t('addDialog.publisherLabel')">
+                <DeveloperSelect
+                  v-model:value="publisherId"
+                  :placeholder="t('addDialog.publisherPlaceholder')"
+                  hide-manage
+                />
+              </NFormItem>
+            </div>
+            <span class="field-hint field-pair-hint">{{ t('addDialog.publisherHint') }}</span>
 
             <!-- Executable Path -->
             <NFormItem :label="t('addDialog.executablePath')" required>
@@ -534,17 +496,21 @@ const handleDelete = () => {
                       {{ t('addDialog.fetchUrl') }}
                     </NButton>
                   </NInputGroup>
-                  <NButton v-if="steamAppId !== null" @click="handleOpenArtworkDialog" :disabled="isSubmitting" block>
-                    <template #icon><NIcon :component="CloudDownloadIcon" /></template>
-                    {{ t('editDialog.steamArtworkSelect') }}
-                  </NButton>
-                  <NButton v-if="steamAppId !== null" @click="handleSteamRedownload" :disabled="isSubmitting" quaternary block>
-                    {{ t('editDialog.steamCoverRestore') }}
-                  </NButton>
-                  <NButton v-if="thumbnailPath" @click="handleRemoveThumbnail" quaternary block>
-                    <template #icon><NIcon :component="CloseIcon" /></template>
-                    {{ t('common.remove') }}
-                  </NButton>
+                  <!-- Occasional actions, kept on one quiet line so they do
+                       not read as equals of "choose a file". -->
+                  <div v-if="steamAppId !== null || thumbnailPath" class="media-extra">
+                    <NButton v-if="steamAppId !== null" size="small" quaternary @click="handleOpenArtworkDialog" :disabled="isSubmitting">
+                      <template #icon><NIcon :component="CloudDownloadIcon" /></template>
+                      {{ t('editDialog.steamArtworkSelect') }}
+                    </NButton>
+                    <NButton v-if="steamAppId !== null" size="small" quaternary @click="handleSteamRedownload" :disabled="isSubmitting">
+                      {{ t('editDialog.steamCoverRestore') }}
+                    </NButton>
+                    <NButton v-if="thumbnailPath" size="small" quaternary @click="handleRemoveThumbnail">
+                      <template #icon><NIcon :component="CloseIcon" /></template>
+                      {{ t('common.remove') }}
+                    </NButton>
+                  </div>
                 </div>
               </div>
             </div>
@@ -577,27 +543,73 @@ const handleDelete = () => {
                       {{ t('addDialog.fetchUrl') }}
                     </NButton>
                   </NInputGroup>
-                  <NButton v-if="canReextractIcon" @click="handleReextractIcon" :disabled="isSubmitting" block>
-                    <template #icon><NIcon :component="RefreshIcon" /></template>
-                    {{ t('editDialog.reextractFromExe') }}
-                  </NButton>
-                  <NButton v-if="steamAppId !== null" @click="handleApplySteamCachedIcon" :disabled="isSubmitting" block>
-                    <template #icon><NIcon :component="CloudDownloadIcon" /></template>
-                    {{ t('editDialog.steamCacheIcon') }}
-                  </NButton>
-                  <NButton v-if="iconPath" @click="handleRemoveIcon" quaternary block>
-                    <template #icon><NIcon :component="CloseIcon" /></template>
-                    {{ t('common.remove') }}
-                  </NButton>
+                  <div v-if="canReextractIcon || steamAppId !== null || iconPath" class="media-extra">
+                    <NButton v-if="canReextractIcon" size="small" quaternary @click="handleReextractIcon" :disabled="isSubmitting">
+                      <template #icon><NIcon :component="RefreshIcon" /></template>
+                      {{ t('editDialog.reextractFromExe') }}
+                    </NButton>
+                    <NButton v-if="steamAppId !== null" size="small" quaternary @click="handleApplySteamCachedIcon" :disabled="isSubmitting">
+                      <template #icon><NIcon :component="CloudDownloadIcon" /></template>
+                      {{ t('editDialog.steamCacheIcon') }}
+                    </NButton>
+                    <NButton v-if="iconPath" size="small" quaternary @click="handleRemoveIcon">
+                      <template #icon><NIcon :component="CloseIcon" /></template>
+                      {{ t('common.remove') }}
+                    </NButton>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        <!-- Preview images (landscape, max 3). Full width, and last: screenshots
+             describe the program but do not identify it. -->
+        <div class="media-section" :class="{ 'is-drag-over': previewInput.isDragOver.value }"
+          @dragenter="previewInput.onDragEnter" @dragover="previewInput.onDragOver" @dragleave="previewInput.onDragLeave"
+          @drop="handlePreviewDrop">
+          <div class="media-label">
+            {{ t('editDialog.previewLabel') }} · {{ previewItems.length }}/{{ MAX_PREVIEW_IMAGES }}
+          </div>
+          <div class="preview-grid">
+            <div v-for="(item, i) in previewItems" :key="item.rel" class="preview-tile">
+              <NImage :src="item.url" object-fit="cover" width="100%" height="100%" preview-disabled />
+              <div class="preview-tile-actions">
+                <NButton size="tiny" circle :disabled="i === 0" @click="handleMovePreview(i, -1)" aria-label="←">‹</NButton>
+                <NButton size="tiny" circle @click="handleSetPreviewAsThumbnail(item.url)" :title="t('editDialog.setAsThumbnail')">
+                  <template #icon><NIcon :component="CropIcon" /></template>
+                </NButton>
+                <NButton size="tiny" circle type="error" @click="handleRemovePreview(item.rel)" aria-label="×">
+                  <template #icon><NIcon :component="CloseIcon" /></template>
+                </NButton>
+                <NButton size="tiny" circle :disabled="i === previewItems.length - 1" @click="handleMovePreview(i, 1)" aria-label="→">›</NButton>
+              </div>
+            </div>
+            <button v-if="canAddPreview" type="button" class="preview-add" @click="handleSelectPreview">
+              <NIcon :component="AddIcon" :size="28" />
+              <span>{{ t('addDialog.selectImage') }}</span>
+            </button>
+          </div>
+          <NInputGroup v-if="canAddPreview" class="preview-url">
+            <NInput v-model:value="previewUrl" :placeholder="t('addDialog.imageUrl')"
+              @keydown.enter.prevent="handleFetchPreviewUrl" />
+            <NButton type="primary" :disabled="!previewUrl.trim() || previewInput.isFetching.value"
+              :loading="previewInput.isFetching.value" @click="handleFetchPreviewUrl">
+              <template #icon><NIcon :component="LinkIcon" /></template>
+              {{ t('addDialog.fetchUrl') }}
+            </NButton>
+          </NInputGroup>
+        </div>
       </NForm>
     </div>
 
+    <!-- Delete sits here, at the far end from Save, rather than beside the back
+         button in the top bar where an irreversible action had no business. -->
     <footer class="edit-footer">
+      <NButton type="error" quaternary @click="handleDelete" :disabled="isSubmitting">
+        <template #icon><NIcon :component="DeleteIcon" /></template>
+        {{ t('common.delete') }}
+      </NButton>
       <NSpace justify="end">
         <NButton @click="goToDetail" :disabled="isSubmitting">{{ t('common.cancel') }}</NButton>
         <NButton type="primary" @click="handleSubmit" :disabled="!isValid" :loading="isSubmitting">
@@ -627,12 +639,8 @@ const handleDelete = () => {
   align-items: center;
   gap: 12px;
   padding: 14px 24px;
-  border-bottom: 1px solid #3f3f46;
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
-}
-
-.light-theme .edit-topbar {
-  border-bottom-color: #e4e4e7;
 }
 
 .edit-heading {
@@ -651,12 +659,13 @@ const handleDelete = () => {
 
 /* Two-column layout: metadata fields on the left, thumbnail/icon on the right.
    Collapses to a single column on narrow windows. */
+/* Fields carry more weight than the two image slots, so they get the room. */
 .edit-grid {
   display: grid;
-  grid-template-columns: 1fr minmax(360px, 460px);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 400px);
+  gap: 32px;
   align-items: start;
-  margin-bottom: 16px;
+  margin-bottom: 28px;
 }
 
 @media (max-width: 980px) {
@@ -676,56 +685,55 @@ const handleDelete = () => {
 
 .edit-footer {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding: 14px 24px;
-  border-top: 1px solid #3f3f46;
+  border-top: 1px solid var(--line);
 }
 
-.light-theme .edit-footer {
-  border-top-color: #e4e4e7;
-}
-
+/* No filled panel: these were boxes containing boxes. A label and space mark
+   the section, matching every other labelled block in the app. The drop target
+   only announces itself while something is actually being dragged over it. */
 .media-section {
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background-color: #3f3f46;
-  border-radius: 8px;
-  transition: box-shadow 0.15s ease;
-}
-
-.light-theme .media-section {
-  background-color: #f4f4f5;
+  margin-bottom: 26px;
+  border-radius: var(--r-md);
 }
 
 .media-section.is-drag-over {
-  box-shadow: 0 0 0 2px #ab4aba;
+  outline: 2px dashed var(--plum);
+  outline-offset: 8px;
 }
 
-.light-theme .media-section.is-drag-over {
-  box-shadow: 0 0 0 2px #ab4aba;
+/* Occasional actions — Steam artwork, re-extract, remove — on one wrapping
+   line rather than a stack of full-width buttons. */
+.media-extra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
+/* Section label token: no uppercase, no tracking — see global.css. */
 .media-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #a1a1aa;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  color: var(--plum-soft);
   margin-bottom: 10px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 
-.light-theme .media-label {
-  color: #52525b;
-}
-
+/* Image over its controls, not beside them: the media column is ~380px wide,
+   and a 160px preview alongside left the URL field too narrow to read. */
 .media-row {
   display: flex;
-  gap: 16px;
-  align-items: stretch;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
 }
 
 .thumbnail-preview,
 .icon-preview {
-  border-radius: 8px;
+  border-radius: var(--r-md);
   overflow: hidden;
   flex-shrink: 0;
   position: relative;
@@ -736,14 +744,8 @@ const handleDelete = () => {
 
 .thumbnail-preview.is-empty,
 .icon-preview.is-empty {
-  border: 2px dashed #52525b;
-  background-color: #27272a;
-}
-
-.light-theme .thumbnail-preview.is-empty,
-.light-theme .icon-preview.is-empty {
-  border-color: #d4d4d8;
-  background-color: #e4e4e7;
+  border: 2px dashed var(--border);
+  background-color: var(--surface);
 }
 
 .media-placeholder {
@@ -754,7 +756,7 @@ const handleDelete = () => {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #71717a;
+  color: var(--text-3);
   font-size: 0.8rem;
   pointer-events: none;
 }
@@ -763,8 +765,7 @@ const handleDelete = () => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  justify-content: center;
-  flex: 1;
+  width: 100%;
   min-width: 0;
 }
 
@@ -779,9 +780,9 @@ const handleDelete = () => {
   flex: 1 1 280px;
   max-width: 480px;
   aspect-ratio: 16 / 9;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   overflow: hidden;
-  background-color: #27272a;
+  background-color: var(--surface);
 }
 
 .preview-tile-actions {
@@ -804,10 +805,10 @@ const handleDelete = () => {
   flex: 1 1 280px;
   max-width: 480px;
   aspect-ratio: 16 / 9;
-  border: 2px dashed #52525b;
-  border-radius: 8px;
-  background-color: #27272a;
-  color: #a1a1aa;
+  border: 2px dashed var(--border);
+  border-radius: var(--r-md);
+  background-color: var(--surface);
+  color: var(--text-2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -819,22 +820,26 @@ const handleDelete = () => {
 }
 
 .preview-add:hover {
-  border-color: #ab4aba;
-  color: #d6a9dd;
-}
-
-.light-theme .preview-add {
-  background-color: #e4e4e7;
-  border-color: #d4d4d8;
-}
-
-.light-theme .preview-add:hover {
-  border-color: #ab4aba;
-  color: #953ea3;
+  border-color: var(--plum);
+  color: var(--plum-soft);
 }
 
 .preview-url {
   margin-top: 12px;
+}
+
+/* Auto-fit rather than a fixed 50/50: the pair sits side by side when the
+   column has room and stacks when it doesn't, without a breakpoint to keep in
+   sync with the surrounding grid. */
+.field-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 16px;
+}
+
+.field-pair-hint {
+  display: block;
+  margin: -14px 0 18px;
 }
 
 .field-stack {
@@ -846,10 +851,6 @@ const handleDelete = () => {
 
 .field-hint {
   font-size: 0.72rem;
-  color: #a1a1aa;
-}
-
-.light-theme .field-hint {
-  color: #71717a;
+  color: var(--text-2);
 }
 </style>

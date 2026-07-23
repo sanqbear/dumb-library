@@ -17,10 +17,10 @@ import {
   StorefrontOutline as PublisherIcon
 } from '@vicons/ionicons5'
 import { useLibraryStore } from '../stores/libraryStore'
-import { useThemeClass } from '../composables/useThemeClass'
 import { useDeveloperName } from '../composables/useDeveloperName'
 import MarkdownText from '../components/MarkdownText.vue'
 import { useTagName } from '../composables/useTagName'
+import JacketArt from '../components/library/JacketArt.vue'
 import { libImageUrl, type Program } from '../types'
 
 const props = defineProps<{ id: string }>()
@@ -30,7 +30,6 @@ const router = useRouter()
 const libraryStore = useLibraryStore()
 const message = useMessage()
 const confirmDialog = useDialog()
-const themeClass = useThemeClass()
 const { resolveDeveloperName } = useDeveloperName()
 const { resolveTagName } = useTagName()
 
@@ -111,12 +110,13 @@ const handleOpenRecommendation = (id: string) => {
   router.push({ name: 'detail', params: { id } })
 }
 
-// Background art behind the title: first preview, else the thumbnail.
-const backdropUrl = computed(() => {
+// The jacket, shown at size. Previously this art only ever appeared blurred to
+// 45% behind the title, so the page hid the one image the user chose for it.
+const coverUrl = computed(() => {
   const p = program.value
   if (!p) return ''
-  if (p.previewImages.length > 0) return libImageUrl(p.previewImages[0], p.updatedAt)
   if (p.thumbnailPath) return libImageUrl(p.thumbnailPath, p.updatedAt)
+  if (p.iconPath) return libImageUrl(p.iconPath, p.updatedAt)
   return ''
 })
 
@@ -209,28 +209,56 @@ const handleMenuSelect = (key: string) => {
 </script>
 
 <template>
-  <div v-if="program" ref="detailViewRef" class="detail-view" :class="themeClass">
-    <!-- Header with blurred backdrop art -->
-    <header class="detail-header">
-      <div
-        v-if="backdropUrl"
-        class="detail-backdrop"
-        :style="{ backgroundImage: `url('${backdropUrl}')` }"
-      />
-      <div class="detail-header-scrim" />
-      <div class="detail-header-bar">
-        <NButton quaternary circle class="header-btn" @click="handleBack" :aria-label="t('detailView.back')">
-          <template #icon><NIcon :component="BackIcon" /></template>
+  <div v-if="program" ref="detailViewRef" class="detail-view">
+    <div class="detail-topbar">
+      <NButton quaternary circle @click="handleBack" :aria-label="t('detailView.back')">
+        <template #icon><NIcon :component="BackIcon" /></template>
+      </NButton>
+      <NDropdown trigger="click" :options="menuOptions" @select="handleMenuSelect">
+        <NButton quaternary circle>
+          <template #icon><NIcon :component="MoreIcon" /></template>
         </NButton>
-        <NDropdown trigger="click" :options="menuOptions" @select="handleMenuSelect">
-          <NButton quaternary circle class="header-btn">
-            <template #icon><NIcon :component="MoreIcon" /></template>
-          </NButton>
-        </NDropdown>
+      </NDropdown>
+    </div>
+
+    <!-- Jacket alongside the record: the cover the user picked is the page's
+         opening statement, at size and in focus. It stays put while the notes
+         scroll, so the thing being read about never leaves the screen. -->
+    <div class="detail-main">
+      <div class="hero-jacket">
+        <JacketArt :title="program.title" :src="coverUrl" />
       </div>
-      <div class="detail-header-content">
-        <div class="detail-header-main">
+
+      <div class="detail-record">
+        <header class="record-head">
           <h1 class="detail-title">{{ program.title }}</h1>
+
+          <!-- Developer and publisher share one master list; the publisher only
+               gets its own pill when it names a different entry. Either filters
+               the library when clicked. -->
+          <div v-if="developerName || publisherName" class="detail-circles">
+            <button
+              v-if="developerName"
+              type="button"
+              class="detail-developer detail-developer-btn"
+              :title="`${t('detailView.developerLabel')} · ${t('detailView.filterByThis')}`"
+              @click="handleFilterByCircle(program.developerId)"
+            >
+              <NIcon :component="DeveloperIcon" :size="15" class="developer-icon" />
+              <span>{{ developerName }}</span>
+            </button>
+            <button
+              v-if="publisherName"
+              type="button"
+              class="detail-developer detail-developer-btn"
+              :title="`${t('detailView.publisherLabel')} · ${t('detailView.filterByThis')}`"
+              @click="handleFilterByCircle(program.publisherId)"
+            >
+              <NIcon :component="PublisherIcon" :size="15" class="developer-icon" />
+              <span>{{ publisherName }}</span>
+            </button>
+          </div>
+
           <div class="detail-actions">
             <NButton type="primary" size="large" @click="handleLaunch">
               <template #icon><NIcon :component="PlayIcon" /></template>
@@ -245,123 +273,81 @@ const handleMenuSelect = (key: string) => {
               {{ t('detailView.openMarket') }}
             </NButton>
           </div>
-        </div>
-        <!-- Developer / publisher — no field titles; sit at the header's
-             bottom-right (below the "more" button) and filter the library when
-             clicked. The publisher pill appears only when it differs from the
-             developer. -->
-        <div v-if="developerName || publisherName" class="header-circles">
-          <button
-            v-if="developerName"
-            type="button"
-            class="detail-developer detail-developer-btn header-developer"
-            :title="`${t('detailView.developerLabel')} · ${t('detailView.filterByThis')}`"
-            @click="handleFilterByCircle(program.developerId)"
-          >
-            <NIcon :component="DeveloperIcon" :size="14" class="developer-icon" />
-            <span>{{ developerName }}</span>
-          </button>
-          <button
-            v-if="publisherName"
-            type="button"
-            class="detail-developer detail-developer-btn header-developer"
-            :title="`${t('detailView.publisherLabel')} · ${t('detailView.filterByThis')}`"
-            @click="handleFilterByCircle(program.publisherId)"
-          >
-            <NIcon :component="PublisherIcon" :size="14" class="developer-icon" />
-            <span>{{ publisherName }}</span>
-          </button>
-        </div>
-      </div>
-    </header>
 
-    <div class="detail-body">
-      <!-- Horizontal-scroll preview gallery -->
-      <section class="detail-section">
-        <div class="section-label">{{ t('detailView.previews') }}</div>
-        <NImageGroup v-if="previewUrls.length > 0">
-          <div class="preview-strip">
-            <div v-for="(url, i) in previewUrls" :key="i" class="preview-frame">
-              <NImage :src="url" object-fit="cover" width="100%" height="100%" />
-            </div>
+          <!-- Tags identify the program, so they sit with it rather than in a
+               labelled section further down the page. -->
+          <div v-if="localizedTags.length > 0" class="detail-tags">
+            <NTag
+              v-for="tag in localizedTags"
+              :key="tag"
+              :bordered="false"
+              class="detail-tag-clickable"
+              :title="t('detailView.filterByThis')"
+              @click="handleFilterByTag(tag)"
+            >{{ resolveTagName(tag) }}</NTag>
           </div>
-        </NImageGroup>
-        <div v-else class="preview-empty">
-          <NIcon :component="ImageIcon" :size="40" />
-          <span>{{ t('detailView.noPreviews') }}</span>
-        </div>
-      </section>
+        </header>
 
-      <!-- Reference memo — display only, never part of search/filtering.
-           Rendered as markdown; links open in the system browser. -->
-      <section v-if="program.memo" class="detail-section">
-        <div class="section-label">{{ t('detailView.memoLabel') }}</div>
-        <MarkdownText class="detail-memo" :source="program.memo" @link="openExternalLink" />
-      </section>
+        <!-- Liner notes. The only words on this page the user wrote themselves,
+             so they lead. Display only — never part of search/filtering.
+             Rendered as markdown; links open in the system browser. -->
+        <section v-if="program.memo" class="detail-section">
+          <div class="section-label">{{ t('detailView.memoLabel') }}</div>
+          <MarkdownText class="detail-memo" :source="program.memo" @link="openExternalLink" />
+        </section>
 
-      <!-- Executable path, with a "reveal in explorer" button on the right. -->
-      <section class="detail-section">
-        <div class="section-label">{{ t('detailView.pathLabel') }}</div>
-        <div class="detail-path-row">
+        <section class="detail-section">
+          <div class="section-label">{{ t('detailView.previews') }}</div>
+          <NImageGroup v-if="previewUrls.length > 0">
+            <div class="preview-strip">
+              <div v-for="(url, i) in previewUrls" :key="i" class="preview-frame">
+                <NImage :src="url" object-fit="cover" width="100%" height="100%" />
+              </div>
+            </div>
+          </NImageGroup>
+          <div v-else class="preview-empty">
+            <NIcon :component="ImageIcon" :size="40" />
+            <span>{{ t('detailView.noPreviews') }}</span>
+          </div>
+        </section>
+
+        <!-- Recommendations based on shared developer / tags. -->
+        <section v-if="recommendations.length > 0" class="detail-section">
+          <div class="section-label">{{ t('detailView.recommended') }}</div>
+          <div class="rec-strip">
+            <button
+              v-for="rec in recommendations"
+              :key="rec.id"
+              type="button"
+              class="rec-card"
+              @click="handleOpenRecommendation(rec.id)"
+            >
+              <div class="rec-thumb">
+                <JacketArt :title="rec.title" :src="recImage(rec)" />
+              </div>
+              <div class="rec-title">{{ rec.title }}</div>
+            </button>
+          </div>
+        </section>
+
+        <!-- Where the file lives: needed occasionally, so it closes the page
+             instead of taking a labelled block in the middle of it. -->
+        <footer class="detail-path-row">
           <div class="detail-path" :title="program.executablePath">
-            <NIcon :component="FolderIcon" :size="15" class="path-icon" />
-            <span class="path-text">{{ program.executablePath }}</span>
+            <NIcon :component="FolderIcon" :size="14" class="path-icon" />
+            <span class="path-text truncate">{{ program.executablePath }}</span>
           </div>
           <NButton
             v-if="canReveal"
             quaternary
-            class="path-reveal-btn"
+            size="small"
             :title="t('cardMenu.revealInExplorer')"
             @click="handleReveal"
           >
             <template #icon><NIcon :component="FolderIcon" /></template>
           </NButton>
-        </div>
-      </section>
-
-      <section class="detail-section">
-        <div class="section-label">{{ t('detailView.tagsLabel') }}</div>
-        <div class="detail-tags">
-          <NTag
-            v-for="tag in localizedTags"
-            :key="tag"
-            :bordered="false"
-            class="detail-tag-clickable"
-            :title="t('detailView.filterByThis')"
-            @click="handleFilterByTag(tag)"
-          >{{ resolveTagName(tag) }}</NTag>
-          <span v-if="localizedTags.length === 0" class="tags-empty">—</span>
-        </div>
-      </section>
-
-      <!-- Recommendations based on shared developer / tags. -->
-      <section v-if="recommendations.length > 0" class="detail-section">
-        <div class="section-label">{{ t('detailView.recommended') }}</div>
-        <div class="rec-strip">
-          <button
-            v-for="rec in recommendations"
-            :key="rec.id"
-            type="button"
-            class="rec-card"
-            @click="handleOpenRecommendation(rec.id)"
-          >
-            <div class="rec-thumb">
-              <img
-                v-if="recImage(rec)"
-                :src="recImage(rec)"
-                class="rec-thumb-img"
-                loading="lazy"
-                decoding="async"
-                alt=""
-              />
-              <div v-else class="rec-thumb-empty">
-                <NIcon :component="ImageIcon" :size="28" />
-              </div>
-            </div>
-            <div class="rec-title">{{ rec.title }}</div>
-          </button>
-        </div>
-      </section>
+        </footer>
+      </div>
     </div>
   </div>
 </template>
@@ -373,136 +359,95 @@ const handleMenuSelect = (key: string) => {
   margin: -16px;
 }
 
-.detail-header {
-  position: relative;
-  min-height: 120px;
+.detail-topbar {
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 26px 0;
+}
+
+.detail-main {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  padding: 14px 32px 40px;
+}
+
+.hero-jacket {
+  position: sticky;
+  top: 0;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
+}
+
+.detail-record {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  padding: 16px 26px 16px;
-  overflow: hidden;
-}
-
-.detail-backdrop {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center 30%;
-  /* Show only "part of" the image, softly — opacity + blur per the spec. */
-  opacity: 0.45;
-  filter: blur(2px);
-  transform: scale(1.05);
-}
-
-.detail-header-scrim {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, rgba(24, 24, 27, 0.35) 0%, rgba(24, 24, 27, 0.85) 100%);
-}
-
-.light-theme .detail-header-scrim {
-  background: linear-gradient(to bottom, rgba(244, 244, 245, 0.4) 0%, rgba(244, 244, 245, 0.92) 100%);
-}
-
-.detail-header-bar {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-}
-
-.header-btn {
-  background-color: rgba(0, 0, 0, 0.35);
-  color: #fafafa;
-}
-
-.light-theme .header-btn {
-  background-color: rgba(255, 255, 255, 0.55);
-  color: #18181b;
-}
-
-.detail-header-content {
-  position: relative;
-  margin-top: auto;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.detail-header-main {
-  flex: 1;
+  gap: 28px;
   min-width: 0;
 }
 
-/* Developer/publisher pills stack in the header's bottom-right corner. They
-   size to their content and never shrink, so each name stays on one line; the
-   title beside them takes the remaining space and wraps instead. */
-.header-circles {
-  flex: 0 0 auto;
-  max-width: 100%;
+.record-head {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: flex-start;
+  gap: 14px;
 }
 
-.header-developer {
-  margin-left: 0;
-  /* Cancel the pill's right padding so the name's right edge lines up with the
-     header's, keeping the stack flush against the corner. */
-  margin-right: -8px;
-  margin-bottom: 4px;
-  max-width: 100%;
-  color: #e4d3e8;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
-}
+/* One column below the app's minimum window width: the jacket keeps its
+   presence but stops squeezing the record. */
+@media (max-width: 900px) {
+  .detail-main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
 
-/* Names render in full on a single line — no ellipsis, no wrapping. */
-.header-developer span {
-  white-space: nowrap;
-  text-align: right;
-}
-
-.light-theme .header-developer {
-  text-shadow: none;
+  .hero-jacket {
+    position: static;
+    width: 168px;
+  }
 }
 
 .detail-title {
-  font-size: 2rem;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2.15rem;
   font-weight: 700;
-  margin: 10px 0px;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  line-height: 1.25;
+  /* The serif already has its own fit; the sans needed tightening, this does
+     not. */
+  letter-spacing: -0.005em;
   word-break: break-word;
-}
-
-.light-theme .detail-title {
-  text-shadow: none;
 }
 
 .detail-actions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 2px;
 }
 
-.detail-body {
-  padding: 24px 32px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-
+/* Section label token: no uppercase, no tracking — see global.css. */
 .section-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #a1a1aa;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  color: var(--plum-soft);
   margin-bottom: 12px;
 }
 
-.light-theme .section-label {
-  color: #71717a;
+.detail-memo {
+  /* A readable measure. Memo text ran the full window width before, which at
+     1360px is well past what anyone tracks comfortably. */
+  max-width: 760px;
+  word-break: break-word;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--text);
+  background-color: var(--surface);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
 }
 
 .preview-strip {
@@ -517,15 +462,11 @@ const handleMenuSelect = (key: string) => {
   flex: 0 0 auto;
   width: 420px;
   aspect-ratio: 16 / 9;
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   overflow: hidden;
-  background-color: #27272a;
+  background-color: var(--surface-2);
   scroll-snap-align: start;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
-}
-
-.light-theme .preview-frame {
-  background-color: #e4e4e7;
+  box-shadow: var(--shadow-1);
 }
 
 .preview-empty {
@@ -535,72 +476,18 @@ const handleMenuSelect = (key: string) => {
   justify-content: center;
   gap: 10px;
   height: 160px;
-  border: 2px dashed #3f3f46;
-  border-radius: 10px;
-  color: #71717a;
+  border: 2px dashed var(--border);
+  border-radius: var(--r-lg);
+  color: var(--text-3);
   font-size: 0.85rem;
-}
-
-.light-theme .preview-empty {
-  border-color: #d4d4d8;
-}
-
-.detail-path-row {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.detail-path {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.88rem;
-  color: #d4d4d8;
-  background-color: #27272a;
-  padding: 10px 14px;
-  border-radius: 8px;
-  word-break: break-all;
-}
-
-.path-reveal-btn {
-  flex: 0 0 auto;
-  height: auto;
-  background-color: #27272a;
-  color: #d4d4d8;
-}
-
-.light-theme .path-reveal-btn {
-  background-color: #ffffff;
-  color: #3f3f46;
-}
-
-.light-theme .detail-path {
-  color: #3f3f46;
-  background-color: #ffffff;
-}
-
-.path-icon {
-  flex-shrink: 0;
-  opacity: 0.8;
-}
-
-.path-text {
-  min-width: 0;
 }
 
 .detail-developer {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.85rem;
-  color: #d4d4d8;
-}
-
-.light-theme .detail-developer {
-  color: #3f3f46;
+  font-size: 0.95rem;
+  color: var(--text-2);
 }
 
 /* Developer name acts as a filter trigger — render as an inline, button-reset
@@ -610,39 +497,27 @@ const handleMenuSelect = (key: string) => {
   background: none;
   padding: 4px 8px;
   margin-left: -8px;
-  border-radius: 6px;
+  border-radius: var(--r-md);
   cursor: pointer;
   font: inherit;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .detail-developer-btn:hover {
-  background-color: rgba(171, 74, 186, 0.16);
-  color: #d6a9dd;
-}
-
-.light-theme .detail-developer-btn:hover {
-  background-color: rgba(171, 74, 186, 0.1);
-  color: #953ea3;
-}
-
-.detail-tag-clickable {
-  cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-
-.detail-tag-clickable:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 0 1px rgba(171, 74, 186, 0.55);
-}
-
-.light-theme .detail-tag-clickable:hover {
-  box-shadow: 0 0 0 1px rgba(171, 74, 186, 0.5);
+  background-color: var(--plum-wash);
+  color: var(--plum-soft);
 }
 
 .developer-icon {
   flex-shrink: 0;
   opacity: 0.8;
+}
+
+.detail-circles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: -8px;
 }
 
 .detail-tags {
@@ -652,26 +527,17 @@ const handleMenuSelect = (key: string) => {
   align-items: center;
 }
 
-.tags-empty {
-  color: #71717a;
+.detail-tag-clickable {
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
-.detail-memo {
-  word-break: break-word;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: #d4d4d8;
-  background-color: #27272a;
-  border-radius: 8px;
-  padding: 12px 14px;
+.detail-tag-clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px var(--plum-ring);
 }
 
-.light-theme .detail-memo {
-  color: #3f3f46;
-  background-color: #ffffff;
-}
-
-/* Recommendations — horizontal strip of compact program cards. */
+/* Recommendations — horizontal strip of compact jackets. */
 .rec-strip {
   display: flex;
   gap: 14px;
@@ -694,45 +560,31 @@ const handleMenuSelect = (key: string) => {
   color: inherit;
 }
 
-.rec-thumb {
-  width: 100%;
-  aspect-ratio: 2 / 3;
-  border-radius: 10px;
-  overflow: hidden;
-  background-color: #27272a;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
+.rec-card:focus-visible {
+  outline: 2px solid var(--plum);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
 }
 
-.light-theme .rec-thumb {
-  background-color: #e4e4e7;
+.rec-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 
 .rec-card:hover .rec-thumb {
   transform: translateY(-4px);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.34);
-}
-
-.rec-thumb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.rec-thumb-empty {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #71717a;
+  box-shadow: var(--shadow-2);
 }
 
 .rec-title {
   font-size: 0.82rem;
   line-height: 1.3;
-  color: #d4d4d8;
+  color: var(--text);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -740,7 +592,38 @@ const handleMenuSelect = (key: string) => {
   overflow: hidden;
 }
 
-.light-theme .rec-title {
-  color: #3f3f46;
+/* Path footer — a quiet closing line, not a titled block. */
+.detail-path-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.detail-path {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-3);
+}
+
+.path-icon {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.path-text {
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-thumb,
+  .detail-tag-clickable {
+    transition: none;
+  }
 }
 </style>
